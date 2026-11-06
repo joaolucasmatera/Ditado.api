@@ -21,6 +21,8 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 
 ### CAT-02 — Publicar erro no catálogo
 
+**Fatia aprovada vigente:** [CAT-02 — Publicar erro no Marketplace](../../docs/epicos/marketplace-cat02.md). Nome/Descrição obrigatórios; grupo Exemplo opcional (esperado e resposta, ambos ou nenhum), Observação/Série opcionais. Código e metadados gerados pelo servidor; publicação sem executor/LLM. Persistência, formulário e confirmação; não inclui listagem ampla CAT-01.
+
 **Como** professor ou administrador, **quero** publicar uma definição de erro, **para** que ela possa ser usada no catálogo e em ditados.
 
 **Critérios de aceite**
@@ -165,3 +167,7 @@ Esta revisão compara o rascunho com `ESPECIFICACAO_PG2.md`, especialmente as se
 6. Entregar CAT-08 como procedimento operacional com restauração verificada.
 
 As decisões acima permanecem pendentes; esta revisão não as converte em requisitos confirmados.
+
+## Checkpoint CAT-09 — 6 nov 2026
+
+Seleção por ditado mantida por decisão humana; CAT-05 continua requisito da COR-01. [Contrato em revisão](../../docs/epicos/catalogo-contrato.md) e [ER proposto](../../docs/diagramas/catalogo-er.md) detalham este refinamento sem autorizar implementação. PER-14 permanece In Progress; decisões bloqueadoras estão discriminadas no contrato.

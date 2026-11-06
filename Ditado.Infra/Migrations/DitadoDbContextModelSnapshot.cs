@@ -131,6 +131,67 @@ namespace Ditado.Infra.Migrations
                     b.ToTable("DitadoSegmentos", (string)null);
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ErroCatalogo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<int>("AutorId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime>("DataAlteracao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("DataCriacao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Descricao")
+                        .IsRequired()
+                        .HasMaxLength(10000)
+                        .HasColumnType("text");
+
+                    b.Property<string>("ExemploEsperado")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("ExemploResposta")
+                        .HasMaxLength(2000)
+                        .HasColumnType("varchar(2000)");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("ObservacaoPedagogica")
+                        .HasMaxLength(10000)
+                        .HasColumnType("text");
+
+                    b.Property<string>("SerieAno")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AutorId");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("ErrosCatalogo", (string)null);
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
                 {
                     b.Property<int>("Id")
@@ -382,6 +443,17 @@ namespace Ditado.Infra.Migrations
                         .IsRequired();
 
                     b.Navigation("Ditado");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ErroCatalogo", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Usuario", "Autor")
+                        .WithMany()
+                        .HasForeignKey("AutorId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Autor");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
