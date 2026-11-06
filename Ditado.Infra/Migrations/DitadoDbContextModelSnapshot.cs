@@ -17,7 +17,7 @@ namespace Ditado.Infra.Migrations
         {
 #pragma warning disable 612, 618
             modelBuilder
-                .HasAnnotation("ProductVersion", "9.0.10")
+                .HasAnnotation("ProductVersion", "9.0.11")
                 .HasAnnotation("Relational:MaxIdentifierLength", 64);
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
@@ -172,8 +172,18 @@ namespace Ditado.Infra.Migrations
                     b.Property<bool>("Correto")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<int>("EstadoClassificacao")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("MetodoClassificacao")
+                        .HasColumnType("int");
+
                     b.Property<int>("RespostaDitadoId")
                         .HasColumnType("int");
+
+                    b.Property<string>("RespostaEsperada")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
 
                     b.Property<string>("RespostaFornecida")
                         .IsRequired()
@@ -193,6 +203,19 @@ namespace Ditado.Infra.Migrations
                     b.HasIndex("SegmentoId");
 
                     b.ToTable("RespostaSegmentos", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaSegmentoTipoErro", b =>
+                {
+                    b.Property<int>("RespostaSegmentoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TipoErro")
+                        .HasColumnType("int");
+
+                    b.HasKey("RespostaSegmentoId", "TipoErro");
+
+                    b.ToTable("RespostaSegmentoTiposErro", (string)null);
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.Turma", b =>
@@ -399,6 +422,17 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("Segmento");
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaSegmentoTipoErro", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.RespostaSegmento", "RespostaSegmento")
+                        .WithMany("TiposErro")
+                        .HasForeignKey("RespostaSegmentoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.Navigation("RespostaSegmento");
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.Turma", b =>
                 {
                     b.HasOne("Ditado.Dominio.Entidades.Usuario", "ProfessorResponsavel")
@@ -468,6 +502,11 @@ namespace Ditado.Infra.Migrations
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
                 {
                     b.Navigation("RespostasSegmentos");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaSegmento", b =>
+                {
+                    b.Navigation("TiposErro");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.Turma", b =>

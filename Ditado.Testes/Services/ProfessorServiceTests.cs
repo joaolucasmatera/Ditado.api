@@ -420,7 +420,13 @@ public class ProfessorServiceTests : IDisposable
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
 
         // Aluno 1: erro de acentuação
-        await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 0m, TipoErro.Acentuacao);
+        var respostaAluno1 = await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 0m, TipoErro.Acentuacao);
+        var respostaMultipla = respostaAluno1.RespostasSegmentos.First(rs => !rs.Correto);
+        respostaMultipla.EstadoClassificacao = EstadoClassificacao.Classificado;
+        respostaMultipla.MetodoClassificacao = MetodoClassificacao.Codigo;
+        respostaMultipla.TiposErro.Add(new RespostaSegmentoTipoErro { TipoErro = TipoErro.Acentuacao });
+        respostaMultipla.TiposErro.Add(new RespostaSegmentoTipoErro { TipoErro = TipoErro.OmissaoAcrescimoSubstituicao });
+        await _context.SaveChangesAsync();
 
         // Aluno 2: erro de acentuação também
         await CriarRespostaDitadoAsync(ditado.Id, aluno2.Id, 0m, TipoErro.Acentuacao);
@@ -430,9 +436,13 @@ public class ProfessorServiceTests : IDisposable
 
         // Assert
         Assert.NotEmpty(resultado!.ErrosPorTipo);
+        Assert.Equal(2, resultado.ErrosPorTipo.Count);
         var erroAcentuacao = resultado.ErrosPorTipo.First(e => e.TipoErroId == (int)TipoErro.Acentuacao);
-        Assert.Equal(2, erroAcentuacao.Quantidade); // 2 alunos erraram acentuação
-        Assert.Equal("Erro de acentuação", erroAcentuacao.Descricao);
+        Assert.Equal(2, erroAcentuacao.Quantidade);
+        var erroOperacional = resultado.ErrosPorTipo.First(e => e.TipoErroId == (int)TipoErro.OmissaoAcrescimoSubstituicao);
+        Assert.Equal(1, erroOperacional.Quantidade);
+        Assert.Equal("Opera\u00E7\u00E3o de escrita n\u00E3o discriminada (tipo legado)", erroOperacional.Descricao);
+        Assert.Equal("Acentua\u00E7\u00E3o", erroAcentuacao.Descricao);
         Assert.Equal("Acentuação", erroAcentuacao.DescricaoCurta);
     }
 

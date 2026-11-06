@@ -159,6 +159,36 @@ public class DitadosController : ControllerBase
 	}
 
 	/// <summary>
+	/// Obtém os detalhes completos de um ditado, incluindo o conteúdo das lacunas.
+	/// </summary>
+	/// <remarks>
+	/// Disponível somente para professores e administradores. O conteúdo esperado das lacunas
+	/// não é retornado ao aluno; para realização, use o endpoint /realizar, que as mantém ocultas.
+	/// Professores e administradores podem visualizar qualquer ditado ativo, conforme a política
+	/// atual de listagem e realização.
+	/// </remarks>
+	/// <param name="id">ID do ditado</param>
+	/// <returns>Metadados, áudio e segmentos completos do ditado</returns>
+	/// <response code="200">Ditado encontrado</response>
+	/// <response code="401">Não autenticado</response>
+	/// <response code="403">Perfil sem permissão para visualizar o gabarito</response>
+	/// <response code="404">Ditado ativo não encontrado</response>
+	[HttpGet("{id}/visualizar")]
+	[Authorize(Roles = "Administrador,Professor")]
+	[ProducesResponseType(typeof(DitadoCompletoDto), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	public async Task<ActionResult<DitadoCompletoDto>> ObterDitadoCompleto(int id)
+	{
+		var ditado = await _ditadoService.ObterDitadoCompletoPorIdAsync(id);
+		if (ditado == null)
+			return NotFound(new { mensagem = "Ditado não encontrado." });
+
+		return Ok(ditado);
+	}
+
+	/// <summary>
 	/// Submete as respostas de um ditado
 	/// </summary>
 	/// <remarks>

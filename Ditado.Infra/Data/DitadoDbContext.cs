@@ -15,6 +15,7 @@ public class DitadoDbContext : DbContext
     public DbSet<DitadoSegmento> DitadoSegmentos { get; set; }
     public DbSet<RespostaDitado> RespostaDitados { get; set; }
     public DbSet<RespostaSegmento> RespostaSegmentos { get; set; }
+    public DbSet<RespostaSegmentoTipoErro> RespostaSegmentoTiposErro { get; set; }
     public DbSet<Turma> Turmas { get; set; }
     public DbSet<Categoria> Categorias { get; set; }
     public DbSet<DitadoCategoria> DitadoCategorias { get; set; }
@@ -29,6 +30,7 @@ public class DitadoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new DitadoSegmentoConfiguration());
         modelBuilder.ApplyConfiguration(new RespostaDitadoConfiguration());
         modelBuilder.ApplyConfiguration(new RespostaSegmentoConfiguration());
+        modelBuilder.ApplyConfiguration(new RespostaSegmentoTipoErroConfiguration());
         modelBuilder.ApplyConfiguration(new TurmaConfiguration());
         modelBuilder.ApplyConfiguration(new CategoriaConfiguration());
         modelBuilder.ApplyConfiguration(new DitadoCategoriaConfiguration());

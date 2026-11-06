@@ -1,0 +1,21 @@
+# Referências anexadas: erros ortográficos
+
+Os PDFs abaixo foram enviados pelo usuário e preservados com seus nomes originais. As páginas indicadas como “PDF p.” contam a capa; quando a publicação imprime numeração própria, ela também é informada.
+
+## Arquivos e identificação
+
+1. [Alfabetização Ortográfica: Tipos de erros ortográficos](Tipos_Erros_OrtogrÃ¡ficos_251127_114352.pdf) — **Lia Mara Malinski Gandra**. A cópia não informa data ou veículo de publicação. Capa/byline: PDF p. 1. A autora apresenta exemplos de textos infantis e discute fenômenos ortográficos e suas possíveis motivações.
+2. [Explorações sobre o desenvolvimento da competência em ortografia em português](Tipos_ErrosOrtograficos_3_251127_114425.pdf) — **Terezinha Nunes Carraher** (1985), *Psicologia: Teoria e Pesquisa*, v. 1, n. 3, p. 269–285, set.–dez. 1985. Título/byline: PDF p. 1; dados editoriais: PDF p. 17 (página impressa 285). O resumo descreve análise de ditados e redações de crianças da 1ª à 4ª série.
+3. [Um estudo acerca dos erros ortográficos de alunos do terceiro e do sexto ano do Ensino Fundamental](Tipo_Erros_Ortograficos_2_251127_114445.pdf) — **Fernanda Luiz Saggiomo** (2018), dissertação de Mestrado em Letras, Universidade Federal de Pelotas; orientadora Ana Ruth Moresco Miranda. Capa e dados acadêmicos: PDF p. 1–3. O estudo compara ditados de alunos do 3º e 6º ano e adapta a categorização do GEALE.
+
+## Transcrição da fala: o que os textos permitem dizer
+
+- **Gandra** define transcrição fonética como “transpor a própria fala para a escrita, tal e qual ela se apresenta” (PDF p. 2). Exemplifica O→U (`conto`→`contu`) e E→I (`leite`→`leiti`), mas também discute ditongos, apagamento de R final (`dormir`→`dormi`), nasalidade e segmentação. Portanto, a autora não define a categoria apenas como troca de duas vogais.
+- **Carraher** explica que a escrita tem uma forma padrão enquanto a pronúncia varia regionalmente; a tentativa de representar sons pode gerar grafias não padrão (PDF p. 4; página impressa 272). É explícita na distinção: “Trocar o o por u em ‘formiga’ não pode ser tratado como uma troca de letras, mas como um erro por transcrição da fala” (PDF p. 7; página impressa 275). Na seção de trocas, diz que certas escolhas de grafema são outra categoria e que podem ter explicações diversas, como atenção ou discriminação, sem que se possa atribuir automaticamente uma causa (PDF p. 7; página impressa 275). O artigo também reconhece sobreposição de categorias em alguns casos (PDF p. 9; página impressa 277).
+- **Saggiomo/GEALE** organiza a análise em erros motivados pela fonologia, erros motivados pelo sistema ortográfico e casos híbridos. A motivação fonológica inclui aspectos segmentais/fonéticos e estrutura silábica; os híbridos combinam influência fonológica e ortográfica, e incluem exemplos de acentuação/supergeneralização (PDF p. 49–54). O trabalho também trata levantamento de vogais em formas como `custurou` por `costurou` (PDF p. 37; página impressa 37). Essas são categorias de análise da escrita, não uma regra universal para converter qualquer diferença vocálica em causa de fala.
+
+## Implicação para o produto (inferência, não regra dos autores)
+
+Uma comparação de caracteres permite observar **substituição** (`o`→`u`); sozinha, não prova que a grafia transcreve a fala da criança. “Transcrição da fala” é uma hipótese sobre a relação entre a forma escrita, a pronúncia/variedade linguística e a convenção ortográfica. Os exemplos dos artigos justificam considerar essa hipótese em certos pares e contextos, mas não reduzi-la a O/U e E/I.
+
+Para o sistema, convém separar o que é diretamente observável (resposta esperada, resposta escrita e operação, como substituição) da interpretação pedagógico-linguística (possível influência fonológica, regra contextual/arbitrária, ou caso híbrido). Se não houver informação suficiente para a interpretação, registrar apenas a diferença observada ou deixar a classificação causal como não confirmada; não rotular automaticamente como “transcrição da fala”. Os artigos não prescrevem esse algoritmo nem exigem áudio para toda análise; inferir a pronúncia individual de uma criança a partir de uma troca isolada, porém, excede o que a comparação textual demonstra.

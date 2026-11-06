@@ -1,5 +1,6 @@
 using Ditado.Aplicacao.DTOs.Professores;
 using Ditado.Dominio.Enums;
+using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Extensions;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
@@ -125,6 +126,8 @@ public class ProfessorService
             .Where(r => alunosDaTurma.Select(a => a.Id).Contains(r.AlunoId))
             .Include(r => r.RespostasSegmentos)
             .ThenInclude(rs => rs.Segmento)
+            .Include(r => r.RespostasSegmentos)
+            .ThenInclude(rs => rs.TiposErro)
             .GroupBy(r => r.AlunoId)
             .Select(g => g.OrderBy(r => r.DataRealizacao).First())
             .ToListAsync();
@@ -143,8 +146,9 @@ public class ProfessorService
             if (resposta != null)
             {
                 var erros = resposta.RespostasSegmentos
-                    .Where(rs => !rs.Correto && rs.TipoErro.HasValue)
-                    .GroupBy(rs => rs.TipoErro!.Value)
+                    .Where(rs => !rs.Correto)
+                    .SelectMany(ObterTiposErro)
+                    .GroupBy(tipoErro => tipoErro)
                     .OrderByDescending(g => g.Count())
                     .FirstOrDefault();
 
@@ -170,8 +174,9 @@ public class ProfessorService
         // Calcular erros por tipo (agregando toda a turma, só primeira tentativa)
         var todosErros = primeiraTentativas
             .SelectMany(r => r.RespostasSegmentos)
-            .Where(rs => !rs.Correto && rs.TipoErro.HasValue)
-            .GroupBy(rs => rs.TipoErro!.Value)
+            .Where(rs => !rs.Correto)
+            .SelectMany(ObterTiposErro)
+            .GroupBy(tipoErro => tipoErro)
             .Select(g => new ErrosPorTipoDto
             {
                 TipoErroId = (int)g.Key,
@@ -236,5 +241,15 @@ public class ProfessorService
             ErrosPorTipo = todosErros,
             ErrosPorPalavra = errosPorPalavra
         };
+    }
+
+    private static IEnumerable<TipoErro> ObterTiposErro(RespostaSegmento resposta)
+    {
+        if (resposta.TiposErro.Count > 0)
+            return resposta.TiposErro.Select(tipo => tipo.TipoErro);
+
+        return resposta.TipoErro.HasValue
+            ? new[] { resposta.TipoErro.Value }
+            : Array.Empty<TipoErro>();
     }
 }

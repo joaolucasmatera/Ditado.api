@@ -23,5 +23,21 @@ public enum TipoErro
     ConfusaoSZ = 14,
     ConfusaoSSS = 15,
     ConfusaoSC = 16,
-    ConfusaoSX = 17
+    ConfusaoSX = 17,
+    TranscricaoFonetica = 18,
+    TrocaGrafemasSurdaSonora = 19,
+    RegraContextual = 20,
+    GrafiaArbitrariaIrregular = 21,
+    Nasalizacao = 22,
+    OmissaoAcrescimoSubstituicao = 23,
+    ComplexidadeSilabica = 24,
+    HipercorrecaoSupergeneralizacao = 25,
+    JunturaSegmentacao = 26,
+    ConcordanciaFlexao = 27,
+    MaiusculasPontuacao = 28,
+
+    // Operacoes observaveis adicionadas sem alterar IDs legados.
+    OmissaoLetra = 29,
+    AcrescimoLetra = 30,
+    SubstituicaoLetra = 31
 }
