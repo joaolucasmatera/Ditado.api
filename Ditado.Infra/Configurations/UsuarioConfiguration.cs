@@ -29,10 +29,19 @@ public class UsuarioConfiguration : IEntityTypeConfiguration<Usuario>
         
         builder.Property(u => u.Matricula)
             .HasMaxLength(20);
+
+        builder.Property(u => u.CodigoCadastro).HasMaxLength(32);
+        builder.HasIndex(u => u.CodigoCadastro).IsUnique();
+        builder.Property(u => u.PinConfigurado).IsRequired().HasDefaultValue(false);
+        builder.Property(u => u.NumeroChamada);
         
         builder.Property(u => u.Tipo)
             .IsRequired()
             .HasConversion<int>();
+
+        builder.Property(u => u.AdministradorGeral)
+            .IsRequired()
+            .HasDefaultValue(false);
         
         builder.Property(u => u.Ativo)
             .IsRequired();

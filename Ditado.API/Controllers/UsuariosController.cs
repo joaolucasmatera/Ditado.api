@@ -1,9 +1,14 @@
 using System.Security.Claims;
+using System.IdentityModel.Tokens.Jwt;
 using Ditado.Aplicacao.DTOs.Usuarios;
 using Ditado.Aplicacao.Services;
 using Ditado.Dominio.Enums;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using ExcelDataReader;
+using System.Globalization;
+using System.Text;
+using System.Data;
 
 namespace Ditado.API.Controllers;
 
@@ -20,31 +25,31 @@ public class UsuariosController : ControllerBase
 	}
 
 	/// <summary>
-	/// Cria um novo usuário (Admin apenas)
+	/// Cria um novo usuï¿½rio (Admin apenas)
 	/// </summary>
 	/// <remarks>
-	/// Apenas Administradores podem criar usuários diretamente no sistema.
-	/// O tipo de usuário (Aluno, Professor, Administrador) é definido no momento da criação.
+	/// Apenas Administradores podem criar usuï¿½rios diretamente no sistema.
+	/// O tipo de usuï¿½rio (Aluno, Professor, Administrador) ï¿½ definido no momento da criaï¿½ï¿½o.
 	/// 
 	/// Para auto-cadastro de alunos, use o endpoint `/solicitar-acesso`.
 	/// 
-	/// Exemplo de requisição:
+	/// Exemplo de requisiï¿½ï¿½o:
 	/// 
 	///     POST /api/usuarios
 	///     {
-	///        "nome": "João Silva",
+	///        "nome": "Joï¿½o Silva",
 	///        "login": "joao.silva@escola.com",
 	///        "senha": "senha123",
 	///        "matricula": "2024001",
 	///        "tipo": "Aluno"
 	///     }
 	/// </remarks>
-	/// <param name="request">Dados do usuário a ser criado</param>
-	/// <returns>Usuário criado</returns>
-	/// <response code="201">Usuário criado com sucesso</response>
-	/// <response code="400">Dados inválidos (email duplicado, tipo inválido, etc.)</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Administrador)</response>
+	/// <param name="request">Dados do usuï¿½rio a ser criado</param>
+	/// <returns>Usuï¿½rio criado</returns>
+	/// <response code="201">Usuï¿½rio criado com sucesso</response>
+	/// <response code="400">Dados invï¿½lidos (email duplicado, tipo invï¿½lido, etc.)</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Administrador)</response>
 	[HttpPost]
 	[Authorize(Roles = "Administrador")]
 	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status201Created)]
@@ -68,16 +73,16 @@ public class UsuariosController : ControllerBase
 	/// Solicita acesso ao sistema (auto-cadastro)
 	/// </summary>
 	/// <remarks>
-	/// Endpoint público para que novos usuários solicitem acesso.
-	/// O usuário é criado com tipo "AcessoSolicitado" e status inativo.
+	/// Endpoint pï¿½blico para que novos usuï¿½rios solicitem acesso.
+	/// O usuï¿½rio ï¿½ criado com tipo "AcessoSolicitado" e status inativo.
 	/// 
-	/// Após a solicitação:
-	/// 1. Aguardar aprovação de um Administrador ou Professor
-	/// 2. Após aprovação, o login será liberado com o tipo apropriado (Aluno, Professor)
+	/// Apï¿½s a solicitaï¿½ï¿½o:
+	/// 1. Aguardar aprovaï¿½ï¿½o de um Administrador ou Professor
+	/// 2. Apï¿½s aprovaï¿½ï¿½o, o login serï¿½ liberado com o tipo apropriado (Aluno, Professor)
 	/// 
-	/// Não é possível fazer login enquanto o acesso não for aprovado.
+	/// Nï¿½o ï¿½ possï¿½vel fazer login enquanto o acesso nï¿½o for aprovado.
 	/// 
-	/// Exemplo de requisição:
+	/// Exemplo de requisiï¿½ï¿½o:
 	/// 
 	///     POST /api/usuarios/solicitar-acesso
 	///     {
@@ -87,10 +92,10 @@ public class UsuariosController : ControllerBase
 	///        "matricula": "2024002"
 	///     }
 	/// </remarks>
-	/// <param name="request">Dados do usuário solicitante</param>
-	/// <returns>Confirmação de solicitação enviada</returns>
-	/// <response code="200">Solicitação enviada com sucesso</response>
-	/// <response code="400">Dados inválidos (email já cadastrado, etc.)</response>
+	/// <param name="request">Dados do usuï¿½rio solicitante</param>
+	/// <returns>Confirmaï¿½ï¿½o de solicitaï¿½ï¿½o enviada</returns>
+	/// <response code="200">Solicitaï¿½ï¿½o enviada com sucesso</response>
+	/// <response code="400">Dados invï¿½lidos (email jï¿½ cadastrado, etc.)</response>
 	[HttpPost("solicitar-acesso")]
 	[AllowAnonymous]
 	[ProducesResponseType(StatusCodes.Status200OK)]
@@ -102,7 +107,7 @@ public class UsuariosController : ControllerBase
 			var usuario = await _usuarioService.SolicitarAcessoAsync(request);
 			return Ok(new
 			{
-				mensagem = "Solicitação de acesso enviada com sucesso! Aguarde a aprovação de um administrador ou professor.",
+				mensagem = "Solicitaï¿½ï¿½o de acesso enviada com sucesso! Aguarde a aprovaï¿½ï¿½o de um administrador ou professor.",
 				usuario
 			});
 		}
@@ -112,21 +117,55 @@ public class UsuariosController : ControllerBase
 		}
 	}
 
+	/// <summary>Solicita cadastro de professor.</summary>
+	/// <remarks>
+	/// Cria uma solicitaÃ§Ã£o de acesso para professor vinculada a uma escola existente
+	/// ou a uma nova escola, conforme <c>OpcaoEscola</c>. A senha Ã© armazenada apenas
+	/// como hash e nunca Ã© retornada na resposta.
+	/// </remarks>
+	/// <param name="request">Dados do professor e opÃ§Ã£o de escola.</param>
+	/// <response code="200">SolicitaÃ§Ã£o criada com sucesso.</response>
+	/// <response code="400">Dados invÃ¡lidos, login duplicado ou escola inexistente.</response>
+	[HttpPost("cadastro-professor")]
+	[AllowAnonymous]
+	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult<UsuarioResponse>> CadastroProfessor([FromBody] CadastroProfessorRequest request)
+	{
+		try { return Ok(await _usuarioService.CadastrarProfessorAsync(request)); }
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+	}
+
+	/// <summary>Solicita prÃ©-cadastro de aluno sem definir PIN.</summary>
+	/// <remarks>Gera um cÃ³digo de cadastro. O PIN Ã© criado pelo prÃ³prio aluno no primeiro acesso.</remarks>
+	/// <param name="request">Nome e matrÃ­cula do aluno.</param>
+	/// <response code="200">PrÃ©-cadastro criado e cÃ³digo de cadastro retornado.</response>
+	/// <response code="400">MatrÃ­cula invÃ¡lida ou jÃ¡ cadastrada.</response>
+	[HttpPost("solicitar-acesso-aluno")]
+	[AllowAnonymous]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult<UsuarioResponse>> SolicitarAcessoAluno([FromBody] SolicitarAcessoAlunoRequest request)
+	{
+		try { return Ok(new { mensagem = "SolicitaÃ§Ã£o enviada com sucesso! Aguarde a aprovaÃ§Ã£o.", usuario = await _usuarioService.SolicitarAcessoAlunoAsync(request) }); }
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+	}
+
 	/// <summary>
-	/// Lista solicitações de acesso pendentes
+	/// Lista solicitaï¿½ï¿½es de acesso pendentes
 	/// </summary>
 	/// <remarks>
-	/// Retorna todos os usuários com tipo "AcessoSolicitado" e status inativo,
-	/// aguardando aprovação de um Administrador ou Professor.
+	/// Retorna todos os usuï¿½rios com tipo "AcessoSolicitado" e status inativo,
+	/// aguardando aprovaï¿½ï¿½o de um Administrador ou Professor.
 	/// 
 	/// Usado para:
 	/// - Administradores e Professores revisarem novos cadastros
-	/// - Aprovar ou rejeitar solicitações de acesso
+	/// - Aprovar ou rejeitar solicitaï¿½ï¿½es de acesso
 	/// </remarks>
-	/// <returns>Lista de solicitações pendentes</returns>
+	/// <returns>Lista de solicitaï¿½ï¿½es pendentes</returns>
 	/// <response code="200">Lista retornada com sucesso</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
 	[HttpGet("solicitacoes-pendentes")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(List<UsuarioResponse>), StatusCodes.Status200OK)]
@@ -139,35 +178,35 @@ public class UsuariosController : ControllerBase
 	}
 
 	/// <summary>
-	/// Aprova uma solicitação de acesso
+	/// Aprova uma solicitaï¿½ï¿½o de acesso
 	/// </summary>
 	/// <remarks>
-	/// Permite que Administradores e Professores aprovem solicitações de acesso pendentes.
+	/// Permite que Administradores e Professores aprovem solicitaï¿½ï¿½es de acesso pendentes.
 	/// 
-	/// **Regras de aprovação:**
+	/// **Regras de aprovaï¿½ï¿½o:**
 	/// - **Administrador**: Pode aprovar para qualquer tipo (Aluno, Professor, Administrador)
-	/// - **Professor**: Pode aprovar apenas como Aluno ou Professor (não pode criar Administradores)
+	/// - **Professor**: Pode aprovar apenas como Aluno ou Professor (nï¿½o pode criar Administradores)
 	/// 
-	/// Após aprovação:
-	/// - Usuário fica ativo
-	/// - Tipo é alterado conforme especificado
-	/// - Usuário pode fazer login no sistema
+	/// Apï¿½s aprovaï¿½ï¿½o:
+	/// - Usuï¿½rio fica ativo
+	/// - Tipo ï¿½ alterado conforme especificado
+	/// - Usuï¿½rio pode fazer login no sistema
 	/// 
-	/// Exemplo de requisição:
+	/// Exemplo de requisiï¿½ï¿½o:
 	/// 
 	///     POST /api/usuarios/5/aprovar-acesso
 	///     {
 	///        "novoTipo": "Aluno"
 	///     }
 	/// </remarks>
-	/// <param name="id">ID do usuário a ser aprovado</param>
-	/// <param name="request">Novo tipo de usuário após aprovação</param>
-	/// <returns>Usuário aprovado</returns>
+	/// <param name="id">ID do usuï¿½rio a ser aprovado</param>
+	/// <param name="request">Novo tipo de usuï¿½rio apï¿½s aprovaï¿½ï¿½o</param>
+	/// <returns>Usuï¿½rio aprovado</returns>
 	/// <response code="200">Acesso aprovado com sucesso</response>
-	/// <response code="400">Dados inválidos (tipo não permitido, usuário já aprovado, etc.)</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
-	/// <response code="404">Usuário não encontrado</response>
+	/// <response code="400">Dados invï¿½lidos (tipo nï¿½o permitido, usuï¿½rio jï¿½ aprovado, etc.)</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
+	/// <response code="404">Usuï¿½rio nï¿½o encontrado</response>
 	[HttpPost("{id}/aprovar-acesso")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
@@ -185,7 +224,7 @@ public class UsuariosController : ControllerBase
 			var usuario = await _usuarioService.AprovarAcessoAsync(id, request, tipoEnum);
 
 			if (usuario == null)
-				return NotFound(new { mensagem = "Usuário não encontrado." });
+				return NotFound(new { mensagem = "Usuï¿½rio nï¿½o encontrado." });
 
 			return Ok(new
 			{
@@ -203,16 +242,16 @@ public class UsuariosController : ControllerBase
 	/// Faz login no sistema
 	/// </summary>
 	/// <remarks>
-	/// Autentica um usuário e retorna um token JWT para acesso aos endpoints protegidos.
+	/// Autentica um usuï¿½rio e retorna um token JWT para acesso aos endpoints protegidos.
 	/// 
 	/// **Requisitos para login:**
-	/// - Email e senha válidos
-	/// - Usuário com status ativo (não pode estar bloqueado)
-	/// - Acesso já aprovado (não pode ter tipo "AcessoSolicitado")
+	/// - Email e senha vï¿½lidos
+	/// - Usuï¿½rio com status ativo (nï¿½o pode estar bloqueado)
+	/// - Acesso jï¿½ aprovado (nï¿½o pode ter tipo "AcessoSolicitado")
 	/// 
-	/// O token JWT deve ser enviado no header `Authorization: Bearer {token}` nas requisições subsequentes.
+	/// O token JWT deve ser enviado no header `Authorization: Bearer {token}` nas requisiï¿½ï¿½es subsequentes.
 	/// 
-	/// Exemplo de requisição:
+	/// Exemplo de requisiï¿½ï¿½o:
 	/// 
 	///     POST /api/usuarios/login
 	///     {
@@ -226,16 +265,16 @@ public class UsuariosController : ControllerBase
 	///        "token": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
 	///        "usuario": {
 	///           "id": 1,
-	///           "nome": "João Silva",
+	///           "nome": "Joï¿½o Silva",
 	///           "login": "usuario@escola.com",
 	///           "tipo": "Aluno"
 	///        }
 	///     }
 	/// </remarks>
 	/// <param name="request">Credenciais de login</param>
-	/// <returns>Token JWT e dados do usuário</returns>
+	/// <returns>Token JWT e dados do usuï¿½rio</returns>
 	/// <response code="200">Login realizado com sucesso</response>
-	/// <response code="401">Credenciais inválidas, acesso não aprovado ou conta inativa</response>
+	/// <response code="401">Credenciais invï¿½lidas, acesso nï¿½o aprovado ou conta inativa</response>
 	[HttpPost("login")]
 	[AllowAnonymous]
 	[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
@@ -247,7 +286,7 @@ public class UsuariosController : ControllerBase
 			var resultado = await _usuarioService.LoginAsync(request);
 
 			if (resultado == null)
-				return Unauthorized(new { mensagem = "Login ou senha inválidos." });
+				return Unauthorized(new { mensagem = "Login ou senha invï¿½lidos." });
 
 			return Ok(resultado);
 		}
@@ -257,18 +296,178 @@ public class UsuariosController : ControllerBase
 		}
 	}
 
+	/// <summary>Autentica aluno por matrÃ­cula ou cÃ³digo de cadastro e PIN.</summary>
+	/// <remarks>O PIN nunca Ã© definido ou retornado por professor ou administrador.</remarks>
+	/// <param name="request">Identificador do aluno e PIN criado no primeiro acesso.</param>
+	/// <response code="200">Token JWT e dados do aluno.</response>
+	/// <response code="401">Identificador/PIN invÃ¡lido ou PIN ainda nÃ£o configurado.</response>
+	[HttpPost("login-aluno")]
+	[AllowAnonymous]
+	[ProducesResponseType(typeof(LoginResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	public async Task<ActionResult<LoginResponse>> LoginAluno([FromBody] LoginAlunoRequest request)
+	{
+		try
+		{
+			var response = await _usuarioService.LoginAlunoAsync(request);
+			return response is null ? Unauthorized(new { mensagem = "MatrÃ­cula ou cÃ³digo de cadastro, ou PIN, invÃ¡lido." }) : Ok(response);
+		}
+		catch (InvalidOperationException ex) { return Unauthorized(new { mensagem = ex.Message }); }
+	}
+
+	/// <summary>Configura o PIN do aluno no primeiro acesso.</summary>
+	/// <remarks>DisponÃ­vel apenas para prÃ©-cadastros ainda sem PIN configurado.</remarks>
+	/// <param name="request">MatrÃ­cula ou cÃ³digo de cadastro e novo PIN.</param>
+	/// <response code="200">PIN configurado.</response>
+	/// <response code="400">Identificador invÃ¡lido ou PIN jÃ¡ configurado.</response>
+	[HttpPost("primeiro-acesso-aluno")]
+	[AllowAnonymous]
+	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult<UsuarioResponse>> PrimeiroAcessoAluno([FromBody] PrimeiroAcessoAlunoRequest request)
+	{
+		var usuario = await _usuarioService.ConfigurarPrimeiroPinAlunoAsync(request);
+		return usuario is null ? BadRequest(new { mensagem = "VocÃª ainda nÃ£o foi prÃ©-cadastrado na plataforma. Fale com seu professor ou administrador da sua escola." }) : Ok(usuario);
+	}
+
+	/// <summary>Verifica se a matrÃ­cula ou cÃ³digo pertence a um aluno prÃ©-cadastrado sem PIN.</summary>
+	/// <remarks>Esta etapa nÃ£o cria sessÃ£o nem altera dados; apenas libera a tela seguinte para criaÃ§Ã£o do PIN.</remarks>
+	/// <param name="request">MatrÃ­cula ou cÃ³digo de entrada do aluno.</param>
+	/// <response code="200">Identificador elegÃ­vel para criaÃ§Ã£o do PIN.</response>
+	/// <response code="400">Aluno nÃ£o prÃ©-cadastrado ou PIN jÃ¡ configurado.</response>
+	[HttpPost("primeiro-acesso-aluno/verificar")]
+	[AllowAnonymous]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult> VerificarPrimeiroAcessoAluno([FromBody] VerificarPrimeiroAcessoAlunoRequest request)
+	{
+		var existe = await _usuarioService.VerificarPrimeiroAcessoAlunoAsync(request);
+		return existe ? Ok(new { podeConfigurarPin = true }) : BadRequest(new { mensagem = "VocÃª ainda nÃ£o foi prÃ©-cadastrado na plataforma. Fale com seu professor ou administrador da sua escola." });
+	}
+
+	/// <summary>Cadastra manualmente um aluno em uma turma.</summary>
+	/// <remarks>Gera cÃ³digo escola-turma-chamada; o PIN serÃ¡ criado pelo aluno no primeiro acesso.</remarks>
+	/// <param name="request">Nome, nÃºmero de chamada, matrÃ­cula opcional e turma.</param>
+	/// <response code="200">Aluno cadastrado e convite retornado.</response>
+	/// <response code="400">Dados invÃ¡lidos, turma inativa ou aluno duplicado.</response>
+	/// <response code="401">Token ausente ou invÃ¡lido.</response>
+	/// <response code="403">UsuÃ¡rio sem permissÃ£o para a turma.</response>
+	[HttpPost("alunos-manual")]
+	[Authorize(Roles = "Professor,Administrador")]
+	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	public async Task<ActionResult<UsuarioResponse>> CadastrarAlunoManual([FromBody] CadastrarAlunoManualRequest request)
+	{
+		var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+		try { return Ok(await _usuarioService.CadastrarAlunoManualAsync(request, atorId)); }
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+	}
+
+	/// <summary>PrÃ©-visualiza uma planilha CSV ou XLS de alunos sem gravar dados.</summary>
+	[HttpPost("importar-alunos/preview")]
+	[Authorize(Roles = "Professor,Administrador")]
+	[RequestSizeLimit(10_000_000)]
+	[ProducesResponseType(typeof(IReadOnlyList<ImportarAlunoLinhaResponse>), StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult<IReadOnlyList<ImportarAlunoLinhaResponse>>> ImportarAlunosPreview(IFormFile arquivo)
+	{
+		if (arquivo is null || arquivo.Length == 0) return BadRequest(new { mensagem = "Arquivo vazio." });
+		var extensao = Path.GetExtension(arquivo.FileName).ToLowerInvariant();
+		if (extensao is not ".csv" and not ".xls" and not ".xlsx") return BadRequest(new { mensagem = "Use arquivo .csv, .xls ou .xlsx." });
+		if (arquivo.Length > 10_000_000) return BadRequest(new { mensagem = "Arquivo excede 10 MB." });
+		Encoding.RegisterProvider(CodePagesEncodingProvider.Instance);
+		await using var stream = arquivo.OpenReadStream();
+		using var reader = extensao == ".csv"
+			? ExcelReaderFactory.CreateCsvReader(stream, new ExcelReaderConfiguration { AutodetectSeparators = new[] { ',', ';', '\t' }, FallbackEncoding = Encoding.UTF8 })
+			: ExcelReaderFactory.CreateReader(stream);
+		var data = reader.AsDataSet(new ExcelDataSetConfiguration { ConfigureDataTable = _ => new ExcelDataTableConfiguration { UseHeaderRow = true } });
+		var table = data.Tables.Count == 0 ? null : data.Tables[0];
+		if (table is null) return BadRequest(new { mensagem = "Nenhuma planilha encontrada." });
+		if (table.Rows.Count > 1000) return BadRequest(new { mensagem = "A planilha pode conter no mÃ¡ximo 1000 linhas." });
+		var rows = new List<ImportarAlunoLinhaResponse>();
+		for (var i = 0; i < table.Rows.Count; i++)
+		{
+			var row = table.Rows[i];
+			var nome = Valor(row, table, "nome");
+			var chamadaTexto = Valor(row, table, "nÃºmero da chamada", "numero da chamada", "chamada");
+			var matricula = Valor(row, table, "matrÃ­cula", "matricula");
+			var turma = Valor(row, table, "turma");
+			var pendencias = new List<string>();
+			if (string.IsNullOrWhiteSpace(nome)) pendencias.Add("Nome obrigatÃ³rio");
+			if (!int.TryParse(chamadaTexto, NumberStyles.Integer, CultureInfo.InvariantCulture, out var chamada) || chamada < 1) pendencias.Add("NÃºmero da chamada invÃ¡lido");
+			rows.Add(new ImportarAlunoLinhaResponse { Linha = i + 2, Nome = nome, NumeroChamada = chamada > 0 ? chamada : null, Matricula = matricula, Turma = turma, Valida = pendencias.Count == 0, Pendencias = pendencias.ToArray() });
+		}
+		return Ok(rows);
+	}
+
+	private static string? Valor(DataRow row, DataTable table, params string[] nomes)
+	{
+		foreach (DataColumn col in table.Columns)
+		{
+			var normalizado = col.ColumnName.Trim().ToLowerInvariant();
+			if (nomes.Any(n => normalizado == n)) return row[col]?.ToString()?.Trim();
+		}
+		return null;
+	}
+
+	[HttpPost("sessao/revogar")]
+	[Authorize]
+	[ProducesResponseType(StatusCodes.Status204NoContent)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	public async Task<ActionResult> RevogarSessaoAtual()
+	{
+		var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+		var jti = User.FindFirstValue(JwtRegisteredClaimNames.Jti);
+		if (!Guid.TryParse(jti, out var sessaoId))
+			return BadRequest(new { mensagem = "SessÃ£o invÃ¡lida." });
+
+		var revogada = await _usuarioService.RevogarSessaoAsync(sessaoId, usuarioId, "RevogaÃ§Ã£o solicitada pelo usuÃ¡rio.");
+		return revogada ? NoContent() : BadRequest(new { mensagem = "SessÃ£o jÃ¡ revogada ou inexistente." });
+	}
+
+	[HttpGet("contexto-escolar")]
+	[Authorize]
+	[ProducesResponseType(StatusCodes.Status200OK)]
+	[ProducesResponseType(StatusCodes.Status400BadRequest)]
+	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	public async Task<ActionResult<IReadOnlyList<ContextoEscolarResponse>>> ListarContextoEscolar()
+	{
+		var usuarioId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+		var contextos = await _usuarioService.ListarContextosEscolaresAsync(usuarioId);
+		var escolaHeader = Request.Headers["X-Escola-Id"].FirstOrDefault();
+
+		if (string.IsNullOrWhiteSpace(escolaHeader))
+			return Ok(contextos);
+
+		if (!int.TryParse(escolaHeader, out var escolaId))
+		{
+			await _usuarioService.RegistrarAuditoriaAsync(usuarioId, null, "SelecionarContextoEscolar", "Escola", "Negado", "X-Escola-Id invÃ¡lido.");
+			return BadRequest(new { mensagem = "X-Escola-Id deve ser um identificador numÃ©rico." });
+		}
+
+		var autorizado = await _usuarioService.PossuiAcessoEscolarAsync(usuarioId, escolaId);
+		await _usuarioService.RegistrarAuditoriaAsync(usuarioId, escolaId, "SelecionarContextoEscolar", "Escola", autorizado ? "Permitido" : "Negado", autorizado ? "VÃ­nculo escolar ativo." : "UsuÃ¡rio sem vÃ­nculo escolar ativo.");
+
+		if (!autorizado)
+			return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = "UsuÃ¡rio nÃ£o possui vÃ­nculo ativo com a escola informada." });
+
+		return Ok(contextos.Where(c => c.EscolaId == escolaId).ToList());
+	}
+
 	/// <summary>
-	/// Obtém um usuário por ID
+	/// Obtï¿½m um usuï¿½rio por ID
 	/// </summary>
 	/// <remarks>
-	/// Retorna os dados completos de um usuário específico.
-	/// Qualquer usuário autenticado pode acessar este endpoint.
+	/// Retorna os dados completos de um usuï¿½rio especï¿½fico.
+	/// Qualquer usuï¿½rio autenticado pode acessar este endpoint.
 	/// </remarks>
-	/// <param name="id">ID do usuário</param>
-	/// <returns>Dados do usuário</returns>
-	/// <response code="200">Usuário encontrado</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="404">Usuário não encontrado</response>
+	/// <param name="id">ID do usuï¿½rio</param>
+	/// <returns>Dados do usuï¿½rio</returns>
+	/// <response code="200">Usuï¿½rio encontrado</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="404">Usuï¿½rio nï¿½o encontrado</response>
 	[HttpGet("{id}")]
 	[Authorize]
 	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
@@ -279,22 +478,22 @@ public class UsuariosController : ControllerBase
 		var usuario = await _usuarioService.ObterPorIdAsync(id);
 
 		if (usuario == null)
-			return NotFound(new { mensagem = "Usuário não encontrado." });
+			return NotFound(new { mensagem = "Usuï¿½rio nï¿½o encontrado." });
 
 		return Ok(usuario);
 	}
 
 	/// <summary>
-	/// Lista todos os usuários
+	/// Lista todos os usuï¿½rios
 	/// </summary>
 	/// <remarks>
-	/// Retorna uma lista completa de todos os usuários cadastrados no sistema.
+	/// Retorna uma lista completa de todos os usuï¿½rios cadastrados no sistema.
 	/// Administradores e Professores podem acessar este endpoint.
 	/// </remarks>
-	/// <returns>Lista de usuários</returns>
+	/// <returns>Lista de usuï¿½rios</returns>
 	/// <response code="200">Lista retornada com sucesso</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Administrador e Professor)</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Administrador e Professor)</response>
 	[HttpGet]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(List<UsuarioResponse>), StatusCodes.Status200OK)]
@@ -307,37 +506,37 @@ public class UsuariosController : ControllerBase
 	}
 
 	/// <summary>
-	/// Atualiza um usuário
+	/// Atualiza um usuï¿½rio
 	/// </summary>
 	/// <remarks>
-	/// Permite atualizar dados de um usuário com diferentes níveis de permissão:
+	/// Permite atualizar dados de um usuï¿½rio com diferentes nï¿½veis de permissï¿½o:
 	/// 
-	/// **Edição própria (qualquer usuário autenticado):**
-	/// - Nome, Matrícula, Senha (com senha atual)
-	/// - NÃO pode alterar próprio Tipo ou Status Ativo
+	/// **Ediï¿½ï¿½o prï¿½pria (qualquer usuï¿½rio autenticado):**
+	/// - Nome, Matrï¿½cula, Senha (com senha atual)
+	/// - Nï¿½O pode alterar prï¿½prio Tipo ou Status Ativo
 	/// 
-	/// **Edição de outros usuários:**
+	/// **Ediï¿½ï¿½o de outros usuï¿½rios:**
 	/// 
 	/// **Alterar Status Ativo:**
-	/// - Aluno: Não pode alterar ninguém
+	/// - Aluno: Nï¿½o pode alterar ninguï¿½m
 	/// - Professor: Pode ativar/desativar apenas Alunos
 	/// - Administrador: Pode ativar/desativar qualquer um
 	/// 
 	/// **Alterar Tipo:**
-	/// - Aluno: Não pode alterar ninguém
-	/// - Professor: Pode promover Aluno > Professor (não pode criar Administrador nem reduzir tipos)
+	/// - Aluno: Nï¿½o pode alterar ninguï¿½m
+	/// - Professor: Pode promover Aluno > Professor (nï¿½o pode criar Administrador nem reduzir tipos)
 	/// - Administrador: Pode promover ou reduzir qualquer tipo (exceto para "AcessoSolicitado")
 	/// 
-	/// Exemplo de requisição (edição própria):
+	/// Exemplo de requisiï¿½ï¿½o (ediï¿½ï¿½o prï¿½pria):
 	/// 
 	///     PUT /api/usuarios/5
 	///     {
-	///        "nome": "João Silva Santos",
+	///        "nome": "Joï¿½o Silva Santos",
 	///        "senhaAtual": "senha123",
 	///        "senhaNova": "novaSenha456"
 	///     }
 	///     
-	/// Exemplo de requisição (Admin alterando tipo):
+	/// Exemplo de requisiï¿½ï¿½o (Admin alterando tipo):
 	/// 
 	///     PUT /api/usuarios/10
 	///     {
@@ -345,13 +544,13 @@ public class UsuariosController : ControllerBase
 	///        "ativo": true
 	///     }
 	/// </remarks>
-	/// <param name="id">ID do usuário</param>
+	/// <param name="id">ID do usuï¿½rio</param>
 	/// <param name="request">Dados a serem atualizados</param>
-	/// <returns>Usuário atualizado</returns>
-	/// <response code="200">Usuário atualizado com sucesso</response>
-	/// <response code="400">Dados inválidos (senha incorreta, permissão negada, etc.)</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="404">Usuário não encontrado</response>
+	/// <returns>Usuï¿½rio atualizado</returns>
+	/// <response code="200">Usuï¿½rio atualizado com sucesso</response>
+	/// <response code="400">Dados invï¿½lidos (senha incorreta, permissï¿½o negada, etc.)</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="404">Usuï¿½rio nï¿½o encontrado</response>
 	[HttpPut("{id}")]
 	[Authorize]
 	[ProducesResponseType(typeof(UsuarioResponse), StatusCodes.Status200OK)]
@@ -362,14 +561,14 @@ public class UsuariosController : ControllerBase
 	{
 		try
 		{
-			// Obter ID e Tipo do usuário logado
+			// Obter ID e Tipo do usuï¿½rio logado
 			var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
 			var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
 
 			var usuario = await _usuarioService.AtualizarUsuarioAsync(id, request, usuarioLogadoId, tipoUsuarioLogado);
 
 			if (usuario == null)
-				return NotFound(new { mensagem = "Usuário não encontrado." });
+				return NotFound(new { mensagem = "Usuï¿½rio nï¿½o encontrado." });
 
 			return Ok(usuario);
 		}
@@ -379,21 +578,34 @@ public class UsuariosController : ControllerBase
 		}
 	}
 
+	[HttpPatch("{id}/administrador-geral")]
+	[Authorize(Roles = "Administrador")]
+	public async Task<ActionResult> AlterarAdministradorGeral(int id, [FromBody] AlterarAdministradorGeralRequest request)
+	{
+		if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var atorId)) return Unauthorized();
+		try
+		{
+			await _usuarioService.AlterarAdministradorGeralAsync(id, request.Habilitar, atorId, request.Motivo, request.CorrelacaoId);
+			return NoContent();
+		}
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+	}
+
 	/// <summary>
-	/// Bloqueia um usuário
+	/// Bloqueia um usuï¿½rio
 	/// </summary>
 	/// <remarks>
-	/// Define o status do usuário como inativo, impedindo login no sistema.
-	/// Apenas Administradores podem bloquear usuários.
+	/// Define o status do usuï¿½rio como inativo, impedindo login no sistema.
+	/// Apenas Administradores podem bloquear usuï¿½rios.
 	/// 
-	/// O usuário bloqueado não será excluído, apenas ficará inativo.
+	/// O usuï¿½rio bloqueado nï¿½o serï¿½ excluï¿½do, apenas ficarï¿½ inativo.
 	/// Use `/desbloquear` para reativar o acesso.
 	/// </remarks>
-	/// <param name="id">ID do usuário</param>
-	/// <response code="204">Usuário bloqueado com sucesso</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Administrador)</response>
-	/// <response code="404">Usuário não encontrado</response>
+	/// <param name="id">ID do usuï¿½rio</param>
+	/// <response code="204">Usuï¿½rio bloqueado com sucesso</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Administrador)</response>
+	/// <response code="404">Usuï¿½rio nï¿½o encontrado</response>
 	[HttpPatch("{id}/bloquear")]
 	[Authorize(Roles = "Administrador")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -405,23 +617,23 @@ public class UsuariosController : ControllerBase
 		var sucesso = await _usuarioService.BloquearUsuarioAsync(id);
 
 		if (!sucesso)
-			return NotFound(new { mensagem = "Usuário não encontrado." });
+			return NotFound(new { mensagem = "Usuï¿½rio nï¿½o encontrado." });
 
 		return NoContent();
 	}
 
 	/// <summary>
-	/// Desbloqueia um usuário
+	/// Desbloqueia um usuï¿½rio
 	/// </summary>
 	/// <remarks>
-	/// Reativa um usuário bloqueado, permitindo login novamente.
-	/// Apenas Administradores podem desbloquear usuários.
+	/// Reativa um usuï¿½rio bloqueado, permitindo login novamente.
+	/// Apenas Administradores podem desbloquear usuï¿½rios.
 	/// </remarks>
-	/// <param name="id">ID do usuário</param>
-	/// <response code="204">Usuário desbloqueado com sucesso</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Administrador)</response>
-	/// <response code="404">Usuário não encontrado</response>
+	/// <param name="id">ID do usuï¿½rio</param>
+	/// <response code="204">Usuï¿½rio desbloqueado com sucesso</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Administrador)</response>
+	/// <response code="404">Usuï¿½rio nï¿½o encontrado</response>
 	[HttpPatch("{id}/desbloquear")]
 	[Authorize(Roles = "Administrador")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -433,26 +645,26 @@ public class UsuariosController : ControllerBase
 		var sucesso = await _usuarioService.DesbloquearUsuarioAsync(id);
 
 		if (!sucesso)
-			return NotFound(new { mensagem = "Usuário não encontrado." });
+			return NotFound(new { mensagem = "Usuï¿½rio nï¿½o encontrado." });
 
 		return NoContent();
 	}
 
 	/// <summary>
-	/// Exclui um usuário permanentemente
+	/// Exclui um usuï¿½rio permanentemente
 	/// </summary>
 	/// <remarks>
-	/// Remove um usuário do sistema de forma irreversível.
-	/// Apenas Administradores podem excluir usuários.
+	/// Remove um usuï¿½rio do sistema de forma irreversï¿½vel.
+	/// Apenas Administradores podem excluir usuï¿½rios.
 	/// 
-	/// **ATENÇÃO**: Esta operação é permanente e não pode ser desfeita!
-	/// Considere usar `/bloquear` ao invés de excluir para manter o histórico.
+	/// **ATENï¿½ï¿½O**: Esta operaï¿½ï¿½o ï¿½ permanente e nï¿½o pode ser desfeita!
+	/// Considere usar `/bloquear` ao invï¿½s de excluir para manter o histï¿½rico.
 	/// </remarks>
-	/// <param name="id">ID do usuário</param>
-	/// <response code="204">Usuário excluído com sucesso</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Administrador)</response>
-	/// <response code="404">Usuário não encontrado</response>
+	/// <param name="id">ID do usuï¿½rio</param>
+	/// <response code="204">Usuï¿½rio excluï¿½do com sucesso</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Administrador)</response>
+	/// <response code="404">Usuï¿½rio nï¿½o encontrado</response>
 	[HttpDelete("{id}")]
 	[Authorize(Roles = "Administrador")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -464,7 +676,7 @@ public class UsuariosController : ControllerBase
 		var sucesso = await _usuarioService.DeletarUsuarioAsync(id);
 
 		if (!sucesso)
-			return NotFound(new { mensagem = "Usuário não encontrado." });
+			return NotFound(new { mensagem = "Usuï¿½rio nï¿½o encontrado." });
 
 		return NoContent();
 	}

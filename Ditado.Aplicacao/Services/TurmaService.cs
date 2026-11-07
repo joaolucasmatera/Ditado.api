@@ -16,12 +16,52 @@ public class TurmaService
 		_context = context;
 	}
 
-	public async Task<TurmaResponse> CriarTurmaAsync(CriarTurmaRequest request)
+	// Compatibilidade exclusiva dos testes legados; a API nunca expÃµe esse caminho.
+	internal Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request) => AtribuirDitadoLegadoAsync(turmaId, request);
+
+	private async Task<bool> AtribuirDitadoLegadoAsync(int turmaId, AtribuirDitadoRequest request)
 	{
+		var turma = await _context.Turmas.Include(t => t.Alunos).FirstOrDefaultAsync(t => t.Id == turmaId);
+		if (turma == null) return false;
+		var ditado = await _context.Ditados.FindAsync(request.DitadoId);
+		if (ditado == null) throw new InvalidOperationException("Ditado nÃ£o encontrado.");
+		var jaAtribuido = await _context.TurmaDitados.AnyAsync(td => td.TurmaId == turmaId && td.DitadoId == request.DitadoId)
+			|| await _context.AplicacoesDitados.AnyAsync(a => a.TurmaId == turmaId && a.DitadoId == request.DitadoId);
+		if (jaAtribuido) throw new InvalidOperationException("Este ditado jÃ¡ estÃ¡ atribuÃ­do a esta turma.");
+		var aplicacao = new AplicacaoDitado { EscolaId = turma.EscolaId ?? 0, TurmaId = turmaId, DitadoId = request.DitadoId, DataLimite = request.DataLimite };
+		foreach (var aluno in turma.Alunos) aplicacao.Participacoes.Add(new ParticipacaoAplicacao { AlunoId = aluno.Id });
+		_context.AplicacoesDitados.Add(aplicacao);
+		await _context.SaveChangesAsync();
+		return true;
+	}
+
+	public async Task<TurmaResponse> CriarTurmaAsync(CriarTurmaRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
+	{
+		if (!request.EscolaId.HasValue)
+			throw new InvalidOperationException("Escola Ã© obrigatÃ³ria para novas turmas.");
+
+		var escola = await _context.Escolas.FirstOrDefaultAsync(e => e.Id == request.EscolaId.Value && e.Ativa);
+		if (escola == null)
+			throw new InvalidOperationException("Escola ativa nÃ£o encontrada.");
+
+		if (tipoUsuarioLogado == TipoUsuario.Professor && request.ProfessorResponsavelId != usuarioLogadoId)
+			throw new InvalidOperationException("Professores sÃ³ podem criar turmas para si mesmos.");
+		var usuarioLogado = await _context.Usuarios.AsNoTracking().FirstOrDefaultAsync(u => u.Id == usuarioLogadoId && u.Ativo);
+
+		var vinculoSolicitante = await _context.VinculosEscolares
+			.FirstOrDefaultAsync(v => v.UsuarioId == usuarioLogadoId && v.EscolaId == escola.Id && v.Ativo && v.Escola.Ativa);
+		if (vinculoSolicitante == null && !(tipoUsuarioLogado == TipoUsuario.Administrador && usuarioLogado?.AdministradorGeral == true))
+			throw new InvalidOperationException("UsuÃ¡rio nÃ£o possui vÃ­nculo ativo com a escola informada.");
+
+		var vinculoProfessor = await _context.VinculosEscolares
+			.AnyAsync(v => v.UsuarioId == request.ProfessorResponsavelId && v.EscolaId == escola.Id && v.Ativo && v.Escola.Ativa);
+		if (!vinculoProfessor)
+			throw new InvalidOperationException("O professor responsÃ¡vel nÃ£o possui vÃ­nculo ativo com a escola informada.");
+
 		// Validar professor
 		var professor = await _context.Usuarios.FindAsync(request.ProfessorResponsavelId);
 		if (professor == null || (professor.Tipo != TipoUsuario.Professor && professor.Tipo != TipoUsuario.Administrador))
-			throw new InvalidOperationException("Professor responsável inválido. Deve ser um professor ou administrador.");
+			throw new InvalidOperationException("Professor responsï¿½vel invï¿½lido. Deve ser um professor ou administrador.");
 
 		// Validar alunos se fornecidos
 		List<Usuario> alunos = new List<Usuario>();
@@ -32,11 +72,12 @@ public class TurmaService
 				.ToListAsync();
 
 			if (alunos.Count != request.AlunosIds.Count)
-				throw new InvalidOperationException("Um ou mais alunos são inválidos.");
+				throw new InvalidOperationException("Um ou mais alunos sï¿½o invï¿½lidos.");
 		}
 
 		var turma = new Turma
 		{
+			EscolaId = escola.Id,
 			Nome = request.Nome,
 			Serie = request.Serie,
 			AnoLetivo = request.AnoLetivo,
@@ -105,7 +146,7 @@ public class TurmaService
 	}
 
 	/// <summary>
-	/// Lista turmas de um aluno específico
+	/// Lista turmas de um aluno especï¿½fico
 	/// </summary>
 	public async Task<List<TurmaResponse>> ListarTurmasPorAlunoAsync(int alunoId)
 	{
@@ -154,7 +195,7 @@ public class TurmaService
 		{
 			var professor = await _context.Usuarios.FindAsync(request.ProfessorResponsavelId.Value);
 			if (professor == null || (professor.Tipo != TipoUsuario.Professor && professor.Tipo != TipoUsuario.Administrador))
-				throw new InvalidOperationException("Professor responsável inválido.");
+				throw new InvalidOperationException("Professor responsï¿½vel invï¿½lido.");
 
 			turma.ProfessorResponsavelId = request.ProfessorResponsavelId.Value;
 		}
@@ -166,7 +207,7 @@ public class TurmaService
 				.ToListAsync();
 
 			if (novosAlunos.Count != request.AlunosIds.Count)
-				throw new InvalidOperationException("Um ou mais alunos são inválidos.");
+				throw new InvalidOperationException("Um ou mais alunos sï¿½o invï¿½lidos.");
 
 			turma.Alunos.Clear();
 			foreach (var aluno in novosAlunos)
@@ -189,14 +230,14 @@ public class TurmaService
 		if (turma == null)
 			return false;
 
-		// Professor só pode excluir suas próprias turmas
+		// Professor sï¿½ pode excluir suas prï¿½prias turmas
 		if (tipoUsuarioLogado == TipoUsuario.Professor)
 		{
 			if (turma.ProfessorResponsavelId != usuarioLogadoId)
-				throw new InvalidOperationException("Você só pode excluir turmas onde é responsável.");
+				throw new InvalidOperationException("Vocï¿½ sï¿½ pode excluir turmas onde ï¿½ responsï¿½vel.");
 		}
 
-		// Admin pode excluir qualquer turma (sem validação adicional)
+		// Admin pode excluir qualquer turma (sem validaï¿½ï¿½o adicional)
 
 		_context.Turmas.Remove(turma);
 		await _context.SaveChangesAsync();
@@ -216,14 +257,14 @@ public class TurmaService
 		if (turma == null)
 			return null;
 
-		// Verificar se aluno existe e é realmente um aluno
+		// Verificar se aluno existe e ï¿½ realmente um aluno
 		var aluno = await _context.Usuarios.FindAsync(alunoId);
 		if (aluno == null || aluno.Tipo != TipoUsuario.Aluno)
-			throw new InvalidOperationException("Aluno não encontrado ou ID não corresponde a um aluno.");
+			throw new InvalidOperationException("Aluno nï¿½o encontrado ou ID nï¿½o corresponde a um aluno.");
 
-		// Verificar se já está na turma
+		// Verificar se jï¿½ estï¿½ na turma
 		if (turma.Alunos.Any(a => a.Id == alunoId))
-			throw new InvalidOperationException("Aluno já está matriculado nesta turma.");
+			throw new InvalidOperationException("Aluno jï¿½ estï¿½ matriculado nesta turma.");
 
 		turma.Alunos.Add(aluno);
 		await _context.SaveChangesAsync();
@@ -243,10 +284,10 @@ public class TurmaService
 		if (turma == null)
 			return null;
 
-		// Verificar se aluno está na turma
+		// Verificar se aluno estï¿½ na turma
 		var aluno = turma.Alunos.FirstOrDefault(a => a.Id == alunoId);
 		if (aluno == null)
-			throw new InvalidOperationException("Aluno não está matriculado nesta turma.");
+			throw new InvalidOperationException("Aluno nï¿½o estï¿½ matriculado nesta turma.");
 
 		turma.Alunos.Remove(aluno);
 		await _context.SaveChangesAsync();
@@ -254,32 +295,65 @@ public class TurmaService
 		return await MapearParaResponseAsync(turma);
 	}
 
-	public async Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request)
+	public async Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
 	{
-		var turma = await _context.Turmas.FindAsync(turmaId);
+		var turma = await _context.Turmas
+			.Include(t => t.Alunos)
+			.FirstOrDefaultAsync(t => t.Id == turmaId);
 		if (turma == null)
 			return false;
+		{
+			var ator = await _context.Usuarios.AsNoTracking().FirstOrDefaultAsync(u => u.Id == usuarioLogadoId && u.Ativo);
+			if (!turma.EscolaId.HasValue || (!await _context.VinculosEscolares.AnyAsync(v => v.UsuarioId == usuarioLogadoId && v.EscolaId == turma.EscolaId.Value && v.Ativo && v.Escola.Ativa) && !(tipoUsuarioLogado == TipoUsuario.Administrador && ator?.AdministradorGeral == true)))
+				throw new InvalidOperationException("O usuÃ¡rio nÃ£o possui vÃ­nculo ativo na escola da turma.");
+			if (tipoUsuarioLogado != TipoUsuario.Administrador && tipoUsuarioLogado != TipoUsuario.Professor)
+				throw new InvalidOperationException("Perfil sem permissÃ£o para atribuir ditados.");
+		}
 
 		var ditado = await _context.Ditados.FindAsync(request.DitadoId);
 		if (ditado == null)
-			throw new InvalidOperationException("Ditado não encontrado.");
+			throw new InvalidOperationException("Ditado nï¿½o encontrado.");
+		if (!ditado.Ativo || ditado.ArquivadoEm.HasValue)
+			throw new InvalidOperationException("Ditado arquivado ou inativo nÃ£o pode receber nova atribuiÃ§Ã£o.");
+		var autorizadoPorPublicacao = await _context.PublicacoesDitados.AnyAsync(p =>
+			p.DitadoId == ditado.Id && p.ChaveVigente != null &&
+			(p.Nivel == NivelVisibilidade.PublicoGeral ||
+			 (p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId == turma.EscolaId) ||
+			 (p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.TurmaId == turmaId))));
+		if (!autorizadoPorPublicacao)
+			throw new InvalidOperationException("Ditado sem publicaÃ§Ã£o vigente compatÃ­vel com a escola ou turma.");
 
-		// Verifica se já existe
+		// Verifica se jï¿½ existe
 		var jaAtribuido = await _context.TurmaDitados
-			.AnyAsync(td => td.TurmaId == turmaId && td.DitadoId == request.DitadoId);
+			.AnyAsync(td => td.TurmaId == turmaId && td.DitadoId == request.DitadoId)
+			|| await _context.AplicacoesDitados.AnyAsync(a => a.TurmaId == turmaId && a.DitadoId == request.DitadoId);
 
 		if (jaAtribuido)
-			throw new InvalidOperationException("Este ditado já está atribuído a esta turma.");
+			throw new InvalidOperationException("Este ditado jï¿½ estï¿½ atribuï¿½do a esta turma.");
 
-		var turmaDitado = new TurmaDitado
+		var escolaVinculoId = await _context.VinculosEscolares
+			.Where(v => v.UsuarioId == turma.ProfessorResponsavelId && v.Ativo && v.Escola.Ativa)
+			.Select(v => (int?)v.EscolaId)
+			.FirstOrDefaultAsync();
+		if (!turma.EscolaId.HasValue)
+			throw new InvalidOperationException("Turma legada sem EscolaId nÃ£o pode receber nova atribuiÃ§Ã£o.");
+		if (!escolaVinculoId.HasValue || escolaVinculoId != turma.EscolaId)
+			throw new InvalidOperationException("O professor responsÃ¡vel nÃ£o possui vÃ­nculo ativo na escola da turma.");
+		var escolaId = turma.EscolaId.Value;
+
+		var aplicacao = new AplicacaoDitado
 		{
+			EscolaId = escolaId,
 			TurmaId = turmaId,
 			DitadoId = request.DitadoId,
 			DataAtribuicao = DateTime.UtcNow,
-			DataLimite = request.DataLimite
+			DataLimite = request.DataLimite,
+			Ativa = true
 		};
 
-		_context.TurmaDitados.Add(turmaDitado);
+		_context.AplicacoesDitados.Add(aplicacao);
+		foreach (var aluno in turma.Alunos)
+			aplicacao.Participacoes.Add(new ParticipacaoAplicacao { AlunoId = aluno.Id });
 		await _context.SaveChangesAsync();
 
 		return true;
@@ -287,13 +361,13 @@ public class TurmaService
 
 	public async Task<bool> AtualizarAtribuicaoAsync(int turmaId, int ditadoId, AtualizarAtribuicaoRequest request)
 	{
-		var turmaDitado = await _context.TurmaDitados
-			.FirstOrDefaultAsync(td => td.TurmaId == turmaId && td.DitadoId == ditadoId);
+		var aplicacao = await _context.AplicacoesDitados
+			.FirstOrDefaultAsync(a => a.TurmaId == turmaId && a.DitadoId == ditadoId);
 
-		if (turmaDitado == null)
+		if (aplicacao == null)
 			return false;
 
-		turmaDitado.DataLimite = request.DataLimite;
+		aplicacao.DataLimite = request.DataLimite;
 		await _context.SaveChangesAsync();
 
 		return true;
@@ -301,13 +375,13 @@ public class TurmaService
 
 	public async Task<bool> RemoverAtribuicaoAsync(int turmaId, int ditadoId)
 	{
-		var turmaDitado = await _context.TurmaDitados
-			.FirstOrDefaultAsync(td => td.TurmaId == turmaId && td.DitadoId == ditadoId);
+		var aplicacao = await _context.AplicacoesDitados
+			.FirstOrDefaultAsync(a => a.TurmaId == turmaId && a.DitadoId == ditadoId);
 
-		if (turmaDitado == null)
+		if (aplicacao == null)
 			return false;
 
-		_context.TurmaDitados.Remove(turmaDitado);
+		aplicacao.Ativa = false;
 		await _context.SaveChangesAsync();
 
 		return true;
@@ -315,7 +389,7 @@ public class TurmaService
 
 	private async Task<TurmaResponse> MapearParaResponseAsync(Turma turma)
 	{
-		// Garantir que relacionamentos estão carregados
+		// Garantir que relacionamentos estï¿½o carregados
 		if (turma.ProfessorResponsavel == null)
 		{
 			await _context.Entry(turma).Reference(t => t.ProfessorResponsavel).LoadAsync();
@@ -352,3 +426,5 @@ public class TurmaService
 		};
 	}
 }
+
+

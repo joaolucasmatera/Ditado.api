@@ -20,7 +20,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         builder.ConfigureServices(services =>
         {
-            // Remove todos os serviços relacionados ao DitadoDbContext e DbContextOptions
+            // Remove todos os serviï¿½os relacionados ao DitadoDbContext e DbContextOptions
             var descriptors = services
                 .Where(d =>
                     d.ServiceType == typeof(DbContextOptions<DitadoDbContext>) ||
@@ -36,7 +36,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
             foreach (var descriptor in descriptors)
                 services.Remove(descriptor);
 
-            // Remove todos os DbContextOptions genéricos
+            // Remove todos os DbContextOptions genï¿½ricos
             var genericDescriptors = services
                 .Where(d => d.ServiceType.FullName != null && d.ServiceType.FullName.Contains("DbContextOptions"))
                 .ToList();
@@ -50,21 +50,21 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
                 options.UseInMemoryDatabase(_databaseName);
             });
 
-            // Cria banco e faz SEED do admin temporário
+            // Cria banco e faz SEED do admin temporï¿½rio
             var serviceProvider = services.BuildServiceProvider();
             using var scope = serviceProvider.CreateScope();
             var context = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
             
             context.Database.EnsureCreated();
             
-            // Seed do usuário admin temporário
+            // Seed do usuï¿½rio admin temporï¿½rio
             SeedAdminTemporario(context);
         });
     }
 
     private void SeedAdminTemporario(DitadoDbContext context)
     {
-        // Verifica se já existe admin
+        // Verifica se jï¿½ existe admin
         if (context.Usuarios.Any(u => u.Login == "admin@admin.com"))
             return;
 
@@ -73,10 +73,11 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
 
         var adminTemp = new Usuario
         {
-            Nome = "Administrador Temporário",
+            Nome = "Administrador Temporï¿½rio",
             Login = "admin@admin.com",
             SenhaHash = senhaHash,
             Tipo = TipoUsuario.Administrador,
+            AdministradorGeral = true,
             Ativo = true,
             DataCriacao = DateTime.UtcNow
         };
@@ -85,7 +86,7 @@ public class CustomWebApplicationFactory : WebApplicationFactory<Program>
         context.SaveChanges();
     }
 
-    // Replica lógica do PasswordHasher
+    // Replica lï¿½gica do PasswordHasher
     private string GerarHashSenha(string senha)
     {
         const int SaltSize = 16;

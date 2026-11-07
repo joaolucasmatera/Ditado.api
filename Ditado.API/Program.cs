@@ -1,5 +1,6 @@
 using System.Reflection;
 using System.Text;
+using System.IdentityModel.Tokens.Jwt;
 using Ditado.Aplicacao.Services;
 using Ditado.Infra.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
@@ -34,7 +35,7 @@ builder.Services.AddSwaggerGen(c =>
         Description = "API para gerenciamento de ditados escolares"
     });
     
-    // Usar o diretório do assembly em vez de AppContext.BaseDirectory
+    // Usar o diretï¿½rio do assembly em vez de AppContext.BaseDirectory
     var xmlFile = $"{Assembly.GetExecutingAssembly().GetName().Name}.xml";
     var xmlPath = Path.Combine(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, xmlFile);
     
@@ -45,9 +46,9 @@ builder.Services.AddSwaggerGen(c =>
     }
     else
     {
-        Console.WriteLine($"XML NÃO encontrado em: {xmlPath}");
+        Console.WriteLine($"XML Nï¿½O encontrado em: {xmlPath}");
         Console.WriteLine($"   Procurando em: {Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)}");
-        Console.WriteLine($"   Arquivos disponíveis: {string.Join(", ", Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.xml"))}");
+        Console.WriteLine($"   Arquivos disponï¿½veis: {string.Join(", ", Directory.GetFiles(Path.GetDirectoryName(Assembly.GetExecutingAssembly().Location)!, "*.xml"))}");
     }
     
     c.AddSecurityDefinition("Bearer", new OpenApiSecurityScheme
@@ -83,7 +84,7 @@ builder.Services.AddDbContext<DitadoDbContext>(options =>
     ));
 
 // JWT Authentication
-var chaveSecreta = builder.Configuration["Jwt:ChaveSecreta"] ?? throw new InvalidOperationException("Jwt:ChaveSecreta não configurada");
+var chaveSecreta = builder.Configuration["Jwt:ChaveSecreta"] ?? throw new InvalidOperationException("Jwt:ChaveSecreta nï¿½o configurada");
 var key = Encoding.UTF8.GetBytes(chaveSecreta);
 
 builder.Services.AddAuthentication(options =>
@@ -103,6 +104,23 @@ builder.Services.AddAuthentication(options =>
         ValidAudience = builder.Configuration["Jwt:Audiencia"],
         IssuerSigningKey = new SymmetricSecurityKey(key)
     };
+    options.Events = new JwtBearerEvents
+    {
+        OnTokenValidated = async context =>
+        {
+            var jti = context.Principal?.FindFirst(JwtRegisteredClaimNames.Jti)?.Value;
+            if (!Guid.TryParse(jti, out var sessaoId))
+            {
+                context.Fail("SessÃ£o ausente.");
+                return;
+            }
+
+            var db = context.HttpContext.RequestServices.GetRequiredService<DitadoDbContext>();
+            var sessao = await db.SessoesUsuarios.AsNoTracking().SingleOrDefaultAsync(s => s.Id == sessaoId);
+            if (sessao == null || sessao.RevogadaEm.HasValue || sessao.ExpiraEm <= DateTime.UtcNow)
+                context.Fail("SessÃ£o revogada ou expirada.");
+        }
+    };
 });
 
 builder.Services.AddAuthorization();
@@ -113,14 +131,17 @@ builder.Services.AddScoped<DitadoService>();
 builder.Services.AddScoped<TurmaService>();
 builder.Services.AddScoped<CategoriaService>();
 builder.Services.AddScoped<MarketplaceService>();
+builder.Services.AddScoped<VisibilidadeService>();
 builder.Services.AddScoped<AlunoService>();
 builder.Services.AddScoped<ProfessorService>();
 builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<TokenService>();
+builder.Services.AddScoped<AudioRetencaoService>();
+builder.Services.AddScoped<ExportacaoService>();
 
 var app = builder.Build();
 
-// APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODUÇÃO - NÃO EM DEVELOPMENT NEM TESTING)
+// APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODUï¿½ï¿½O - Nï¿½O EM DEVELOPMENT NEM TESTING)
 if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))
 {
     using (var scope = app.Services.CreateScope())
@@ -166,5 +187,5 @@ app.MapControllers();
 
 app.Run();
 
-// Tornar Program acessível para testes
+// Tornar Program acessï¿½vel para testes
 public partial class Program { }

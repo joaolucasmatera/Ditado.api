@@ -1,4 +1,5 @@
 using System.ComponentModel.DataAnnotations;
+using System.Security.Cryptography;
 using Ditado.Aplicacao.DTOs.Usuarios;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
@@ -23,13 +24,13 @@ public class UsuarioService
     public async Task<UsuarioResponse> CriarUsuarioAsync(CriarUsuarioRequest request)
     {
         if (!new EmailAddressAttribute().IsValid(request.Login))
-            throw new InvalidOperationException("Login deve ser um email válido.");
+            throw new InvalidOperationException("Login deve ser um email vï¿½lido.");
 
         if (await _context.Usuarios.AnyAsync(u => u.Login == request.Login.ToLowerInvariant()))
-            throw new InvalidOperationException("Login já está em uso.");
+            throw new InvalidOperationException("Login jï¿½ estï¿½ em uso.");
 
         if (!request.Tipo.HasValue)
-            throw new InvalidOperationException("Tipo de usuário é obrigatório.");
+            throw new InvalidOperationException("Tipo de usuï¿½rio ï¿½ obrigatï¿½rio.");
 
         var usuario = new Usuario
         {
@@ -51,12 +52,12 @@ public class UsuarioService
     public async Task<UsuarioResponse> SolicitarAcessoAsync(CriarUsuarioRequest request)
     {
         if (!new EmailAddressAttribute().IsValid(request.Login))
-            throw new InvalidOperationException("Login deve ser um email válido.");
+            throw new InvalidOperationException("Login deve ser um email vï¿½lido.");
 
         var loginNormalizado = request.Login.ToLowerInvariant();
 
         if (await _context.Usuarios.AnyAsync(u => u.Login == loginNormalizado))
-            throw new InvalidOperationException("Este email já está cadastrado no sistema.");
+            throw new InvalidOperationException("Este email jï¿½ estï¿½ cadastrado no sistema.");
 
         var usuario = new Usuario
         {
@@ -73,6 +74,99 @@ public class UsuarioService
         await _context.SaveChangesAsync();
 
         return MapearParaResponse(usuario);
+    }
+
+    public async Task<UsuarioResponse> CadastrarProfessorAsync(CadastroProfessorRequest request)
+    {
+        var login = request.Login.Trim().ToLowerInvariant();
+        if (await _context.Usuarios.AnyAsync(u => u.Login == login)) throw new InvalidOperationException("Este email jÃ¡ estÃ¡ cadastrado no sistema.");
+        Escola escola;
+        var ativo = false;
+        if (request.OpcaoEscola == "CriarNova")
+        {
+            if (string.IsNullOrWhiteSpace(request.NomeNovaEscola)) throw new InvalidOperationException("Informe o nome da nova escola.");
+            escola = new Escola { Nome = request.NomeNovaEscola.Trim(), Codigo = $"ESC-{Guid.NewGuid():N}"[..12], Ativa = true };
+            ativo = true;
+            _context.Escolas.Add(escola);
+        }
+        else if (request.OpcaoEscola == "SelecionarExistente" && request.EscolaId.HasValue)
+        {
+            escola = await _context.Escolas.SingleOrDefaultAsync(e => e.Id == request.EscolaId.Value && e.Ativa) ?? throw new InvalidOperationException("Escola nÃ£o encontrada.");
+        }
+        else throw new InvalidOperationException("Selecione criar uma escola ou escolher uma escola existente.");
+        var professor = new Usuario { Nome = request.Nome.Trim(), Login = login, SenhaHash = _passwordHasher.Hash(request.Senha), Tipo = TipoUsuario.Professor, Ativo = ativo, DataCriacao = DateTime.UtcNow };
+        _context.Usuarios.Add(professor);
+        await _context.SaveChangesAsync();
+        _context.VinculosEscolares.Add(new VinculoEscolar { UsuarioId = professor.Id, EscolaId = escola.Id, Papel = request.OpcaoEscola == "CriarNova" ? PapelEscolar.Administrador : PapelEscolar.Professor, Ativo = ativo });
+        await _context.SaveChangesAsync();
+        return MapearParaResponse(professor);
+    }
+
+    public async Task<UsuarioResponse> SolicitarAcessoAlunoAsync(SolicitarAcessoAlunoRequest request)
+    {
+        var matricula = request.Matricula.Trim();
+        if (await _context.Usuarios.AnyAsync(u => u.Matricula == matricula))
+            throw new InvalidOperationException("Esta matrÃ­cula jÃ¡ estÃ¡ cadastrada no sistema.");
+        string codigo;
+        do { codigo = Convert.ToHexString(RandomNumberGenerator.GetBytes(5)); }
+        while (await _context.Usuarios.AnyAsync(u => u.CodigoCadastro == codigo));
+        var usuario = new Usuario { Nome = string.IsNullOrWhiteSpace(request.Nome) ? $"Aluno {matricula}" : request.Nome.Trim(), Login = $"aluno-{codigo.ToLowerInvariant()}@pendente.ditado", SenhaHash = string.Empty, Matricula = matricula, CodigoCadastro = codigo, Tipo = TipoUsuario.AcessoSolicitado, Ativo = false, PinConfigurado = false, DataCriacao = DateTime.UtcNow };
+        _context.Usuarios.Add(usuario);
+        await _context.SaveChangesAsync();
+        return MapearParaResponse(usuario);
+    }
+
+    public async Task<LoginResponse?> LoginAlunoAsync(LoginAlunoRequest request)
+    {
+        var identificador = request.MatriculaOuCodigo.Trim();
+        var usuario = await _context.Usuarios.FirstOrDefaultAsync(u => u.Tipo == TipoUsuario.Aluno && (u.Matricula == identificador || u.CodigoCadastro == identificador));
+        if (usuario == null || !usuario.PinConfigurado || !_passwordHasher.Verify(request.Pin, usuario.SenhaHash)) return null;
+        if (!usuario.Ativo) throw new InvalidOperationException("Sua conta estÃ¡ inativa. Entre em contato com a escola.");
+        return await CriarSessaoAsync(usuario);
+    }
+
+    public async Task<UsuarioResponse?> ConfigurarPrimeiroPinAlunoAsync(PrimeiroAcessoAlunoRequest request)
+    {
+        var identificador = request.MatriculaOuCodigo.Trim();
+        var usuario = await _context.Usuarios.FirstOrDefaultAsync(u =>
+            (u.Tipo == TipoUsuario.AcessoSolicitado || u.Tipo == TipoUsuario.Aluno) &&
+            !u.PinConfigurado &&
+            (u.Matricula == identificador || u.CodigoCadastro == identificador));
+        if (usuario is null) return null;
+        usuario.SenhaHash = _passwordHasher.Hash(request.Pin);
+        usuario.PinConfigurado = true;
+        await _context.SaveChangesAsync();
+        return MapearParaResponse(usuario);
+    }
+
+    public async Task<bool> VerificarPrimeiroAcessoAlunoAsync(VerificarPrimeiroAcessoAlunoRequest request)
+    {
+        var identificador = request.MatriculaOuCodigo.Trim();
+        return await _context.Usuarios.AnyAsync(u =>
+            (u.Tipo == TipoUsuario.AcessoSolicitado || u.Tipo == TipoUsuario.Aluno) &&
+            !u.PinConfigurado &&
+            (u.Matricula == identificador || u.CodigoCadastro == identificador));
+    }
+
+    public async Task<UsuarioResponse> CadastrarAlunoManualAsync(CadastrarAlunoManualRequest request, int atorId)
+    {
+        var ator = await _context.Usuarios.FindAsync(atorId);
+        if (ator is null || !ator.Ativo || (ator.Tipo != TipoUsuario.Professor && ator.Tipo != TipoUsuario.Administrador))
+            throw new InvalidOperationException("Apenas professor ou administrador pode cadastrar alunos.");
+        var turma = await _context.Turmas.Include(t => t.Alunos).Include(t => t.Escola).SingleOrDefaultAsync(t => t.Id == request.TurmaId && t.Ativo);
+        if (turma is null) throw new InvalidOperationException("Turma nÃ£o encontrada ou inativa.");
+        if (ator.Tipo == TipoUsuario.Professor && turma.ProfessorResponsavelId != atorId)
+            throw new InvalidOperationException("Professor nÃ£o autorizado para esta turma.");
+        if (await _context.Usuarios.AnyAsync(u => u.Tipo == TipoUsuario.Aluno && u.NumeroChamada == request.NumeroChamada && u.TurmasComoAluno.Any(t => t.Id == request.TurmaId)))
+            throw new InvalidOperationException("JÃ¡ existe aluno com este nÃºmero de chamada na turma.");
+        var escolaNome = turma.Escola?.Nome ?? $"Escola{turma.EscolaId ?? 0}";
+        var codigo = $"{NormalizarCodigo(escolaNome)}{NormalizarCodigo(turma.Nome)}{request.NumeroChamada:D3}";
+        if (codigo.Length > 32) codigo = codigo[..32];
+        var aluno = new Usuario { Nome = request.Nome.Trim(), Login = $"aluno-{Guid.NewGuid():N}@pendente.ditado", Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula.Trim(), NumeroChamada = request.NumeroChamada, CodigoCadastro = codigo, SenhaHash = string.Empty, PinConfigurado = false, Tipo = TipoUsuario.Aluno, Ativo = true, DataCriacao = DateTime.UtcNow };
+        turma.Alunos.Add(aluno);
+        _context.Usuarios.Add(aluno);
+        await _context.SaveChangesAsync();
+        return MapearParaResponse(aluno);
     }
 
     public async Task<List<UsuarioResponse>> ListarSolicitacoesPendentesAsync()
@@ -92,16 +186,16 @@ public class UsuarioService
             return null;
 
         if (usuario.Tipo != TipoUsuario.AcessoSolicitado)
-            throw new InvalidOperationException("Este usuário não está pendente de aprovação.");
+            throw new InvalidOperationException("Este usuï¿½rio nï¿½o estï¿½ pendente de aprovaï¿½ï¿½o.");
 
         if (tipoAprovador == TipoUsuario.Professor)
         {
             if (request.NovoTipo != TipoUsuario.Aluno && request.NovoTipo != TipoUsuario.Professor)
-                throw new InvalidOperationException("Professores só podem aprovar usuários como Aluno ou Professor.");
+                throw new InvalidOperationException("Professores sï¿½ podem aprovar usuï¿½rios como Aluno ou Professor.");
         }
 
         if (request.NovoTipo == TipoUsuario.AcessoSolicitado)
-            throw new InvalidOperationException("Não é possível aprovar usuário com tipo 'AcessoSolicitado'.");
+            throw new InvalidOperationException("Nï¿½o ï¿½ possï¿½vel aprovar usuï¿½rio com tipo 'AcessoSolicitado'.");
 
         usuario.Tipo = request.NovoTipo;
         usuario.Ativo = true;
@@ -122,22 +216,24 @@ public class UsuarioService
             return null;
 
         if (usuario.Tipo == TipoUsuario.AcessoSolicitado)
-            throw new InvalidOperationException("Seu acesso ainda não foi aprovado. Aguarde a aprovação de um administrador ou professor.");
+            throw new InvalidOperationException("Seu acesso ainda nï¿½o foi aprovado. Aguarde a aprovaï¿½ï¿½o de um administrador ou professor.");
 
         if (!usuario.Ativo)
-            throw new InvalidOperationException("Sua conta está inativa. Entre em contato com o administrador.");
+            throw new InvalidOperationException("Sua conta estï¿½ inativa. Entre em contato com o administrador.");
 
+        return await CriarSessaoAsync(usuario);
+    }
+
+    private async Task<LoginResponse> CriarSessaoAsync(Usuario usuario)
+    {
         usuario.DataUltimoAcesso = DateTime.UtcNow;
         await _context.SaveChangesAsync();
-
-        var token = _tokenService.GerarToken(usuario);
-
-        return new LoginResponse
-        {
-            Token = token,
-            Usuario = MapearParaResponse(usuario)
-        };
+        var sessao = new SessaoUsuario { Id = Guid.NewGuid(), UsuarioId = usuario.Id, CriadaEm = DateTime.UtcNow, ExpiraEm = DateTime.UtcNow.Add(TokenService.DuracaoToken) };
+        _context.SessoesUsuarios.Add(sessao);
+        await _context.SaveChangesAsync();
+        return new LoginResponse { Token = _tokenService.GerarToken(usuario, sessao.Id), Usuario = MapearParaResponse(usuario) };
     }
+
 
     public async Task<UsuarioResponse?> ObterPorIdAsync(int id)
     {
@@ -163,25 +259,25 @@ public class UsuarioService
 
         var isEdicaoPropria = id == usuarioLogadoId;
 
-        // EDIÇÃO PRÓPRIA: Apenas Nome, Senha e Matrícula
+        // EDIï¿½ï¿½O PRï¿½PRIA: Apenas Nome, Senha e Matrï¿½cula
         if (isEdicaoPropria)
         {
             if (request.Tipo.HasValue)
-                throw new InvalidOperationException("Você não pode alterar seu próprio tipo.");
+                throw new InvalidOperationException("Vocï¿½ nï¿½o pode alterar seu prï¿½prio tipo.");
             
             if (request.Ativo.HasValue)
-                throw new InvalidOperationException("Você não pode alterar seu próprio status ativo.");
+                throw new InvalidOperationException("Vocï¿½ nï¿½o pode alterar seu prï¿½prio status ativo.");
         }
 
-        // Nome (todos podem alterar próprio ou Admin/Prof podem alterar de outros)
+        // Nome (todos podem alterar prï¿½prio ou Admin/Prof podem alterar de outros)
         if (!string.IsNullOrWhiteSpace(request.Nome))
             usuario.Nome = request.Nome;
 
-        // Matrícula (todos podem alterar próprio ou Admin/Prof podem alterar de outros)
+        // Matrï¿½cula (todos podem alterar prï¿½prio ou Admin/Prof podem alterar de outros)
         if (request.Matricula != null)
             usuario.Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula;
 
-        // Senha (todos podem alterar própria)
+        // Senha (todos podem alterar prï¿½pria)
         if (!string.IsNullOrWhiteSpace(request.SenhaAtual) && !string.IsNullOrWhiteSpace(request.SenhaNova))
         {
             if (!_passwordHasher.Verify(request.SenhaAtual, usuario.SenhaHash))
@@ -190,14 +286,14 @@ public class UsuarioService
             usuario.SenhaHash = _passwordHasher.Hash(request.SenhaNova);
         }
 
-        // ATIVO (apenas para edição de outros)
+        // ATIVO (apenas para ediï¿½ï¿½o de outros)
         if (!isEdicaoPropria && request.Ativo.HasValue)
         {
             ValidarAlteracaoAtivo(tipoUsuarioLogado, usuario.Tipo);
             usuario.Ativo = request.Ativo.Value;
         }
 
-        // TIPO (apenas para edição de outros)
+        // TIPO (apenas para ediï¿½ï¿½o de outros)
         if (!isEdicaoPropria && request.Tipo.HasValue)
         {
             ValidarAlteracaoTipo(tipoUsuarioLogado, usuario.Tipo, request.Tipo.Value);
@@ -209,29 +305,68 @@ public class UsuarioService
         return MapearParaResponse(usuario);
     }
 
-    // VALIDAÇÃO: Alteração de Ativo
+    public async Task<bool> AlterarAdministradorGeralAsync(int alvoId, bool habilitar, int atorId, string motivo, string? correlacaoId = null)
+    {
+        if (string.IsNullOrWhiteSpace(motivo))
+            throw new InvalidOperationException("Motivo Ã© obrigatÃ³rio.");
+        var ator = await _context.Usuarios.SingleOrDefaultAsync(u => u.Id == atorId && u.Ativo);
+        if (ator?.Tipo != TipoUsuario.Administrador || !ator.AdministradorGeral)
+            throw new InvalidOperationException("Apenas Administrador Geral/TÃ©cnico pode alterar esta capability.");
+        if (alvoId == atorId)
+            throw new InvalidOperationException("AutoelevaÃ§Ã£o ou auto-revogaÃ§Ã£o nÃ£o Ã© permitida.");
+        var alvo = await _context.Usuarios.SingleOrDefaultAsync(u => u.Id == alvoId && u.Ativo);
+        if (alvo is null)
+            throw new InvalidOperationException("UsuÃ¡rio alvo nÃ£o encontrado.");
+        if (alvo.Tipo != TipoUsuario.Administrador)
+            throw new InvalidOperationException("O alvo deve ser um Administrador.");
+
+        await using var transaction = _context.Database.IsRelational() ? await _context.Database.BeginTransactionAsync() : null;
+        var antes = alvo.AdministradorGeral;
+        alvo.AdministradorGeral = habilitar;
+        var sessoes = await _context.SessoesUsuarios.Where(s => s.UsuarioId == alvoId && !s.RevogadaEm.HasValue).ToListAsync();
+        foreach (var sessao in sessoes)
+        {
+            sessao.RevogadaEm = DateTime.UtcNow;
+            sessao.MotivoRevogacao = habilitar ? "Capability AdministradorGeral concedida; novo login obrigatÃ³rio." : "Capability AdministradorGeral revogada.";
+        }
+        _context.AuditoriaEventos.Add(new AuditoriaEvento
+        {
+            UsuarioId = atorId,
+            Operacao = habilitar ? "ConcederAdministradorGeral" : "RevogarAdministradorGeral",
+            Recurso = $"Usuario:{alvoId}",
+            Resultado = antes == habilitar ? "SemAlteracao" : "Permitido",
+            Motivo = $"{motivo}; antes={antes}; depois={habilitar}",
+            CorrelacaoId = correlacaoId,
+            DataUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        if (transaction is not null) await transaction.CommitAsync();
+        return antes != habilitar;
+    }
+
+    // VALIDAï¿½ï¿½O: Alteraï¿½ï¿½o de Ativo
     private void ValidarAlteracaoAtivo(TipoUsuario tipoLogado, TipoUsuario tipoAlvo)
     {
-        // Aluno não pode alterar ninguém
+        // Aluno nï¿½o pode alterar ninguï¿½m
         if (tipoLogado == TipoUsuario.Aluno)
-            throw new InvalidOperationException("Alunos não podem alterar status de outros usuários.");
+            throw new InvalidOperationException("Alunos nï¿½o podem alterar status de outros usuï¿½rios.");
 
-        // Professor só pode alterar Alunos e AcessoSolicitado
+        // Professor sï¿½ pode alterar Alunos e AcessoSolicitado
         if (tipoLogado == TipoUsuario.Professor)
         {
             if (tipoAlvo != TipoUsuario.Aluno && tipoAlvo != TipoUsuario.AcessoSolicitado)
-                throw new InvalidOperationException("Professores só podem alterar status de Alunos e usuários com AcessoSolicitado.");
+                throw new InvalidOperationException("Professores sï¿½ podem alterar status de Alunos e usuï¿½rios com AcessoSolicitado.");
         }
 
-        // Admin pode alterar qualquer um (sem validação adicional)
+        // Admin pode alterar qualquer um (sem validaï¿½ï¿½o adicional)
     }
 
-    // VALIDAÇÃO: Alteração de Tipo
+    // VALIDAï¿½ï¿½O: Alteraï¿½ï¿½o de Tipo
     private void ValidarAlteracaoTipo(TipoUsuario tipoLogado, TipoUsuario tipoAtual, TipoUsuario tipoNovo)
     {
-        // Não pode reduzir para AcessoSolicitado
+        // Nï¿½o pode reduzir para AcessoSolicitado
         if (tipoNovo == TipoUsuario.AcessoSolicitado)
-            throw new InvalidOperationException("Não é possível alterar usuário para tipo 'AcessoSolicitado'. Para bloquear acesso, desative o usuário.");
+            throw new InvalidOperationException("Nï¿½o ï¿½ possï¿½vel alterar usuï¿½rio para tipo 'AcessoSolicitado'. Para bloquear acesso, desative o usuï¿½rio.");
 
         var hierarquia = new Dictionary<TipoUsuario, int>
         {
@@ -246,26 +381,26 @@ public class UsuarioService
         var isAumento = nivelNovo > nivelAtual;
         var isReducao = nivelNovo < nivelAtual;
 
-        // Aluno não pode alterar tipo de ninguém
+        // Aluno nï¿½o pode alterar tipo de ninguï¿½m
         if (tipoLogado == TipoUsuario.Aluno)
-            throw new InvalidOperationException("Alunos não podem alterar tipo de outros usuários.");
+            throw new InvalidOperationException("Alunos nï¿½o podem alterar tipo de outros usuï¿½rios.");
 
-        // Professor pode aumentar, mas não reduzir
+        // Professor pode aumentar, mas nï¿½o reduzir
         if (tipoLogado == TipoUsuario.Professor)
         {
             if (isReducao)
-                throw new InvalidOperationException("Apenas administradores podem reduzir tipo de usuário.");
+                throw new InvalidOperationException("Apenas administradores podem reduzir tipo de usuï¿½rio.");
 
-            // Professor só pode aumentar Aluno > Professor (não pode criar Admin)
+            // Professor sï¿½ pode aumentar Aluno > Professor (nï¿½o pode criar Admin)
             if (isAumento && tipoNovo == TipoUsuario.Administrador)
-                throw new InvalidOperationException("Professores não podem promover usuários a Administrador.");
+                throw new InvalidOperationException("Professores nï¿½o podem promover usuï¿½rios a Administrador.");
 
-            // Professor só pode alterar AcessoSolicitado e Alunos
+            // Professor sï¿½ pode alterar AcessoSolicitado e Alunos
             if (tipoAtual != TipoUsuario.AcessoSolicitado && tipoAtual != TipoUsuario.Aluno)
-                throw new InvalidOperationException("Professores só podem alterar tipo de usuários com AcessoSolicitado ou Alunos.");
+                throw new InvalidOperationException("Professores sï¿½ podem alterar tipo de usuï¿½rios com AcessoSolicitado ou Alunos.");
         }
 
-        // Admin pode fazer qualquer alteração (exceto para AcessoSolicitado, já validado acima)
+        // Admin pode fazer qualquer alteraï¿½ï¿½o (exceto para AcessoSolicitado, jï¿½ validado acima)
     }
 
     public async Task<bool> BloquearUsuarioAsync(int id)
@@ -292,6 +427,86 @@ public class UsuarioService
         return true;
     }
 
+    public async Task<bool> RevogarSessaoAsync(Guid sessaoId, int usuarioId, string motivo)
+    {
+        var sessao = await _context.SessoesUsuarios
+            .FirstOrDefaultAsync(s => s.Id == sessaoId && s.UsuarioId == usuarioId);
+
+        if (sessao == null || sessao.RevogadaEm.HasValue)
+        {
+            _context.AuditoriaEventos.Add(new AuditoriaEvento
+            {
+                UsuarioId = usuarioId,
+                Operacao = "RevogarSessao",
+                Recurso = "SessaoUsuario",
+                Resultado = "Negado",
+                Motivo = "SessÃ£o inexistente, pertencente a outro usuÃ¡rio ou jÃ¡ revogada.",
+                DataUtc = DateTime.UtcNow
+            });
+            await _context.SaveChangesAsync();
+            return false;
+        }
+
+        sessao.RevogadaEm = DateTime.UtcNow;
+        sessao.MotivoRevogacao = motivo;
+        _context.AuditoriaEventos.Add(new AuditoriaEvento
+        {
+            UsuarioId = usuarioId,
+            Operacao = "RevogarSessao",
+            Recurso = "SessaoUsuario",
+            Resultado = "Permitido",
+            Motivo = motivo,
+            DataUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+        return true;
+    }
+
+    public async Task<IReadOnlyList<ContextoEscolarResponse>> ListarContextosEscolaresAsync(int usuarioId)
+    {
+        var administradorGeral = await _context.Usuarios.AsNoTracking().Where(u => u.Id == usuarioId && u.Ativo).Select(u => u.AdministradorGeral).FirstOrDefaultAsync();
+        return await _context.VinculosEscolares
+            .AsNoTracking()
+            .Where(v => v.UsuarioId == usuarioId && v.Ativo && v.Escola.Ativa)
+            .OrderBy(v => v.Escola.Nome)
+            .Select(v => new ContextoEscolarResponse
+            {
+                EscolaId = v.EscolaId,
+                Nome = v.Escola.Nome,
+                Codigo = v.Escola.Codigo,
+                Papel = v.Papel.ToString(),
+                AdministradorGeral = administradorGeral
+            })
+            .ToListAsync();
+    }
+
+    public async Task<bool> PossuiAcessoEscolarAsync(int usuarioId, int escolaId, PapelEscolar? papel = null)
+    {
+        var consulta = _context.VinculosEscolares
+            .AsNoTracking()
+            .Where(v => v.UsuarioId == usuarioId && v.EscolaId == escolaId && v.Ativo && v.Escola.Ativa);
+
+        if (papel.HasValue)
+            consulta = consulta.Where(v => v.Papel == papel.Value);
+
+        return await consulta.AnyAsync();
+    }
+
+    public async Task RegistrarAuditoriaAsync(int? usuarioId, int? escolaId, string operacao, string recurso, string resultado, string motivo)
+    {
+        _context.AuditoriaEventos.Add(new AuditoriaEvento
+        {
+            UsuarioId = usuarioId,
+            EscolaId = escolaId,
+            Operacao = operacao,
+            Recurso = recurso,
+            Resultado = resultado,
+            Motivo = motivo,
+            DataUtc = DateTime.UtcNow
+        });
+        await _context.SaveChangesAsync();
+    }
+
     public async Task<bool> DeletarUsuarioAsync(int id)
     {
         var usuario = await _context.Usuarios.FindAsync(id);
@@ -312,10 +527,23 @@ public class UsuarioService
             Nome = usuario.Nome,
             Login = usuario.Login,
             Matricula = usuario.Matricula,
+            CodigoCadastro = usuario.CodigoCadastro,
             Tipo = usuario.Tipo.ToString(),
             Ativo = usuario.Ativo,
             DataCriacao = usuario.DataCriacao,
             DataUltimoAcesso = usuario.DataUltimoAcesso
         };
     }
+
+    private static string NormalizarCodigo(string valor)
+        => new string(valor.Where(char.IsLetterOrDigit).ToArray());
+}
+
+public sealed class ContextoEscolarResponse
+{
+    public int EscolaId { get; init; }
+    public string Nome { get; init; } = string.Empty;
+    public string Codigo { get; init; } = string.Empty;
+    public string Papel { get; init; } = string.Empty;
+    public bool AdministradorGeral { get; init; }
 }

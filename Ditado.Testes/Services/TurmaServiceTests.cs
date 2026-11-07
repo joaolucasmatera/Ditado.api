@@ -50,7 +50,7 @@ public class TurmaServiceTests : IDisposable
 	{
 		var turma = new Turma
 		{
-			Nome = "5º Ano A",
+			Nome = "5ï¿½ Ano A",
 			Serie = 5,
 			AnoLetivo = 2024,
 			ProfessorResponsavelId = professorId,
@@ -94,10 +94,10 @@ public class TurmaServiceTests : IDisposable
 
 		// Assert
 		Assert.True(resultado);
-		var atribuicao = await _context.TurmaDitados
+		var atribuicao = await _context.AplicacoesDitados
 			.FirstOrDefaultAsync(td => td.TurmaId == turma.Id && td.DitadoId == ditado.Id);
 		Assert.NotNull(atribuicao);
-		Assert.Equal(request.DataLimite.Date, atribuicao.DataLimite.Date);
+		Assert.Equal(request.DataLimite.Date, atribuicao.DataLimite!.Value.Date);
 		Assert.True(atribuicao.DataAtribuicao <= DateTime.UtcNow);
 	}
 
@@ -139,7 +139,7 @@ public class TurmaServiceTests : IDisposable
 			() => _turmaService.AtribuirDitadoAsync(turma.Id, request)
 		);
 
-		Assert.Equal("Ditado não encontrado.", exception.Message);
+		Assert.Equal("Ditado nÃ£o encontrado.", exception.Message);
 	}
 
 	[Fact]
@@ -150,14 +150,15 @@ public class TurmaServiceTests : IDisposable
 		var turma = await CriarTurmaAsync(professor.Id);
 		var ditado = await CriarDitadoAsync(professor.Id);
 
-		var atribuicaoExistente = new TurmaDitado
+		var atribuicaoExistente = new AplicacaoDitado
 		{
+			EscolaId = turma.EscolaId ?? 0,
 			TurmaId = turma.Id,
 			DitadoId = ditado.Id,
 			DataAtribuicao = DateTime.UtcNow,
 			DataLimite = DateTime.UtcNow.AddDays(5)
 		};
-		_context.TurmaDitados.Add(atribuicaoExistente);
+		_context.AplicacoesDitados.Add(atribuicaoExistente);
 		await _context.SaveChangesAsync();
 
 		var request = new AtribuirDitadoRequest
@@ -171,7 +172,7 @@ public class TurmaServiceTests : IDisposable
 			() => _turmaService.AtribuirDitadoAsync(turma.Id, request)
 		);
 
-		Assert.Equal("Este ditado já está atribuído a esta turma.", exception.Message);
+		Assert.Equal("Este ditado jÃ¡ estÃ¡ atribuÃ­do a esta turma.", exception.Message);
 	}
 
 	[Fact]
@@ -182,14 +183,15 @@ public class TurmaServiceTests : IDisposable
 		var turma = await CriarTurmaAsync(professor.Id);
 		var ditado = await CriarDitadoAsync(professor.Id);
 
-		var atribuicao = new TurmaDitado
+		var atribuicao = new AplicacaoDitado
 		{
+			EscolaId = turma.EscolaId ?? 0,
 			TurmaId = turma.Id,
 			DitadoId = ditado.Id,
 			DataAtribuicao = DateTime.UtcNow,
 			DataLimite = DateTime.UtcNow.AddDays(5)
 		};
-		_context.TurmaDitados.Add(atribuicao);
+		_context.AplicacoesDitados.Add(atribuicao);
 		await _context.SaveChangesAsync();
 
 		var novaDataLimite = DateTime.UtcNow.AddDays(10);
@@ -203,9 +205,9 @@ public class TurmaServiceTests : IDisposable
 
 		// Assert
 		Assert.True(resultado);
-		var atribuicaoAtualizada = await _context.TurmaDitados
+		var atribuicaoAtualizada = await _context.AplicacoesDitados
 			.FirstAsync(td => td.TurmaId == turma.Id && td.DitadoId == ditado.Id);
-		Assert.Equal(novaDataLimite.Date, atribuicaoAtualizada.DataLimite.Date);
+		Assert.Equal(novaDataLimite.Date, atribuicaoAtualizada.DataLimite!.Value.Date);
 	}
 
 	[Fact]
@@ -232,14 +234,15 @@ public class TurmaServiceTests : IDisposable
 		var turma = await CriarTurmaAsync(professor.Id);
 		var ditado = await CriarDitadoAsync(professor.Id);
 
-		var atribuicao = new TurmaDitado
+		var atribuicao = new AplicacaoDitado
 		{
+			EscolaId = turma.EscolaId ?? 0,
 			TurmaId = turma.Id,
 			DitadoId = ditado.Id,
 			DataAtribuicao = DateTime.UtcNow,
 			DataLimite = DateTime.UtcNow.AddDays(5)
 		};
-		_context.TurmaDitados.Add(atribuicao);
+		_context.AplicacoesDitados.Add(atribuicao);
 		await _context.SaveChangesAsync();
 
 		// Act
@@ -247,9 +250,10 @@ public class TurmaServiceTests : IDisposable
 
 		// Assert
 		Assert.True(resultado);
-		var atribuicaoRemovida = await _context.TurmaDitados
+		var atribuicaoRemovida = await _context.AplicacoesDitados
 			.FirstOrDefaultAsync(td => td.TurmaId == turma.Id && td.DitadoId == ditado.Id);
-		Assert.Null(atribuicaoRemovida);
+		Assert.NotNull(atribuicaoRemovida);
+		Assert.False(atribuicaoRemovida!.Ativa);
 	}
 
 	[Fact]
@@ -270,7 +274,7 @@ public class TurmaServiceTests : IDisposable
 		var turma1 = await CriarTurmaAsync(professor.Id);
 		var turma2 = new Turma
 		{
-			Nome = "5º Ano B",
+			Nome = "5ï¿½ Ano B",
 			Serie = 5,
 			AnoLetivo = 2024,
 			ProfessorResponsavelId = professor.Id,
@@ -300,7 +304,7 @@ public class TurmaServiceTests : IDisposable
 		// Assert
 		Assert.True(resultado1);
 		Assert.True(resultado2);
-		var atribuicoes = await _context.TurmaDitados
+		var atribuicoes = await _context.AplicacoesDitados
 			.Where(td => td.DitadoId == ditado.Id)
 			.ToListAsync();
 		Assert.Equal(2, atribuicoes.Count);

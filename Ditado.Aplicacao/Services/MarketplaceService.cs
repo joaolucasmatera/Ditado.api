@@ -1,6 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Dominio.Entidades;
+using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -29,10 +30,27 @@ public class MarketplaceService(DitadoDbContext context)
     }
 
     // Consulta mínima do recibo; a listagem compartilhada pertence à CAT-01.
-    public async Task<ErroPublicadoResponse?> ObterReciboAsync(int id, CancellationToken cancellationToken = default)
+    public async Task<ErroPublicadoResponse?> ObterReciboAsync(int id, int? usuarioId = null, TipoUsuario? tipoUsuario = null, CancellationToken cancellationToken = default)
     {
-        var erro = await context.ErrosCatalogo.AsNoTracking().SingleOrDefaultAsync(e => e.Id == id, cancellationToken);
+        var administradorGlobal = usuarioId.HasValue && tipoUsuario == TipoUsuario.Administrador && await context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral, cancellationToken);
+        var erro = await context.ErrosCatalogo.AsNoTracking().Include(e => e.Publicacoes).ThenInclude(p => p.TurmasAlvo)
+            .SingleOrDefaultAsync(e => e.Id == id && e.Ativo && (usuarioId == null || administradorGlobal ||
+                e.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
+                    (p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
+                    (p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))), cancellationToken);
         return erro is null ? null : Mapear(erro);
+    }
+
+    public async Task<List<ErroPublicadoResponse>> ListarAsync(int usuarioId, TipoUsuario tipoUsuario, CancellationToken cancellationToken = default)
+    {
+        var administradorGlobal = tipoUsuario == TipoUsuario.Administrador && await context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral, cancellationToken);
+        var erros = await context.ErrosCatalogo.AsNoTracking()
+            .Where(e => e.Ativo && (administradorGlobal || e.Publicacoes.Any(p => p.ChaveVigente != null &&
+                (p.Nivel == NivelVisibilidade.PublicoGeral ||
+                 (p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
+                 (p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))))
+            .OrderByDescending(e => e.DataCriacao).ToListAsync(cancellationToken);
+        return erros.Select(Mapear).ToList();
     }
 
     private static string? NormalizarOpcional(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();

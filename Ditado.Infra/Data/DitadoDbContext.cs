@@ -21,6 +21,18 @@ public class DitadoDbContext : DbContext
     public DbSet<ErroCatalogo> ErrosCatalogo { get; set; }
     public DbSet<DitadoCategoria> DitadoCategorias { get; set; }
     public DbSet<TurmaDitado> TurmaDitados { get; set; }
+    public DbSet<Escola> Escolas { get; set; }
+    public DbSet<VinculoEscolar> VinculosEscolares { get; set; }
+    public DbSet<SessaoUsuario> SessoesUsuarios { get; set; }
+    public DbSet<AuditoriaEvento> AuditoriaEventos { get; set; }
+    public DbSet<AplicacaoDitado> AplicacoesDitados { get; set; }
+    public DbSet<ParticipacaoTurma> ParticipacoesTurmas { get; set; }
+    public DbSet<ParticipacaoAplicacao> ParticipacoesAplicacoes { get; set; }
+    public DbSet<AplicacaoErroCatalogo> AplicacoesErrosCatalogo { get; set; }
+    public DbSet<PublicacaoDitado> PublicacoesDitados { get; set; }
+    public DbSet<PublicacaoDitadoTurma> PublicacoesDitadosTurmas { get; set; }
+    public DbSet<PublicacaoErroCatalogo> PublicacoesErrosCatalogo { get; set; }
+    public DbSet<PublicacaoErroCatalogoTurma> PublicacoesErrosCatalogoTurmas { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -37,5 +49,17 @@ public class DitadoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new ErroCatalogoConfiguration());
         modelBuilder.ApplyConfiguration(new DitadoCategoriaConfiguration());
         modelBuilder.ApplyConfiguration(new TurmaDitadoConfiguration());
+        modelBuilder.ApplyConfiguration(new EscolaConfiguration());
+        modelBuilder.ApplyConfiguration(new VinculoEscolarConfiguration());
+        modelBuilder.ApplyConfiguration(new SessaoUsuarioConfiguration());
+        modelBuilder.ApplyConfiguration(new AuditoriaEventoConfiguration());
+        modelBuilder.ApplyConfiguration(new AplicacaoDitadoConfiguration());
+        modelBuilder.ApplyConfiguration(new ParticipacaoTurmaConfiguration());
+        modelBuilder.ApplyConfiguration(new ParticipacaoAplicacaoConfiguration());
+        modelBuilder.ApplyConfiguration(new AplicacaoErroCatalogoConfiguration());
+        modelBuilder.ApplyConfiguration(new PublicacaoDitadoConfiguration());
+        modelBuilder.ApplyConfiguration(new PublicacaoDitadoTurmaConfiguration());
+        modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoConfiguration());
+        modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoTurmaConfiguration());
     }
 }

@@ -50,6 +50,12 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Equal("Retomar a regularidade.", criado.ObservacaoPedagogica);
         Assert.Equal("3º ano", criado.SerieAno);
         Assert.NotNull(response.Headers.Location);
+        if (tipo == TipoUsuario.Professor)
+            await GarantirEscolaEVinculoAsync(autorId);
+        else
+            await GarantirEscolaEVinculoAsync(autorId, PapelEscolar.Administrador);
+        var publicar = await PostAsyncRaw($"/api/ErrosCatalogo/{criado.Id}/visibilidade", new { nivel = NivelVisibilidade.PublicoGeral });
+        Assert.Equal(HttpStatusCode.NoContent, publicar.StatusCode);
         var recibo = await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location);
         Assert.Equal(criado, recibo);
         using var scope = factory.Services.CreateScope();
@@ -151,7 +157,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     {
         await AutenticarAsync(TipoUsuario.Administrador);
         Assert.Equal(HttpStatusCode.NotFound, (await GetAsyncRaw("/api/ErrosCatalogo/2147483647")).StatusCode);
-        Assert.Equal(HttpStatusCode.MethodNotAllowed, (await GetAsyncRaw("/api/ErrosCatalogo")).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await GetAsyncRaw("/api/ErrosCatalogo")).StatusCode);
     }
 
     [Theory]
@@ -201,3 +207,4 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         return usuario.Id;
     }
 }
+

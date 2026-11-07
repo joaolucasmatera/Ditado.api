@@ -4,26 +4,29 @@ namespace Ditado.Aplicacao.DTOs.Turmas;
 
 public class CriarTurmaRequest
 {
-    [Required(ErrorMessage = "Nome da turma é obrigatório.")]
+    [Required(ErrorMessage = "Nome da turma ï¿½ obrigatï¿½rio.")]
     [StringLength(100, MinimumLength = 3, ErrorMessage = "Nome deve ter entre 3 e 100 caracteres.")]
     public string Nome { get; set; } = string.Empty;
 
-    [Required(ErrorMessage = "Série é obrigatória.")]
-    [Range(1, 9, ErrorMessage = "Série deve ser de 1 a 9 (ensino fundamental).")]
+    [Required(ErrorMessage = "Sï¿½rie ï¿½ obrigatï¿½ria.")]
+    [Range(1, 9, ErrorMessage = "Sï¿½rie deve ser de 1 a 9 (ensino fundamental).")]
     public int Serie { get; set; }
 
-    [Required(ErrorMessage = "Ano letivo é obrigatório.")]
-    [Range(2000, 2100, ErrorMessage = "Ano letivo inválido.")]
+    [Required(ErrorMessage = "Ano letivo ï¿½ obrigatï¿½rio.")]
+    [Range(2000, 2100, ErrorMessage = "Ano letivo invï¿½lido.")]
     public int AnoLetivo { get; set; }
 
-    [StringLength(16, ErrorMessage = "Semestre não pode exceder 16 caracteres.")]
+    [StringLength(16, ErrorMessage = "Semestre nï¿½o pode exceder 16 caracteres.")]
     public string? Semestre { get; set; }
 
-    [StringLength(500, ErrorMessage = "Descrição não pode exceder 500 caracteres.")]
+    [StringLength(500, ErrorMessage = "Descriï¿½ï¿½o nï¿½o pode exceder 500 caracteres.")]
     public string? Descricao { get; set; }
 
-    [Required(ErrorMessage = "Professor responsável é obrigatório.")]
+    [Required(ErrorMessage = "Professor responsï¿½vel ï¿½ obrigatï¿½rio.")]
     public int ProfessorResponsavelId { get; set; }
+
+    [Required(ErrorMessage = "Escola Ã© obrigatÃ³ria para novas turmas.")]
+    public int? EscolaId { get; set; }
 
     public List<int> AlunosIds { get; set; } = new List<int>();
 }

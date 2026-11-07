@@ -1,4 +1,5 @@
 using System.Security.Claims;
+using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Aplicacao.Services;
 using Microsoft.AspNetCore.Authorization;
@@ -9,7 +10,7 @@ namespace Ditado.API.Controllers;
 [ApiController]
 [Route("api/ErrosCatalogo")]
 [Authorize(Roles = "Administrador,Professor")]
-public class ErrosCatalogoController(MarketplaceService marketplace) : ControllerBase
+public class ErrosCatalogoController(MarketplaceService marketplace, VisibilidadeService visibilidade) : ControllerBase
 {
     [HttpPost]
     [ProducesResponseType(typeof(ErroPublicadoResponse), StatusCodes.Status201Created)]
@@ -29,7 +30,44 @@ public class ErrosCatalogoController(MarketplaceService marketplace) : Controlle
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ErroPublicadoResponse>> ObterRecibo(int id, CancellationToken cancellationToken)
     {
-        var recibo = await marketplace.ObterReciboAsync(id, cancellationToken);
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId)) return Unauthorized();
+        var tipo = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? "Aluno");
+        var recibo = await marketplace.ObterReciboAsync(id, usuarioId, tipo, cancellationToken);
         return recibo is null ? NotFound() : Ok(recibo);
+    }
+
+    [HttpGet]
+    [Authorize(Roles = "Administrador,Professor,Aluno")]
+    public async Task<ActionResult<List<ErroPublicadoResponse>>> Listar(CancellationToken cancellationToken)
+    {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var usuarioId)) return Unauthorized();
+        var tipo = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? "Aluno");
+        return Ok(await marketplace.ListarAsync(usuarioId, tipo, cancellationToken));
+    }
+
+    [HttpPost("{id:int}/visibilidade")]
+    public async Task<ActionResult> AlterarVisibilidade(int id, [FromBody] AlterarVisibilidadeRequest request)
+    {
+        try
+        {
+            var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+            await visibilidade.PublicarErroCatalogoAsync(id, request.Nivel, request.EscolaId, request.TurmaIds, atorId);
+            return NoContent();
+        }
+        catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+    }
+
+    [HttpPost("{id:int}/arquivar")]
+    public async Task<ActionResult> Arquivar(int id)
+    {
+        try { await visibilidade.ArquivarErroCatalogoAsync(id, int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!)); return NoContent(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+    }
+
+    [HttpPost("{id:int}/restaurar")]
+    public async Task<ActionResult> Restaurar(int id)
+    {
+        try { await visibilidade.RestaurarErroCatalogoAsync(id, int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!)); return NoContent(); }
+        catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
     }
 }

@@ -17,7 +17,7 @@ public class ProfessorService
     }
 
     /// <summary>
-    /// Lista todos os ditados atribuídos pelo professor logado
+    /// Lista todos os ditados atribuï¿½dos pelo professor logado
     /// </summary>
     public async Task<List<DitadoAtribuidoResumoDto>> ListarMeusDitadosAtribuidosAsync(int professorId)
     {
@@ -32,7 +32,7 @@ public class ProfessorService
         if (!turmasIds.Any())
             return new List<DitadoAtribuidoResumoDto>();
 
-        // Buscar atribuições de ditados
+        // Buscar atribuiï¿½ï¿½es de ditados
         var atribuicoes = await _context.TurmaDitados
             .Where(td => turmasIds.Contains(td.TurmaId))
             .Include(td => td.Turma)
@@ -50,12 +50,12 @@ public class ProfessorService
                 .Where(u => u.TurmasComoAluno.Any(t => t.Id == atribuicao.TurmaId))
                 .CountAsync();
 
-            // Buscar APENAS primeira tentativa de cada aluno
+            // O relatÃ³rio principal usa o melhor resultado de cada aluno.
             var primeiraTentativaPorAluno = await _context.RespostaDitados
                 .Where(r => r.DitadoId == atribuicao.DitadoId)
                 .Where(r => r.Aluno.TurmasComoAluno.Any(t => t.Id == atribuicao.TurmaId))
                 .GroupBy(r => r.AlunoId)
-                .Select(g => g.OrderBy(r => r.DataRealizacao).First())
+                .Select(g => g.OrderByDescending(r => r.Nota).ThenBy(r => r.DataRealizacao).First())
                 .ToListAsync();
 
             var alunosQueFizeram = primeiraTentativaPorAluno.Count;
@@ -89,12 +89,53 @@ public class ProfessorService
             });
         }
 
-        // Ordenar por data limite ASC (vencidos primeiro, depois os próximos)
+        // Adaptador de transiÃ§Ã£o: aplicaÃ§Ãµes novas sÃ£o lidas junto do legado,
+        // sem duplicar gravaÃ§Ãµes nem perder atribuiÃ§Ãµes recÃ©m-criadas.
+        var aplicacoes = await _context.AplicacoesDitados
+            .Where(a => a.Turma.ProfessorResponsavelId == professorId && a.Ativa)
+            .Include(a => a.Turma)
+            .Include(a => a.Ditado)
+            .ThenInclude(d => d.DitadoCategorias)
+            .ThenInclude(dc => dc.Categoria)
+            .ToListAsync();
+
+        foreach (var aplicacao in aplicacoes.Where(a => resultado.All(r => r.TurmaId != a.TurmaId || r.DitadoId != a.DitadoId)))
+        {
+            var alunoIds = await _context.ParticipacoesAplicacoes
+                .Where(p => p.AplicacaoDitadoId == aplicacao.Id && !p.RevogadaEm.HasValue)
+                .Select(p => p.AlunoId)
+                .ToListAsync();
+            var primeiras = await _context.RespostaDitados
+                .Where(r => r.AplicacaoDitadoId == aplicacao.Id && alunoIds.Contains(r.AlunoId))
+                .GroupBy(r => r.AlunoId)
+                .Select(g => g.OrderByDescending(r => r.Nota).ThenBy(r => r.DataRealizacao).First())
+                .ToListAsync();
+            var dataLimite = aplicacao.DataLimite ?? DateTime.MaxValue;
+            resultado.Add(new DitadoAtribuidoResumoDto
+            {
+                TurmaId = aplicacao.TurmaId,
+                TurmaNome = aplicacao.Turma.Nome,
+                Serie = aplicacao.Turma.Serie,
+                AnoLetivo = aplicacao.Turma.AnoLetivo,
+                DitadoId = aplicacao.DitadoId,
+                DitadoTitulo = aplicacao.Ditado.Titulo,
+                DitadoDescricao = aplicacao.Ditado.Descricao,
+                Categorias = aplicacao.Ditado.DitadoCategorias.Select(dc => dc.Categoria.Nome).ToList(),
+                DataAtribuicao = aplicacao.DataAtribuicao,
+                DataLimite = dataLimite,
+                Vencido = agora > dataLimite,
+                TotalAlunos = alunoIds.Count,
+                AlunosQueFizeram = primeiras.Count,
+                PercentualConclusao = alunoIds.Count > 0 ? Math.Round((decimal)primeiras.Count / alunoIds.Count * 100, 2) : 0,
+                NotaMedia = primeiras.Count > 0 ? Math.Round(primeiras.Average(r => r.Nota), 2) : null
+            });
+        }
+
         return resultado.OrderBy(r => r.DataLimite).ToList();
     }
 
     /// <summary>
-    /// Obtém detalhes de um ditado atribuído a uma turma
+    /// Obtï¿½m detalhes de um ditado atribuï¿½do a uma turma
     /// </summary>
     public async Task<DitadoAtribuidoDetalheDto?> ObterDetalhesAtribuicaoAsync(int turmaId, int ditadoId, int professorId)
     {
@@ -106,30 +147,53 @@ public class ProfessorService
         if (turma == null)
             return null;
 
-        // Buscar atribuição com segmentos do ditado
+        // Buscar atribuiï¿½ï¿½o com segmentos do ditado
         var atribuicao = await _context.TurmaDitados
             .Include(td => td.Ditado)
             .ThenInclude(d => d.Segmentos)
             .FirstOrDefaultAsync(td => td.TurmaId == turmaId && td.DitadoId == ditadoId);
+        var possuiAtribuicaoLegada = atribuicao != null;
+
+        var aplicacaoNova = await _context.AplicacoesDitados
+            .Include(a => a.Ditado)
+            .ThenInclude(d => d.Segmentos)
+            .FirstOrDefaultAsync(a => a.TurmaId == turmaId && a.DitadoId == ditadoId && a.Ativa);
+
+        if (atribuicao == null && aplicacaoNova != null)
+        {
+            atribuicao = new TurmaDitado
+            {
+                TurmaId = aplicacaoNova.TurmaId,
+                DitadoId = aplicacaoNova.DitadoId,
+                DataAtribuicao = aplicacaoNova.DataAtribuicao,
+                DataLimite = aplicacaoNova.DataLimite ?? DateTime.MaxValue,
+                Turma = turma,
+                Ditado = aplicacaoNova.Ditado
+            };
+        }
 
         if (atribuicao == null)
             return null;
 
         // Buscar todos os alunos da turma
-        var alunosDaTurma = await _context.Usuarios
-            .Where(u => u.TurmasComoAluno.Any(t => t.Id == turmaId))
-            .ToListAsync();
+        var alunosDaTurma = aplicacaoNova != null && !possuiAtribuicaoLegada
+            ? await _context.Usuarios.Where(u => _context.ParticipacoesAplicacoes.Any(p => p.AplicacaoDitadoId == aplicacaoNova.Id && p.AlunoId == u.Id && !p.RevogadaEm.HasValue)).ToListAsync()
+            : await _context.Usuarios.Where(u => u.TurmasComoAluno.Any(t => t.Id == turmaId)).ToListAsync();
 
-        // Buscar APENAS primeira tentativa de cada aluno
-        var primeiraTentativas = await _context.RespostaDitados
-            .Where(r => r.DitadoId == ditadoId)
-            .Where(r => alunosDaTurma.Select(a => a.Id).Contains(r.AlunoId))
+        // O relatÃ³rio principal usa o melhor resultado de cada aluno.
+        var consultaTentativas = _context.RespostaDitados
+            .Where(r => alunosDaTurma.Select(a => a.Id).Contains(r.AlunoId));
+        consultaTentativas = aplicacaoNova != null && !possuiAtribuicaoLegada
+            ? consultaTentativas.Where(r => r.AplicacaoDitadoId == aplicacaoNova.Id)
+            : consultaTentativas.Where(r => r.DitadoId == ditadoId);
+
+        var primeiraTentativas = await consultaTentativas
             .Include(r => r.RespostasSegmentos)
             .ThenInclude(rs => rs.Segmento)
             .Include(r => r.RespostasSegmentos)
             .ThenInclude(rs => rs.TiposErro)
             .GroupBy(r => r.AlunoId)
-            .Select(g => g.OrderBy(r => r.DataRealizacao).First())
+            .Select(g => g.OrderByDescending(r => r.Nota).ThenBy(r => r.DataRealizacao).First())
             .ToListAsync();
 
         var primeiraTentativasPorAluno = primeiraTentativas.ToDictionary(r => r.AlunoId);
@@ -171,7 +235,7 @@ public class ProfessorService
             });
         }
 
-        // Calcular erros por tipo (agregando toda a turma, só primeira tentativa)
+        // Calcular erros por tipo usando o resultado principal de cada aluno.
         var todosErros = primeiraTentativas
             .SelectMany(r => r.RespostasSegmentos)
             .Where(rs => !rs.Correto)
@@ -187,7 +251,7 @@ public class ProfessorService
             .OrderByDescending(e => e.Quantidade)
             .ToList();
 
-        // Calcular erros por palavra (apenas lacunas, 1ª tentativa)
+        // Calcular erros por palavra usando o resultado principal de cada aluno.
         var lacunas = atribuicao.Ditado.Segmentos
             .Where(s => s.Tipo == TipoSegmento.Lacuna)
             .OrderBy(s => s.Ordem)
@@ -198,7 +262,7 @@ public class ProfessorService
 
         foreach (var lacuna in lacunas)
         {
-            // Contar quantos alunos erraram esta palavra (1ª tentativa)
+            // Contar quantos alunos erraram esta palavra no resultado principal.
             var quantidadeErros = primeiraTentativas
                 .SelectMany(r => r.RespostasSegmentos)
                 .Count(rs => rs.SegmentoId == lacuna.Id && !rs.Correto);
@@ -213,7 +277,7 @@ public class ProfessorService
             });
         }
 
-        // Estatísticas gerais
+        // Estatï¿½sticas gerais
         var totalAlunos = alunosDaTurma.Count;
         var alunosQueFizeram = primeiraTentativas.Count;
         var notaMedia = primeiraTentativas.Any()
@@ -253,3 +317,5 @@ public class ProfessorService
             : Array.Empty<TipoErro>();
     }
 }
+
+

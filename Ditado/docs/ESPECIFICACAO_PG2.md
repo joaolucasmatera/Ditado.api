@@ -93,7 +93,7 @@ Recorrência pode ser calculada a partir das respostas persistidas, evitando con
 ## 6. Sequência sugerida de entrega
 
 1. **Preparar a base e o plano documental:** fechar os nomes e descrições iniciais dos erros e suas regras de identificação quando aplicáveis; levantar exemplos rotulados; revisar arquitetura, modelo ER e dependências globais; registrar pendências sem presumir respostas.
-2. **Detalhar o épico do catálogo antes de implementá-lo:** documentar permissões, arquivamento, seleção por ditado, anotações, JSON do Marketplace, regras executáveis, descrições para análise LLM e backup/restauração. Implementar catálogo compartilhado e suas regras de acesso.
+2. **Detalhar o épico do Catálogo de erros antes de implementá-lo:** documentar permissões, arquivamento, seleção por ditado, anotações, JSON, regras executáveis, descrições para análise LLM e backup/restauração. Implementar o Catálogo de erros e suas regras de acesso.
 3. **Detalhar o épico de classificação antes de implementá-lo:** diagramar comparação objetiva, classificação por regras de código e fallback LLM para casos sem regra aplicável, além de resposta não classificada/revisável. Implementar com acerto e nota sempre calculados pelo código, e persistir método/estado da classificação e recorrência.
 4. **Detalhar e implementar feedback do aluno:** geração LLM somente sob solicitação, retenção configurável e falha do provedor sem perda da correção tradicional.
 5. **Detalhar e implementar feedback do professor:** os três escopos sob solicitação (geral da turma, análise individual de cada aluno da turma, ou aluno específico), com autorização e tratamento de falhas/lotes.
@@ -107,9 +107,9 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 - Momento da classificação LLM de fallback: chamada síncrona durante a submissão ou processamento posterior. Definir também limiar de confiança, limites de custo/volume e comportamento quando a análise não for conclusiva.
 - Correspondência entre os resultados do classificador técnico existente (`TipoErro`) e os nomes de erros cadastrados no catálogo, quando necessária para integrar os dados históricos. Essa correspondência não cria categorias adicionais; decisões sobre regras de identificação e uso de LLM devem ser tratadas separadamente.
 - Semântica da ocorrência: contar respostas erradas por palavra submetidas em cada sessão; cada envio iniciado pelo aluno é uma ocorrência, sem deduplicação de reenvios na interface, que bloqueia novo acionamento enquanto aguarda resposta.
-- Contrato e versionamento do JSON do Marketplace, incluindo validações e resposta de importação; papéis e rejeição de códigos duplicados estão definidos.
+- Contrato e versionamento do JSON do Catálogo de erros, incluindo validações e resposta de importação; papéis e rejeição de códigos duplicados estão definidos.
 - Comportamento de regeneração de feedback já armazenado e limite de chamadas simultâneas/em lote.
-- Backup do catálogo: frequência, retenção, localização segura, criptografia quando aplicável e procedimento de restauração. A cópia deve ser versionada e não ser o único backup do banco.
+- Backup integral do banco: baseline de cópia completa diária quando viável, três cópias completas verificadas, rotação segura, cópia protegida fora do mesmo servidor quando possível e procedimento periódico de restauração. Os parâmetros finais serão confirmados na instalação.
 - Nome da variável de ambiente de retenção e política quando o valor estiver ausente/inválido; proposta de nome: `FEEDBACK_RETENTION_DAYS`, padrão `60`.
 - Definição de “sessão” nos relatórios: cada `RespostaDitado` (tentativa) ou agrupamento de ditados realizados numa atividade.
 - Comparativo entre turmas deve respeitar permissões; confirmar se há algum perfil com acesso transversal além de administrador.
@@ -168,8 +168,8 @@ Evolução temporal, comparação entre turmas e efeitos de intervenções ficam
 ### 10.4 Plano validado
 
 1. Documentar a arquitetura e o modelo de dados PG2; fechar o vocabulário em português brasileiro e preparar exemplos rotulados por série.
-2. Documentar e depois implementar o catálogo compartilhado, permissões, arquivamento, seleção por ditado, anotações ligadas aos erros, regras executáveis e importação JSON do Marketplace; incluir a estratégia de backup/restauração.
-3. No conjunto rotulado, comparar candidatos de LLM e registrar provedor/configuração escolhidos. O LLM é fallback de classificação quando nenhuma regra de código aplicável identificar o tipo; pode analisar descrições de erro do Marketplace sem regra executável.
+2. Documentar e depois implementar o Catálogo de erros, permissões, arquivamento, seleção por ditado, anotações ligadas aos erros, regras executáveis e importação JSON; incluir a estratégia de backup/restauração.
+3. No conjunto rotulado, comparar candidatos de LLM e registrar provedor/configuração escolhidos. O LLM é fallback de classificação quando nenhuma regra de código aplicável identificar o tipo; pode analisar descrições de erro do Catálogo de erros sem regra executável.
 4. Documentar e implementar a classificação: o código mantém comparação objetiva e cálculo da nota; persistir método/estado e deixar sem classificação específica quando não houver resultado confiável. Resolver ou aceitar explicitamente antes do desenvolvimento se o fallback ocorrer de forma síncrona ou assíncrona.
 5. Documentar e implementar feedback LLM do aluno e do professor somente sob demanda, com retenção global configurável de 60 dias por padrão.
 6. Documentar e entregar dashboard descritivo primeiro; acrescentar tendências/comparações conforme o histórico amadureça e exportar PDF no navegador conforme filtros e gráficos. Cada épico deve ter seus diagramas e documentação revisados antes do início da implementação, conforme a seção 10.5.
@@ -199,7 +199,7 @@ Antes de iniciar a implementação de cada épico, reservar uma etapa curta de d
 
 | Épico | Diagramas e documentação específicos |
 |---|---|
-| Catálogo e gerenciamento de erros | Fluxo de publicação/edição/arquivamento por papel e autoria; modelo ER do catálogo com observação e série/ano no próprio erro, mais associação ao ditado; formato JSON e validações para importação em lote/Marketplace; fluxo de backup e restauração. |
+| Catálogo de erros | Fluxo de publicação/edição/arquivamento por papel e autoria; modelo ER com observação e série/ano no próprio erro, associação ao ditado; formato JSON e validações para importação em lote; fluxo de backup e restauração. |
 | Correção por código e fallback LLM | Sequência da submissão com botão bloqueado durante carregamento, comparação objetiva, regras de código, fallback LLM para casos não resolvidos, resposta não classificada, persistência do método e recorrência por aluno/turma. |
 | Feedback personalizado do aluno | Fluxo sob demanda do botão até resposta armazenada/exibida, autorização, reutilização/regeneração e falha; contrato do endpoint e ciclo de retenção. |
 | Feedback personalizado do professor | Diagramas dos três escopos (geral da turma, análises individuais de toda a turma, aluno específico), autorização por turma, processamento em lote e resultados parciais/falhas; contrato de persistência e retenção. |
@@ -266,8 +266,38 @@ O enum que agrupava omissão/acréscimo/substituição e outros IDs legados perm
 }
 ```
 
-O objeto conceitual guarda o nome do erro como seu tipo; não há categoria separada nem campos de dica de professor ou observação de IA. Nesta entrega, todos os doze tipos da tabela são avaliados por regras de código. Uma regra em linguagem natural sem correspondência executável não classifica a resposta; ela permanece sem classificação para revisão. Não há fallback de LLM.
+O objeto conceitual guarda o nome do erro como seu tipo; não há categoria separada nem campos de dica de professor ou observação de IA. Nesta entrega, as regras de código cobrem os padrões delimitados acima, com Omissão, Acréscimo e Substituição como tipos separados. Transcrição da fala e Hipercorreção permanecem adiadas na inferência automática; não são classificadas por essas heurísticas. Uma regra em linguagem natural sem correspondência executável não classifica a resposta; ela permanece sem classificação para revisão. Não há fallback de LLM.
 
 O comparador objetivo e a nota pertencem ao código. Neste fluxo, a classificação não recebe contexto frasal: concordância/flexão só é identificada quando o próprio par de palavras corresponde a uma regra delimitada acima; sem correspondência, fica sem classificação. A classificação não altera a decisão objetiva nem substitui a resposta esperada.
 
 **Fontes consultadas na pesquisa complementar:** [Miranda, estudo sobre erros (orto)gráficos nos anos iniciais](https://www.scielo.br/j/edur/a/Z3trLgDyBBZWB466FLHFXtz/?lang=pt); [estudo sobre regras contextuais e morfossintáticas](https://www.scielo.br/j/ptp/a/vtGPJM5CVrBPLzfvGKMJLGw/?lang=pt); [estudo sobre fonemas surdos/sonoros, juntura e segmentação em ditados](https://www.scielo.br/j/acr/a/MxLcXCHDQcPYkrjCrfJ5ryL/); [estudo sobre arbitrariedade e regras contextuais no português brasileiro](https://periodicos.ufsm.br/LeC/article/view/28546); [brochura Aprender Ortografia, Direção-Geral da Educação](https://www.dge.mec.pt/sites/default/files/EInfancia/documentos/brochura_aprender_a_escrever.pdf). A síntese dos três PDFs enviados pelo usuário inclui termos usados por Carraher (1985), Gandra e no enquadramento GEALE discutido por Saggiomo (2018); essa diversidade da literatura não implica categorias separadas no produto.
+
+Refinamento CAT-09 em revisão: [contrato do catálogo](../../docs/epicos/catalogo-contrato.md) e [modelo ER proposto](../../docs/diagramas/catalogo-er.md). A seleção por ditado foi mantida por decisão humana; escolhas ainda pendentes constam do contrato.
+
+## 11. Atualização de planejamento — 06/11/2026
+
+Esta seção registra as decisões humanas consolidadas após a revisão do épico Multi-tenant e do enabler de backup. O índice [`docs/REFERENCIAL_PROJETO.md`](../../docs/REFERENCIAL_PROJETO.md) aponta para as fontes e os registros do Linear.
+
+### 11.1 Multi-tenant
+
+- Cada tenant é uma escola.
+- Professor e Administrador da Escola ficam limitados a uma escola por conta; outra escola exige outra conta. A revisão substitui a decisão anterior de professor multi-escola.
+- O cadastro é aberto: qualquer pessoa pode se cadastrar como professor e criar ditados; ao criar uma escola, torna-se seu Administrador da Escola. O Administrador Geral administra os Administradores da Escola.
+- No cadastro, o professor escolhe uma escola existente ou cria uma nova; não há conta de professor sem escola.
+- Uma escola deve manter ao menos um Administrador da Escola ativo; a substituição do último exige promoção ou criação do substituto pelo Administrador Geral na mesma operação.
+- Alunos pertencem a uma única escola por conta. Ditados e categorias são exclusivos da escola.
+- O Administrador Geral pode editar, arquivar e restaurar erros de qualquer autor, respeitando a imutabilidade após primeira associação a ditado. O Administrador da Escola administra os erros dos professores de sua escola.
+- O Administrador Geral consulta a auditoria global; o Administrador da Escola consulta apenas a auditoria da própria escola.
+- Administrador Geral possui escopo global de consulta e exportação, sempre com escola ou conjunto de escolas-alvo identificados e auditoria completa.
+- O papel global inclui conteúdo pedagógico, respostas, notas, relatórios, áudios, arquivos, links e Catálogo de erros privado, sem autorização adicional por formato ou escola.
+- Administrador Geral e Administrador Técnico são a mesma pessoa neste projeto; a função técnica cobre servidor, banco, storage, backup e logs, enquanto a função Geral cobre emergências e administração global do produto. `Usuario.Tipo=Administrador` não recebe acesso global automaticamente.
+
+### 11.2 Backup integral
+
+- CAT-08/ PER-13 trata do backup e da restauração integral do banco, não apenas do catálogo.
+- Baseline: cópia completa diária quando viável, três cópias completas verificadas, rotação segura, cópia protegida fora do mesmo servidor quando possível e teste periódico de restauração.
+- A restauração inicial é integral e os parâmetros finais de operação serão definidos na instalação no servidor da universidade.
+
+### 11.3 Estado do planejamento
+
+As decisões acima são de planejamento e não autorizam implementação automática. O contrato CAT-09 continua registrando pendências próprias de refinamento; novas telas devem passar pelo UX antes do Fullstack.

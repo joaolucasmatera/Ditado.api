@@ -22,6 +22,118 @@ namespace Ditado.Infra.Migrations
 
             MySqlModelBuilderExtensions.AutoIncrementColumns(modelBuilder);
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.AplicacaoDitado", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("DataAtribuicao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DataLimite")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("DitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("EscolaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TurmaId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DitadoId");
+
+                    b.HasIndex("EscolaId", "Ativa");
+
+                    b.HasIndex("TurmaId", "DitadoId")
+                        .IsUnique();
+
+                    b.ToTable("AplicacoesDitados", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.AplicacaoErroCatalogo", b =>
+                {
+                    b.Property<int>("AplicacaoDitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ErroCatalogoId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("CodigoSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("NomeSnapshot")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("AplicacaoDitadoId", "ErroCatalogoId");
+
+                    b.HasIndex("ErroCatalogoId");
+
+                    b.ToTable("AplicacoesErrosCatalogo", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.AuditoriaEvento", b =>
+                {
+                    b.Property<long>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("bigint");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<long>("Id"));
+
+                    b.Property<string>("CorrelacaoId")
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<DateTime>("DataUtc")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("EscolaId")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(500)
+                        .HasColumnType("varchar(500)");
+
+                    b.Property<string>("Operacao")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Recurso")
+                        .IsRequired()
+                        .HasMaxLength(100)
+                        .HasColumnType("varchar(100)");
+
+                    b.Property<string>("Resultado")
+                        .IsRequired()
+                        .HasMaxLength(30)
+                        .HasColumnType("varchar(30)");
+
+                    b.Property<int?>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId", "DataUtc");
+
+                    b.HasIndex("EscolaId", "DataUtc", "Id");
+
+                    b.ToTable("AuditoriaEventos", (string)null);
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.Categoria", b =>
                 {
                     b.Property<int>("Id")
@@ -53,6 +165,12 @@ namespace Ditado.Infra.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<DateTime?>("ArquivadoEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ArquivadoPorId")
+                        .HasColumnType("int");
 
                     b.Property<bool>("Ativo")
                         .HasColumnType("tinyint(1)");
@@ -139,6 +257,12 @@ namespace Ditado.Infra.Migrations
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
 
+                    b.Property<DateTime?>("ArquivadoEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("ArquivadoPorId")
+                        .HasColumnType("int");
+
                     b.Property<bool>("Ativo")
                         .HasColumnType("tinyint(1)");
 
@@ -192,6 +316,221 @@ namespace Ditado.Infra.Migrations
                     b.ToTable("ErrosCatalogo", (string)null);
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.Escola", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<string>("Codigo")
+                        .IsRequired()
+                        .HasMaxLength(50)
+                        .HasColumnType("varchar(50)");
+
+                    b.Property<DateTime>("DataCriacao")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Nome")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.ToTable("Escolas", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ParticipacaoAplicacao", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AlunoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("AplicacaoDitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("ConcedidaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("RevogadaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlunoId", "RevogadaEm");
+
+                    b.HasIndex("AplicacaoDitadoId", "AlunoId")
+                        .IsUnique();
+
+                    b.ToTable("ParticipacoesAplicacoes", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ParticipacaoTurma", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int>("AlunoId")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("Ativa")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("DataEntrada")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DataSaida")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("TurmaId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("AlunoId", "Ativa");
+
+                    b.HasIndex("TurmaId", "AlunoId")
+                        .IsUnique();
+
+                    b.ToTable("ParticipacoesTurmas", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoDitado", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ChaveVigente")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CriadaPorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("DitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EncerradaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("EncerradaPorId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("EscolaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Nivel")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Versao")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("VigenteDesde")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("DitadoId", "ChaveVigente")
+                        .IsUnique();
+
+                    b.HasIndex("EscolaId", "Nivel", "EncerradaEm");
+
+                    b.ToTable("PublicacoesDitados", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoDitadoTurma", b =>
+                {
+                    b.Property<int>("PublicacaoDitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TurmaId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PublicacaoDitadoId", "TurmaId");
+
+                    b.HasIndex("TurmaId");
+
+                    b.ToTable("PublicacoesDitadosTurmas", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoErroCatalogo", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<int?>("ChaveVigente")
+                        .HasColumnType("int");
+
+                    b.Property<int>("CriadaPorId")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime?>("EncerradaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("EncerradaPorId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ErroCatalogoId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("EscolaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Nivel")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Versao")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("VigenteDesde")
+                        .HasColumnType("datetime(6)");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("ErroCatalogoId", "ChaveVigente")
+                        .IsUnique();
+
+                    b.HasIndex("EscolaId", "Nivel", "EncerradaEm");
+
+                    b.ToTable("PublicacoesErrosCatalogo", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoErroCatalogoTurma", b =>
+                {
+                    b.Property<int>("PublicacaoErroCatalogoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("TurmaId")
+                        .HasColumnType("int");
+
+                    b.HasKey("PublicacaoErroCatalogoId", "TurmaId");
+
+                    b.HasIndex("TurmaId");
+
+                    b.ToTable("PublicacoesErrosCatalogoTurmas", (string)null);
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
                 {
                     b.Property<int>("Id")
@@ -203,10 +542,16 @@ namespace Ditado.Infra.Migrations
                     b.Property<int>("AlunoId")
                         .HasColumnType("int");
 
+                    b.Property<int?>("AplicacaoDitadoId")
+                        .HasColumnType("int");
+
                     b.Property<DateTime>("DataRealizacao")
                         .HasColumnType("datetime(6)");
 
                     b.Property<int>("DitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("EscolaId")
                         .HasColumnType("int");
 
                     b.Property<decimal>("Nota")
@@ -218,6 +563,8 @@ namespace Ditado.Infra.Migrations
                     b.HasIndex("DitadoId");
 
                     b.HasIndex("AlunoId", "DitadoId", "DataRealizacao");
+
+                    b.HasIndex("AplicacaoDitadoId", "AlunoId", "DataRealizacao");
 
                     b.ToTable("RespostasDitados", (string)null);
                 });
@@ -279,6 +626,34 @@ namespace Ditado.Infra.Migrations
                     b.ToTable("RespostaSegmentoTiposErro", (string)null);
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.SessaoUsuario", b =>
+                {
+                    b.Property<Guid>("Id")
+                        .HasColumnType("char(36)");
+
+                    b.Property<DateTime>("CriadaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime>("ExpiraEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("MotivoRevogacao")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("RevogadaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId", "RevogadaEm", "ExpiraEm");
+
+                    b.ToTable("SessoesUsuarios", (string)null);
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.Turma", b =>
                 {
                     b.Property<int>("Id")
@@ -300,6 +675,9 @@ namespace Ditado.Infra.Migrations
                         .HasMaxLength(500)
                         .HasColumnType("varchar(500)");
 
+                    b.Property<int?>("EscolaId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(100)
@@ -316,6 +694,8 @@ namespace Ditado.Infra.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("EscolaId");
 
                     b.HasIndex("ProfessorResponsavelId");
 
@@ -350,6 +730,11 @@ namespace Ditado.Infra.Migrations
                         .HasColumnType("int");
 
                     MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("AdministradorGeral")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
 
                     b.Property<bool>("Ativo")
                         .HasColumnType("tinyint(1)");
@@ -390,6 +775,42 @@ namespace Ditado.Infra.Migrations
                     b.ToTable("Usuarios", (string)null);
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.VinculoEscolar", b =>
+                {
+                    b.Property<int>("Id")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("int");
+
+                    MySqlPropertyBuilderExtensions.UseMySqlIdentityColumn(b.Property<int>("Id"));
+
+                    b.Property<bool>("Ativo")
+                        .HasColumnType("tinyint(1)");
+
+                    b.Property<DateTime>("DataEntrada")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<DateTime?>("DataSaida")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int>("EscolaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Papel")
+                        .HasColumnType("int");
+
+                    b.Property<int>("UsuarioId")
+                        .HasColumnType("int");
+
+                    b.HasKey("Id");
+
+                    b.HasIndex("UsuarioId")
+                        .IsUnique();
+
+                    b.HasIndex("EscolaId", "Papel", "Ativo");
+
+                    b.ToTable("VinculosEscolares", (string)null);
+                });
+
             modelBuilder.Entity("TurmaAluno", b =>
                 {
                     b.Property<int>("AlunoId")
@@ -403,6 +824,52 @@ namespace Ditado.Infra.Migrations
                     b.HasIndex("TurmaId");
 
                     b.ToTable("TurmaAluno");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.AplicacaoDitado", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Ditado", "Ditado")
+                        .WithMany()
+                        .HasForeignKey("DitadoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Escola", "Escola")
+                        .WithMany()
+                        .HasForeignKey("EscolaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Turma", "Turma")
+                        .WithMany()
+                        .HasForeignKey("TurmaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Ditado");
+
+                    b.Navigation("Escola");
+
+                    b.Navigation("Turma");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.AplicacaoErroCatalogo", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.AplicacaoDitado", "AplicacaoDitado")
+                        .WithMany("ErrosSelecionados")
+                        .HasForeignKey("AplicacaoDitadoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.ErroCatalogo", "ErroCatalogo")
+                        .WithMany()
+                        .HasForeignKey("ErroCatalogoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("AplicacaoDitado");
+
+                    b.Navigation("ErroCatalogo");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.Ditado", b =>
@@ -456,6 +923,118 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("Autor");
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ParticipacaoAplicacao", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Usuario", "Aluno")
+                        .WithMany()
+                        .HasForeignKey("AlunoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.AplicacaoDitado", "AplicacaoDitado")
+                        .WithMany("Participacoes")
+                        .HasForeignKey("AplicacaoDitadoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Aluno");
+
+                    b.Navigation("AplicacaoDitado");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ParticipacaoTurma", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Usuario", "Aluno")
+                        .WithMany()
+                        .HasForeignKey("AlunoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Turma", "Turma")
+                        .WithMany()
+                        .HasForeignKey("TurmaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Aluno");
+
+                    b.Navigation("Turma");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoDitado", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Ditado", "Ditado")
+                        .WithMany("Publicacoes")
+                        .HasForeignKey("DitadoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Escola", "Escola")
+                        .WithMany()
+                        .HasForeignKey("EscolaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("Ditado");
+
+                    b.Navigation("Escola");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoDitadoTurma", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.PublicacaoDitado", "PublicacaoDitado")
+                        .WithMany("TurmasAlvo")
+                        .HasForeignKey("PublicacaoDitadoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Turma", "Turma")
+                        .WithMany()
+                        .HasForeignKey("TurmaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PublicacaoDitado");
+
+                    b.Navigation("Turma");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoErroCatalogo", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.ErroCatalogo", "ErroCatalogo")
+                        .WithMany("Publicacoes")
+                        .HasForeignKey("ErroCatalogoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Escola", "Escola")
+                        .WithMany()
+                        .HasForeignKey("EscolaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
+                    b.Navigation("ErroCatalogo");
+
+                    b.Navigation("Escola");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoErroCatalogoTurma", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.PublicacaoErroCatalogo", "PublicacaoErroCatalogo")
+                        .WithMany("TurmasAlvo")
+                        .HasForeignKey("PublicacaoErroCatalogoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Turma", "Turma")
+                        .WithMany()
+                        .HasForeignKey("TurmaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("PublicacaoErroCatalogo");
+
+                    b.Navigation("Turma");
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
                 {
                     b.HasOne("Ditado.Dominio.Entidades.Usuario", "Aluno")
@@ -464,6 +1043,11 @@ namespace Ditado.Infra.Migrations
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
 
+                    b.HasOne("Ditado.Dominio.Entidades.AplicacaoDitado", "AplicacaoDitado")
+                        .WithMany("Tentativas")
+                        .HasForeignKey("AplicacaoDitadoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Ditado.Dominio.Entidades.Ditado", "Ditado")
                         .WithMany("Respostas")
                         .HasForeignKey("DitadoId")
@@ -471,6 +1055,8 @@ namespace Ditado.Infra.Migrations
                         .IsRequired();
 
                     b.Navigation("Aluno");
+
+                    b.Navigation("AplicacaoDitado");
 
                     b.Navigation("Ditado");
                 });
@@ -505,13 +1091,31 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("RespostaSegmento");
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.SessaoUsuario", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Usuario", "Usuario")
+                        .WithMany("Sessoes")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.Turma", b =>
                 {
+                    b.HasOne("Ditado.Dominio.Entidades.Escola", "Escola")
+                        .WithMany()
+                        .HasForeignKey("EscolaId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Ditado.Dominio.Entidades.Usuario", "ProfessorResponsavel")
                         .WithMany("TurmasComoProfessor")
                         .HasForeignKey("ProfessorResponsavelId")
                         .OnDelete(DeleteBehavior.Restrict)
                         .IsRequired();
+
+                    b.Navigation("Escola");
 
                     b.Navigation("ProfessorResponsavel");
                 });
@@ -535,6 +1139,25 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("Turma");
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.VinculoEscolar", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Escola", "Escola")
+                        .WithMany("Vinculos")
+                        .HasForeignKey("EscolaId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.Usuario", "Usuario")
+                        .WithMany("VinculosEscolares")
+                        .HasForeignKey("UsuarioId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Escola");
+
+                    b.Navigation("Usuario");
+                });
+
             modelBuilder.Entity("TurmaAluno", b =>
                 {
                     b.HasOne("Ditado.Dominio.Entidades.Usuario", null)
@@ -550,6 +1173,15 @@ namespace Ditado.Infra.Migrations
                         .IsRequired();
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.AplicacaoDitado", b =>
+                {
+                    b.Navigation("ErrosSelecionados");
+
+                    b.Navigation("Participacoes");
+
+                    b.Navigation("Tentativas");
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.Categoria", b =>
                 {
                     b.Navigation("DitadoCategorias");
@@ -558,6 +1190,8 @@ namespace Ditado.Infra.Migrations
             modelBuilder.Entity("Ditado.Dominio.Entidades.Ditado", b =>
                 {
                     b.Navigation("DitadoCategorias");
+
+                    b.Navigation("Publicacoes");
 
                     b.Navigation("Respostas");
 
@@ -569,6 +1203,26 @@ namespace Ditado.Infra.Migrations
             modelBuilder.Entity("Ditado.Dominio.Entidades.DitadoSegmento", b =>
                 {
                     b.Navigation("Respostas");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.ErroCatalogo", b =>
+                {
+                    b.Navigation("Publicacoes");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.Escola", b =>
+                {
+                    b.Navigation("Vinculos");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoDitado", b =>
+                {
+                    b.Navigation("TurmasAlvo");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoErroCatalogo", b =>
+                {
+                    b.Navigation("TurmasAlvo");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaDitado", b =>
@@ -588,7 +1242,11 @@ namespace Ditado.Infra.Migrations
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.Usuario", b =>
                 {
+                    b.Navigation("Sessoes");
+
                     b.Navigation("TurmasComoProfessor");
+
+                    b.Navigation("VinculosEscolares");
                 });
 #pragma warning restore 612, 618
         }

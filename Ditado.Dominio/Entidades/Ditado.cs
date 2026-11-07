@@ -10,6 +10,8 @@ public class Ditado
     public byte[] AudioLeitura { get; set; } = Array.Empty<byte>();
     public DateTime DataCriacao { get; set; } = DateTime.UtcNow;
     public bool Ativo { get; set; } = true;
+    public DateTime? ArquivadoEm { get; set; }
+    public int? ArquivadoPorId { get; set; }
     
     // Autor do ditado (Professor ou Admin que criou)
     public int? AutorId { get; set; }
@@ -19,4 +21,5 @@ public class Ditado
     public ICollection<RespostaDitado> Respostas { get; set; } = new List<RespostaDitado>();
     public ICollection<DitadoCategoria> DitadoCategorias { get; set; } = new List<DitadoCategoria>();
     public ICollection<TurmaDitado> TurmaDitados { get; set; } = new List<TurmaDitado>();
+    public ICollection<PublicacaoDitado> Publicacoes { get; set; } = new List<PublicacaoDitado>();
 }

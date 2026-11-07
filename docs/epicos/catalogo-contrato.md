@@ -1,4 +1,4 @@
-# CAT-09 — Contrato do Marketplace para revisão
+# CAT-09 — Contrato do Catálogo de erros para revisão
 
 Estado: **proposta em revisão**, 6 nov 2026, FULLSTACK 01. PER-14 In Progress.
 **Atualização de execução:** CAT-02 foi aprovada pelo usuário após o formulário revisado (“Ok, gostei”). Seu contrato vigente está em [marketplace-cat02.md](marketplace-cat02.md), incluindo exemplo estruturado opcional; prevalece sobre o rascunho CAT02-P1 abaixo. CAT-09 global continua In Progress. Código da única fatia CAT-02 está em implementação, sem antecipar demais histórias.
@@ -11,7 +11,7 @@ QA oficial aceitou documentalmente os ajustes de identidade do resultado, marco 
 
 ## Decisões confirmadas
 
-- **Marketplace** é o termo de produto; catálogo nos nomes técnicos/documentos anteriores refere-se a esse mesmo recurso, sem segundo fluxo. Todos os erros, inclusive os já programados, ficam disponíveis nele e são opcionais individualmente. Nenhum tipo programado é obrigatório fora da seleção.
+- **Catálogo de erros** é o termo de produto vigente; “Marketplace” permanece apenas em nomes técnicos/documentos históricos. Todos os erros, inclusive os já programados, ficam disponíveis no Catálogo de erros e são opcionais individualmente. Nenhum tipo programado é obrigatório fora da seleção.
 - Decisão humana: novos ditados exigem pelo menos um erro selecionado; antigos sem seleção continuam realização/submissão/nota e ficam sem classificação até configurados. Não selecionar todos nem recalcular histórico. A opcionalidade de cada item não revoga esse mínimo.
 - O usuário confirmou **manter** a seleção de erros pelo professor em cada ditado. CAT-05/PER-10 continua requisito da COR-01/PER-22; não fechar COR-01 sem essa integração.
 - Nome é o próprio tipo. Não criar categoria, natureza ou operação como dimensão separada. Omissão, Acréscimo e Substituição são três tipos.
@@ -64,13 +64,13 @@ Base para próxima proposta simples, **não aprovação**: apresentar ao usuári
 
 Parecer final do gerente recebido via SQUAD: refinamento progressivo por história, preservando todos os critérios de CAT-09 global em In Progress. **Proposta ainda não aprovada pelo usuário.** Não iniciar código nem alterar CAT-02 para In Progress antes da resposta. Aprovação desta fatia não fecha CAT-09 nem implica aceite de risco/adiamento de importação ou backup.
 
-Fluxo vertical proposto: Professor/Administrador abre **Publicar erro** no Marketplace → preenche **Nome** e **Descrição** obrigatórios → opcionalmente preenche **Observação pedagógica** e **Série/ano** → publica → servidor persiste registro ativo → formulário apresenta confirmação com o item criado. Descrição pode conter exemplos/orientações em texto livre, sem campos extras dedicados nesta fatia. Novo erro não possui executor automático; tratamento por LLM é futuro, sem chamada nesta entrega.
+Fluxo vertical proposto: Professor/Administrador abre **Publicar erro** no Catálogo de erros → preenche **Nome** e **Descrição** obrigatórios → opcionalmente preenche **Observação pedagógica** e **Série/ano** → publica → servidor persiste registro ativo → formulário apresenta confirmação com o item criado. Descrição pode conter exemplos/orientações em texto livre, sem campos extras dedicados nesta fatia. Novo erro não possui executor automático; tratamento por LLM é futuro, sem chamada nesta entrega.
 
 Servidor gera código estável e ID; obtém autor da autenticação e controla datas/estado inicial ativo. Código não é digitado no formulário. Requisição ilustrativa proposta: `{"nome":"Exemplo de erro","descricao":"Descrição com exemplos e orientações livres.","observacaoPedagogica":null,"serieAno":null}`. `POST /api/ErrosCatalogo` devolve 201 com recibo do item criado, incluindo identidade/código/nome/descrição/autor/datas/estado e indicação de ausência de executor. Contrato exato é detalhe técnico a consolidar, mantendo compatibilidade e autorização. A consulta mínima do item ou uso da resposta POST serve somente à confirmação da publicação; não entrega a listagem ampla CAT-01.
 
 **Aceites propostos:** professor/admin conseguem publicar e recebem confirmação do registro **ativo persistido**, com ID/código estável gerados e autoria correta; recarregar/consultar minimamente o item comprova persistência. Nome/descrição ausentes ou vazios são recusados no servidor e informados no formulário; opcionais podem ficar vazios. Aluno/anônimo são recusados pela API. Em falha, manter preenchimento e não mostrar sucesso; durante envio indicar carregamento e impedir acionamento duplicado. Item confirmado aparece explicitamente sem executor, sem classificação ou LLM disparados.
 
-**Limite da fatia:** persistência/API de publicação, formulário e confirmação; sem listagem ampla/filtros CAT-01, edição, arquivamento, importação, associação ao ditado, cópias de executores ou execução LLM. Próxima história recomendada: CAT-01, sem início automático. Publicar confirma disponibilidade do registro no Marketplace, mas não autoriza alegar CAT-01 entregue.
+**Limite da fatia:** persistência/API de publicação, formulário e confirmação; sem listagem ampla/filtros CAT-01, edição, arquivamento, importação, associação ao ditado, cópias de executores ou execução LLM. Próxima história recomendada: CAT-01, sem início automático. Publicar confirma disponibilidade do registro no Catálogo de erros, mas não autoriza alegar CAT-01 entregue.
 
 Detalhes de rota/JSON, índices e tamanhos técnicos razoáveis são responsabilidade Fullstack com parecer arquitetural aplicável, sem votação individual. Não introduzir limite de quantidade de erros, unicidade global de nomes, séries fechadas ou outra restrição de negócio. Limites técnicos escolhidos devem ser documentados e validados na implementação autorizada. As propostas genéricas de API/modelo neste pacote não ampliam o escopo CAT02-P1.
 
@@ -86,7 +86,7 @@ Exemplo testável proposto: definição 41, código `ACENTO_41`, nome `Nome X`, 
 
 Parecer técnico do gerente recebido via SQUAD: FK nullable para legado e estrutura aditiva são detalhes decorrentes do requisito, sem nova votação de chave primária ao usuário. Na classificação nova integrada, erroCatalogoId é sempre preenchido e a UI usa classificacoes[].nome; tiposErro é fallback legado. Enum não é categoria nem tipo principal. A imutabilidade dispensa snapshot duplicado do nome. Destino: integração CAT-05→COR-01/PER-22 após revisão; não autoriza alterar DTO ou banco neste ciclo.
 
-## Mapeamento interno Marketplace–classificador (detalhamento em revisão)
+## Mapeamento interno Catálogo de erros–classificador (detalhamento em revisão)
 
 Separar `codigo` da definição de `regraCodigo` da implementação: renomear um erro não cria nem altera algoritmo. Um registro sem vínculo executável é válido e sua ausência é exibida; sua seleção não produz classificação por código. Descrição e exemplos poderão apoiar LLM em história futura, sem promessa de execução atual.
 
@@ -182,7 +182,7 @@ Os pareceres técnicos abaixo foram devolvidos pelo SQUAD DITADO, chat `01a1aa39
 | Questão | Alternativas para decisão | Parecer técnico atual do gerente / incerteza |
 |---|---|---|
 | Seleção mínima | Confirmada pelo usuário: novos exigem ≥1; legados sem seleção seguem realização/submissão/nota, sem classificação até configurados | Não preencher todas nem recalcular histórico. “Opcionais” por item não revoga o mínimo aprovado |
-| Marketplace inclui erros programados | Confirmado pelo usuário: todos os erros, inclusive já codificados, são itens disponíveis e opcionais no mesmo Marketplace | Nenhum tipo universal obrigatório; nota objetiva independente da classificação |
+| Catálogo de erros inclui erros programados | Confirmado pelo usuário: todos os erros, inclusive já codificados, são itens disponíveis e opcionais no mesmo Catálogo de erros | Nenhum tipo universal obrigatório; nota objetiva independente da classificação |
 | Perguntas antigas sobre vínculo manual e duplicação | Q2/Q3 retiradas da fila humana: pressupunham cenários hipotéticos fora do fluxo confirmado; não foram aprovadas | Gerente consolidou mapeamento interno dos itens programados; sem seletor, aliases, cópias executáveis ou novas restrições globais de nomes/cardinalidade |
 | Nova tentativa após arquivar item já selecionado | Gerente recomenda continuar em ditados já vinculados, cessando apenas com remoção da seleção; alternativa: cessar classificação nas tentativas futuras | Resposta recebida reforça edição/exclusão; efeito nas novas tentativas não especificado. Destino CAT-04/CAT-05→COR-01 antes de consumir política, sem aceite de risco |
 | Interpretação do filtro | Somente regras selecionadas, incluindo rótulos de caixa e operações | Decisão já confirmada na especificação; não reabrir nem atribuir aprovação aos consultores |
@@ -211,7 +211,7 @@ Este registro identifica destino, **não aceita adiamento nem risco implicitamen
 
 | Pendência | Responsável pela preparação / decisão | Destino e condição |
 |---|---|---|
-| Mapeamento interno dos itens programados no Marketplace | Fullstack detalha conforme parecer final do gerente; QA revisa | CAT-09 revisão técnica; Q2/Q3 retiradas da fila humana. Itens programados preparados com executor interno; publicação docente sem executor. Sem fluxo extra ou restrições globais novas |
+| Mapeamento interno dos itens programados no Catálogo de erros | Fullstack detalha conforme parecer final do gerente; QA revisa | CAT-09 revisão técnica; Q2/Q3 retiradas da fila humana. Itens programados preparados com executor interno; publicação docente sem executor. Sem fluxo extra ou restrições globais novas |
 | Identidade persistida/devolvida da classificação | Fullstack detalha; gerente já deu parecer técnico; QA revisa contrato | CAT-09 revisão, implementação futura COR-01/PER-22; sem nova decisão de produto sobre PK/FK |
 | Nova tentativa após arquivar erro já selecionado | SQUAD coordena definição antes do consumo, com parecer técnico gerente; usuário decide eventual escopo | CAT-04/CAT-05→COR-01; resposta sobre edição/exclusão recebida, efeito operacional não especificado. Não bloqueia preparar modelo/consulta/publicação; sem aceite humano de risco ou conclusão global CAT-09 |
 | Campos obrigatórios, limites e exemplos/orientações exatos | Fullstack prepara contrato, gerente revisa; usuário decide escopo que restar | Fechar base de CAT-02 antes de sua implementação; qualquer transferência da definição exige aceite explícito para concluir CAT-09 |

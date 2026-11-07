@@ -13,6 +13,9 @@ public class ErroCatalogo
     public int AutorId { get; set; }
     public Usuario Autor { get; set; } = null!;
     public bool Ativo { get; set; } = true;
+    public DateTime? ArquivadoEm { get; set; }
+    public int? ArquivadoPorId { get; set; }
     public DateTime DataCriacao { get; set; }
     public DateTime DataAlteracao { get; set; }
+    public ICollection<PublicacaoErroCatalogo> Publicacoes { get; set; } = new List<PublicacaoErroCatalogo>();
 }

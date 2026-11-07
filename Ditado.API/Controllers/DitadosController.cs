@@ -12,10 +12,41 @@ namespace Ditado.API.Controllers;
 public class DitadosController : ControllerBase
 {
 	private readonly DitadoService _ditadoService;
+	private readonly VisibilidadeService _visibilidadeService;
 
-	public DitadosController(DitadoService ditadoService)
+	public DitadosController(DitadoService ditadoService, VisibilidadeService visibilidadeService)
 	{
 		_ditadoService = ditadoService;
+		_visibilidadeService = visibilidadeService;
+	}
+
+	[HttpPost("{id}/visibilidade")]
+	[Authorize(Roles = "Administrador,Professor")]
+	public async Task<ActionResult> AlterarVisibilidade(int id, [FromBody] AlterarVisibilidadeRequest request)
+	{
+		try
+		{
+			var atorId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+			await _visibilidadeService.PublicarDitadoAsync(id, request.Nivel, request.EscolaId, request.TurmaIds, atorId);
+			return NoContent();
+		}
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+	}
+
+	[HttpPost("{id}/arquivar")]
+	[Authorize(Roles = "Administrador,Professor")]
+	public async Task<ActionResult> Arquivar(int id)
+	{
+		try { await _visibilidadeService.ArquivarDitadoAsync(id, int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0")); return NoContent(); }
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+	}
+
+	[HttpPost("{id}/restaurar")]
+	[Authorize(Roles = "Administrador,Professor")]
+	public async Task<ActionResult> Restaurar(int id)
+	{
+		try { await _visibilidadeService.RestaurarDitadoAsync(id, int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0")); return NoContent(); }
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
 	}
 
 	/// <summary>
@@ -96,7 +127,9 @@ public class DitadosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 	public async Task<ActionResult<List<DitadoResponse>>> ListarDitados()
 	{
-		var ditados = await _ditadoService.ListarDitadosAsync();
+		var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+		var tipoUsuario = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Aluno");
+		var ditados = await _ditadoService.ListarDitadosAsync(usuarioId, tipoUsuario);
 		return Ok(ditados);
 	}
 
@@ -150,7 +183,9 @@ public class DitadosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<DitadoParaRealizarResponse>> ObterDitadoParaRealizar(int id)
 	{
-		var ditado = await _ditadoService.ObterDitadoParaRealizarAsync(id);
+		var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+		var tipoUsuario = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Aluno");
+		var ditado = await _ditadoService.ObterDitadoParaRealizarAsync(id, usuarioId, tipoUsuario);
 
 		if (ditado == null)
 			return NotFound(new { mensagem = "Ditado não encontrado." });

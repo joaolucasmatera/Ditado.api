@@ -7,6 +7,10 @@
 
 Como professor ou administrador, quero manter um catálogo compartilhado de erros e selecionar regras relevantes para cada ditado, para que o conteúdo apoie a correção e a análise pedagógica sem perder o histórico.
 
+### Requisito transversal multi-tenant
+
+Cada tenant é uma escola. Professor e Administrador da Escola pertencem a uma única escola por conta; outra escola exige outra conta. Ditados e erros têm visibilidade explícita: público geral, instituição ou turmas. Erros mantêm autoria global, mas visibilidades institucional e por turmas registram escola/turmas-alvo. Respostas, notas e áudios permanecem escolares. Operações escolares identificam a escola-alvo; operações sobre erros globais identificam recurso, autor e escopo de publicação. O Administrador da Escola administra erros dos professores de sua escola. Edição é permitida somente antes da primeira associação a um ditado, inclusive para administradores. O poder editorial do Administrador Geral continua em revisão.
+
 ## Histórias
 
 ### CAT-01 — Consultar o catálogo compartilhado
@@ -18,10 +22,11 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 - Cada item apresenta, no mínimo, nome do erro (que identifica seu tipo), descrição e indicação de regra executável quando disponível; não há categoria separada.
 - A consulta não expõe dados de autenticação ou outros dados pessoais do autor além do necessário para identificar autoria.
 - Itens arquivados não aparecem na seleção padrão de erros ativos.
+- A consulta respeita o escopo de visibilidade do Catálogo de erros; o identificador enviado pelo cliente não concede acesso por si só.
 
 ### CAT-02 — Publicar erro no catálogo
 
-**Fatia aprovada vigente:** [CAT-02 — Publicar erro no Marketplace](../../docs/epicos/marketplace-cat02.md). Nome/Descrição obrigatórios; grupo Exemplo opcional (esperado e resposta, ambos ou nenhum), Observação/Série opcionais. Código e metadados gerados pelo servidor; publicação sem executor/LLM. Persistência, formulário e confirmação; não inclui listagem ampla CAT-01.
+**Fatia aprovada vigente:** [CAT-02 — Publicar erro no Catálogo de erros](../../docs/epicos/marketplace-cat02.md). Nome/Descrição obrigatórios; grupo Exemplo opcional (esperado e resposta, ambos ou nenhum), Observação/Série opcionais. Código e metadados gerados pelo servidor; publicação sem executor/LLM. Persistência, formulário e confirmação; não inclui listagem ampla CAT-01.
 
 **Como** professor ou administrador, **quero** publicar uma definição de erro, **para** que ela possa ser usada no catálogo e em ditados.
 
@@ -33,6 +38,8 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 - A definição pode conter descrição/orientações e exemplos para uso pedagógico; a regra executável é opcional e sua ausência fica identificável.
 - A definição pode conter uma observação pedagógica simples em texto livre e série/ano opcional, como campos do próprio erro.
 - Após salvar, o erro fica disponível no catálogo ativo.
+- A publicação registra autoria, sem escola de origem, e não concede acesso a respostas, notas ou áudios de outras escolas.
+- O Administrador da Escola pode administrar os erros dos professores da sua escola; o Administrador Geral pode administrar erros de qualquer autor, sempre respeitando a imutabilidade após uso.
 
 ### CAT-03 — Editar erro ainda não usado conforme autoria e papel
 
@@ -46,6 +53,7 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 - Erros já associados a qualquer ditado não podem ser editados; para substituí-los, o autor ou administrador arquiva a definição usada e publica outro registro.
 - A observação pedagógica e a série/ano seguem as mesmas regras de edição da definição do erro.
 - A API aplica a autorização mesmo quando chamada diretamente, sem depender da interface.
+- A autorização valida o vínculo escolar no servidor; Administrador Geral opera globalmente dentro do escopo auditado.
 
 ### CAT-04 — Arquivar erro sem apagar o histórico
 
@@ -57,6 +65,7 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 - Erros arquivados deixam de ser selecionáveis em novos ditados.
 - Referências a erros arquivados continuam legíveis em resultados históricos.
 - A ação é lógica e fica registrada no estado e nas datas do erro.
+- O arquivamento não altera respostas, notas, áudios ou histórico de outras escolas e registra o tenant da operação.
 
 ### CAT-10 — Consultar e restaurar erros arquivados
 
@@ -68,6 +77,7 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 - Restaurar um erro muda seu estado para ativo e permite sua seleção em novos ditados.
 - A restauração preserva o identificador e as associações e referências históricas.
 - A API aplica autorização em chamadas diretas.
+- A consulta/restauração respeita o tenant do item e registra a escola-alvo; o Administrador Geral mantém o escopo global auditado.
 
 ### CAT-05 — Selecionar erros aplicáveis a um ditado
 
@@ -79,6 +89,7 @@ Como professor ou administrador, quero manter um catálogo compartilhado de erro
 - Erros arquivados não podem ser adicionados a uma nova seleção.
 - Alterar a seleção atualiza as associações sem apagar respostas ou classificações já registradas.
 - A consulta do ditado retorna a seleção para que a interface possa exibi-la e editá-la.
+- A seleção só associa erros ao ditado dentro do contexto escolar permitido; itens públicos gerais do Catálogo de erros continuam sujeitos à política de autoria e imutabilidade.
 
 ### CAT-06 — Absorvida por CAT-02 e CAT-03
 
@@ -95,17 +106,20 @@ A observação pedagógica é apenas um campo simples no erro, com série/ano op
 - Itens com código estável duplicado são rejeitados sem sobrescrever o registro existente.
 - O resultado informa itens criados, rejeitados e motivos.
 - O contrato JSON e o tratamento de duplicatas são definidos antes da implementação.
+- A importação preserva autoria e autorização, sem exigir escola de origem do erro ou permitir sobrescrita de cadastros existentes.
 
-### CAT-08 — Fazer backup e restaurar o catálogo
+### CAT-08 — Fazer backup e restaurar integralmente o banco de dados
 
 **Tipo:** enabler operacional.
 
-**Como** responsável pela operação, **quero** gerar e restaurar cópias do catálogo, **para** recuperar dados diante de falha operacional.
+**Como** responsável pela operação, **quero** gerar e restaurar cópias integrais do banco de dados, **para** recuperar o sistema diante de falha operacional.
 
 **Critérios de aceite**
 - O procedimento define frequência, retenção, localização segura, controle de acesso e criptografia quando aplicável.
-- O backup do catálogo é versionado em disco e não é a única cópia de segurança do banco.
-- Um teste de restauração documentado confirma que identificadores, anotações e associações necessárias ao histórico são preservados.
+- O backup cobre o banco inteiro e, quando houver arquivos externos, o procedimento inclui ou coordena a cópia desses arquivos.
+- A retenção inicial mantém três cópias completas verificadas, com ao menos uma cópia protegida fora do mesmo servidor quando a infraestrutura permitir.
+- Um teste de restauração documentado confirma que identificadores, anotações, associações e dados de todas as escolas são preservados.
+- A restauração inicial é integral; restauração por escola fica fora do escopo desta história.
 - O procedimento identifica responsáveis, passos de execução e verificação após restauração.
 - As escolhas operacionais são registradas antes da adoção em produção.
 
@@ -124,6 +138,7 @@ A observação pedagógica é apenas um campo simples no erro, com série/ano op
 - As notas aplicáveis de segurança, privacidade, compatibilidade histórica, observabilidade e backup/restauração estão registradas.
 - Pendências bloqueadoras têm decisão registrada ou risco explicitamente aceito.
 - A documentação e os diagramas estão em `docs/epicos/` e `docs/diagramas/`, ligados à especificação global.
+- O pacote inclui a matriz multi-tenant, a distinção entre dados globais e escolares, escola-alvo em consultas/exportações, auditoria e impactos em CAT-01, CAT-02, CAT-05 e COR-01.
 
 ## Dependências e ordem sugerida
 
@@ -140,7 +155,7 @@ A observação pedagógica é apenas um campo simples no erro, com série/ano op
 - Vocabulário inicial de nomes e descrições de erros e regras de identificação, sem categoria separada do nome.
 - Campos obrigatórios e semântica dos exemplos/orientações; identificador/código estável.
 - Contrato e versionamento do JSON do Marketplace e formato exato do relatório de itens rejeitados.
-- Frequência, retenção, localização segura, criptografia e rotina de teste de restauração do backup.
+- Parâmetros finais de instalação do backup (frequência efetiva, destino institucional, espaço, responsáveis e janela de recuperação); o baseline de três cópias verificadas, rotação segura e teste periódico já foi aceito para planejamento.
 
 ## Revisão de cobertura para retomada
 
@@ -154,7 +169,7 @@ Esta revisão compara o rascunho com `ESPECIFICACAO_PG2.md`, especialmente as se
 - A observação pedagógica e série/ano são campos do próprio erro e seguem as mesmas permissões; não há fluxo ou autorização separada para observações.
 - CAT-07 permite importação por professores e administradores e rejeita códigos duplicados sem sobrescrever; o contrato/versionamento JSON ainda precisa ser refinado.
 - CAT-03 impede alterações em erros já associados a ditados; para substituir uma definição usada, arquivar o registro e publicar outro, preservando referências históricas.
-- CAT-08 permanece enabler operacional; frequência, retenção, localização segura, criptografia quando aplicável, controle de acesso e procedimento testado de restauração precisam ser definidos sem presumir valores.
+- CAT-08 permanece enabler operacional; o baseline aceito é de backup integral, três cópias completas verificadas, cópia protegida fora do mesmo servidor quando possível e procedimento testado de restauração. Frequência e parâmetros finais de instalação continuam pendentes do ambiente universitário.
 - Aplicar o critério transversal de responsividade da seção 9 às histórias que envolvem interface.
 
 ### Ordem sugerida após o refinamento

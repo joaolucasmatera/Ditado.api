@@ -60,11 +60,16 @@ public class DitadoService
 		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
-	public async Task<DitadoParaRealizarResponse?> ObterDitadoParaRealizarAsync(int id)
+	public async Task<DitadoParaRealizarResponse?> ObterDitadoParaRealizarAsync(int id, int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
+		var administradorGlobal = usuarioId.HasValue && tipoUsuario == TipoUsuario.Administrador && await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral);
 		var ditado = await _context.Ditados
 			.Include(d => d.Segmentos)
-			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo);
+			.Include(d => d.Publicacoes).ThenInclude(p => p.TurmasAlvo)
+			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo && (usuarioId == null || administradorGlobal ||
+				d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
+				(p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
+				(p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))));
 
 		if (ditado == null)
 			return null;
@@ -139,10 +144,17 @@ public class DitadoService
 		if (ditado == null)
 			return null;
 
+		var aplicacao = await _context.AplicacoesDitados
+			.Where(a => a.DitadoId == ditadoId && a.Ativa && a.Participacoes.Any(p => p.AlunoId == alunoId && !p.RevogadaEm.HasValue))
+			.OrderByDescending(a => a.DataAtribuicao)
+			.FirstOrDefaultAsync();
+
 		var respostaDitado = new RespostaDitado
 		{
 			DitadoId = ditadoId,
 			AlunoId = alunoId,
+			AplicacaoDitadoId = aplicacao?.Id,
+			EscolaId = aplicacao?.EscolaId,
 			DataRealizacao = DateTime.UtcNow
 		};
 
@@ -205,13 +217,17 @@ public class DitadoService
 		};
 	}
 
-	public async Task<List<DitadoResponse>> ListarDitadosAsync()
+	public async Task<List<DitadoResponse>> ListarDitadosAsync(int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
+		var administradorGlobal = usuarioId.HasValue && tipoUsuario == TipoUsuario.Administrador && await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral);
 		return await _context.Ditados
 			.Include(d => d.DitadoCategorias)
 			.ThenInclude(dc => dc.Categoria)
 			.Include(d => d.Autor)
-			.Where(d => d.Ativo)
+			.Where(d => d.Ativo && (usuarioId == null || administradorGlobal ||
+				d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
+				(p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
+				(p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))))
 			.OrderByDescending(d => d.DataCriacao)
 			.Select(d => new DitadoResponse
 			{

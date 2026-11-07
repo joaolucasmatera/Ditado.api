@@ -1,8 +1,8 @@
-# CAT-02 — Publicar erro no Marketplace
+# CAT-02 — Publicar erro no Catálogo de erros
 
 ## Aprovação e limite
 
-Usuário aprovou o formulário revisado com “Ok, gostei”, conforme SQUAD, 6 nov 2026. Esta página é o contrato vigente da fatia e substitui propostas CAT02-P1 de [CAT-09](catalogo-contrato.md), sem encerrar o enabler global. Uma história funcional por vez; CAT-01/listagem ampla e CAT-05/seleção permanecem fora.
+Usuário aprovou o formulário revisado com “Ok, gostei”, conforme SQUAD, 6 nov 2026. O nome de produto vigente é **Catálogo de erros**; “Marketplace” permanece somente em nomes técnicos, caminhos e referências históricas. Esta página é o contrato vigente da fatia e substitui propostas CAT02-P1 de [CAT-09](catalogo-contrato.md), sem encerrar o enabler global. Uma história funcional por vez; CAT-01/listagem ampla e CAT-05/seleção permanecem fora.
 
 Nome e Descrição obrigatórios; Exemplo opcional em um grupo Escrita esperada → Resposta do aluno (ambos ou nenhum); Observação pedagógica e Série/ano opcionais. Inputs vazios, placeholders apenas ilustrativos, labels e ajuda sempre visíveis. A descrição pode conter orientação/exemplos livres além do grupo estruturado. Sem executor/prompt/modelo, sem chamada LLM ou alteração de classificações/notas ao publicar.
 

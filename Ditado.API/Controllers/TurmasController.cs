@@ -26,15 +26,15 @@ public class TurmasController : ControllerBase
     /// <remarks>
     /// Apenas Administradores e Professores podem criar turmas.
     /// 
-    /// Exemplo de requisição:
+    /// Exemplo de requisiï¿½ï¿½o:
     /// 
     ///     POST /api/turmas
     ///     {
-    ///        "nome": "5º Ano A",
+    ///        "nome": "5ï¿½ Ano A",
     ///        "serie": 5,
     ///        "anoLetivo": 2024,
-    ///        "semestre": "1º Semestre",
-    ///        "descricao": "Turma da manhã",
+    ///        "semestre": "1ï¿½ Semestre",
+    ///        "descricao": "Turma da manhï¿½",
     ///        "professorResponsavelId": 1,
     ///        "alunosIds": [2, 3, 4]
     ///     }
@@ -42,9 +42,9 @@ public class TurmasController : ControllerBase
     /// <param name="request">Dados da turma a ser criada</param>
     /// <returns>Turma criada com sucesso</returns>
     /// <response code="201">Turma criada com sucesso</response>
-    /// <response code="400">Dados inválidos (professor inválido, alunos inválidos, etc.)</response>
-    /// <response code="401">Não autenticado</response>
-    /// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+    /// <response code="400">Dados invï¿½lidos (professor invï¿½lido, alunos invï¿½lidos, etc.)</response>
+    /// <response code="401">Nï¿½o autenticado</response>
+    /// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
     [HttpPost]
     [Authorize(Roles = "Administrador,Professor")]
     [ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status201Created)]
@@ -55,7 +55,9 @@ public class TurmasController : ControllerBase
     {
         try
         {
-            var turma = await _turmaService.CriarTurmaAsync(request);
+            var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
+            var turma = await _turmaService.CriarTurmaAsync(request, usuarioLogadoId, tipoUsuarioLogado);
             return CreatedAtAction(nameof(ObterTurma), new { id = turma.Id }, turma);
         }
         catch (InvalidOperationException ex)
@@ -65,19 +67,19 @@ public class TurmasController : ControllerBase
     }
 
     /// <summary>
-    /// Obtém uma turma por ID
+    /// Obtï¿½m uma turma por ID
     /// </summary>
     /// <remarks>
-    /// Retorna os dados completos de uma turma específica, incluindo:
-    /// - Informações básicas (nome, série, ano letivo)
-    /// - Professor responsável
+    /// Retorna os dados completos de uma turma especï¿½fica, incluindo:
+    /// - Informaï¿½ï¿½es bï¿½sicas (nome, sï¿½rie, ano letivo)
+    /// - Professor responsï¿½vel
     /// - Lista completa de alunos matriculados
     /// </remarks>
     /// <param name="id">ID da turma</param>
     /// <returns>Dados da turma</returns>
     /// <response code="200">Turma encontrada</response>
-    /// <response code="401">Não autenticado</response>
-    /// <response code="404">Turma não encontrada</response>
+    /// <response code="401">Nï¿½o autenticado</response>
+    /// <response code="404">Turma nï¿½o encontrada</response>
     [HttpGet("{id}")]
     [ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -87,7 +89,7 @@ public class TurmasController : ControllerBase
         var turma = await _turmaService.ObterPorIdAsync(id);
 
         if (turma == null)
-            return NotFound(new { mensagem = "Turma não encontrada." });
+            return NotFound(new { mensagem = "Turma nï¿½o encontrada." });
 
         return Ok(turma);
     }
@@ -96,13 +98,13 @@ public class TurmasController : ControllerBase
     /// Lista todas as turmas
     /// </summary>
     /// <remarks>
-    /// Retorna uma lista de turmas, com opção de filtrar apenas turmas ativas.
-    /// Por padrão, retorna apenas turmas ativas (Ativo = true).
+    /// Retorna uma lista de turmas, com opï¿½ï¿½o de filtrar apenas turmas ativas.
+    /// Por padrï¿½o, retorna apenas turmas ativas (Ativo = true).
     /// </remarks>
-    /// <param name="apenasAtivas">Filtrar apenas turmas ativas (padrão: true)</param>
+    /// <param name="apenasAtivas">Filtrar apenas turmas ativas (padrï¿½o: true)</param>
     /// <returns>Lista de turmas</returns>
     /// <response code="200">Lista de turmas retornada com sucesso</response>
-    /// <response code="401">Não autenticado</response>
+    /// <response code="401">Nï¿½o autenticado</response>
     [HttpGet]
     [ProducesResponseType(typeof(List<TurmaResponse>), StatusCodes.Status200OK)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
@@ -113,17 +115,17 @@ public class TurmasController : ControllerBase
     }
 
     /// <summary>
-    /// Lista turmas de um professor específico
+    /// Lista turmas de um professor especï¿½fico
     /// </summary>
     /// <remarks>
-    /// Retorna apenas as turmas onde o professor especificado é o responsável.
+    /// Retorna apenas as turmas onde o professor especificado ï¿½ o responsï¿½vel.
     /// Apenas Administradores e Professores podem acessar este endpoint.
     /// </remarks>
     /// <param name="professorId">ID do professor</param>
     /// <returns>Lista de turmas do professor</returns>
     /// <response code="200">Lista de turmas retornada com sucesso</response>
-    /// <response code="401">Não autenticado</response>
-    /// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+    /// <response code="401">Nï¿½o autenticado</response>
+    /// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
     [HttpGet("professor/{professorId}")]
     [Authorize(Roles = "Administrador,Professor")]
     [ProducesResponseType(typeof(List<TurmaResponse>), StatusCodes.Status200OK)]
@@ -136,13 +138,13 @@ public class TurmasController : ControllerBase
     }
 
     /// <summary>
-    /// Lista turmas de um aluno específico
+    /// Lista turmas de um aluno especï¿½fico
     /// </summary>
     /// <remarks>
-    /// Retorna todas as turmas onde o aluno especificado está matriculado.
+    /// Retorna todas as turmas onde o aluno especificado estï¿½ matriculado.
     /// 
-    /// **Permissões:**
-    /// - **Aluno**: Pode consultar apenas suas próprias turmas
+    /// **Permissï¿½es:**
+    /// - **Aluno**: Pode consultar apenas suas prï¿½prias turmas
     /// - **Professor/Admin**: Podem consultar turmas de qualquer aluno
     /// 
     /// Retorna apenas turmas ativas.
@@ -150,8 +152,8 @@ public class TurmasController : ControllerBase
     /// <param name="alunoId">ID do aluno</param>
     /// <returns>Lista de turmas do aluno</returns>
     /// <response code="200">Lista de turmas retornada com sucesso</response>
-    /// <response code="401">Não autenticado</response>
-    /// <response code="403">Sem permissão (aluno tentando ver turmas de outro aluno)</response>
+    /// <response code="401">Nï¿½o autenticado</response>
+    /// <response code="403">Sem permissï¿½o (aluno tentando ver turmas de outro aluno)</response>
     [HttpGet("aluno/{alunoId}")]
     [Authorize(Roles = "Administrador,Professor,Aluno")]
     [ProducesResponseType(typeof(List<TurmaResponse>), StatusCodes.Status200OK)]
@@ -159,13 +161,13 @@ public class TurmasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<List<TurmaResponse>>> ListarTurmasPorAluno(int alunoId)
     {
-        // Validar permissão: Aluno só pode ver suas próprias turmas
+        // Validar permissï¿½o: Aluno sï¿½ pode ver suas prï¿½prias turmas
         var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
         var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
 
         if (tipoUsuarioLogado == TipoUsuario.Aluno && usuarioLogadoId != alunoId)
         {
-            return StatusCode(403, new { mensagem = "Você só pode visualizar suas próprias turmas." });
+            return StatusCode(403, new { mensagem = "Vocï¿½ sï¿½ pode visualizar suas prï¿½prias turmas." });
         }
 
         var turmas = await _turmaService.ListarTurmasPorAlunoAsync(alunoId);
@@ -177,14 +179,14 @@ public class TurmasController : ControllerBase
     /// </summary>
     /// <remarks>
     /// Permite atualizar qualquer campo da turma:
-    /// - Nome, série, ano letivo, semestre, descrição
-    /// - Professor responsável
+    /// - Nome, sï¿½rie, ano letivo, semestre, descriï¿½ï¿½o
+    /// - Professor responsï¿½vel
     /// - Lista de alunos (substitui completamente a lista atual)
     /// - Status ativo/inativo
     /// 
     /// Apenas Administradores e Professores podem atualizar turmas.
     /// 
-    /// Exemplo de requisição para adicionar alunos:
+    /// Exemplo de requisiï¿½ï¿½o para adicionar alunos:
     /// 
     ///     PUT /api/turmas/1
     ///     {
@@ -199,13 +201,13 @@ public class TurmasController : ControllerBase
     ///     }
     /// </remarks>
     /// <param name="id">ID da turma</param>
-    /// <param name="request">Dados a serem atualizados (apenas campos preenchidos serão alterados)</param>
+    /// <param name="request">Dados a serem atualizados (apenas campos preenchidos serï¿½o alterados)</param>
     /// <returns>Turma atualizada</returns>
     /// <response code="200">Turma atualizada com sucesso</response>
-    /// <response code="400">Dados inválidos</response>
-    /// <response code="401">Não autenticado</response>
-    /// <response code="403">Sem permissão (apenas Admin e Professor)</response>
-    /// <response code="404">Turma não encontrada</response>
+    /// <response code="400">Dados invï¿½lidos</response>
+    /// <response code="401">Nï¿½o autenticado</response>
+    /// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
+    /// <response code="404">Turma nï¿½o encontrada</response>
     [HttpPut("{id}")]
     [Authorize(Roles = "Administrador,Professor")]
     [ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status200OK)]
@@ -220,7 +222,7 @@ public class TurmasController : ControllerBase
             var turma = await _turmaService.AtualizarTurmaAsync(id, request);
 
             if (turma == null)
-                return NotFound(new { mensagem = "Turma não encontrada." });
+                return NotFound(new { mensagem = "Turma nï¿½o encontrada." });
 
             return Ok(turma);
         }
@@ -236,18 +238,18 @@ public class TurmasController : ControllerBase
     /// <remarks>
     /// Remove permanentemente uma turma do sistema.
     /// 
-    /// **Regras de permissão:**
+    /// **Regras de permissï¿½o:**
     /// - **Administrador**: Pode excluir qualquer turma
-    /// - **Professor**: Pode excluir apenas turmas onde ele é o responsável
+    /// - **Professor**: Pode excluir apenas turmas onde ele ï¿½ o responsï¿½vel
     /// 
-    ///  **ATENÇÃO**: Esta operação é irreversível! 
-    /// Considere desativar a turma ao invés de excluí-la (usando PUT com "ativo": false).
+    ///  **ATENï¿½ï¿½O**: Esta operaï¿½ï¿½o ï¿½ irreversï¿½vel! 
+    /// Considere desativar a turma ao invï¿½s de excluï¿½-la (usando PUT com "ativo": false).
     /// </remarks>
     /// <param name="id">ID da turma</param>
-    /// <response code="204">Turma excluída com sucesso</response>
-    /// <response code="401">Não autenticado</response>
-    /// <response code="403">Sem permissão (professor tentando excluir turma de outro professor)</response>
-    /// <response code="404">Turma não encontrada</response>
+    /// <response code="204">Turma excluï¿½da com sucesso</response>
+    /// <response code="401">Nï¿½o autenticado</response>
+    /// <response code="403">Sem permissï¿½o (professor tentando excluir turma de outro professor)</response>
+    /// <response code="404">Turma nï¿½o encontrada</response>
     [HttpDelete("{id}")]
     [Authorize(Roles = "Administrador,Professor")]
     [ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -258,14 +260,14 @@ public class TurmasController : ControllerBase
     {
         try
         {
-            // Obter ID e Tipo do usuário logado
+            // Obter ID e Tipo do usuï¿½rio logado
             var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
             var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
 
             var sucesso = await _turmaService.ExcluirTurmaAsync(id, usuarioLogadoId, tipoUsuarioLogado);
 
             if (!sucesso)
-                return NotFound(new { mensagem = "Turma não encontrada." });
+                return NotFound(new { mensagem = "Turma nï¿½o encontrada." });
 
             return NoContent();
         }
@@ -276,31 +278,31 @@ public class TurmasController : ControllerBase
     }
 
 	/// <summary>
-	/// Adiciona um aluno à turma
+	/// Adiciona um aluno ï¿½ turma
 	/// </summary>
 	/// <remarks>
-	/// Matricula um aluno específico em uma turma.
+	/// Matricula um aluno especï¿½fico em uma turma.
 	/// Apenas Administradores e Professores podem adicionar alunos.
 	/// 
-	/// **Validações:**
+	/// **Validaï¿½ï¿½es:**
 	/// - Turma deve existir e estar ativa
-	/// - ID fornecido deve ser de um usuário com tipo "Aluno"
-	/// - Aluno não pode já estar matriculado na turma
+	/// - ID fornecido deve ser de um usuï¿½rio com tipo "Aluno"
+	/// - Aluno nï¿½o pode jï¿½ estar matriculado na turma
 	/// 
-	/// Exemplo de requisição:
+	/// Exemplo de requisiï¿½ï¿½o:
 	/// 
 	///     POST /api/turmas/5/alunos/10
 	///     
-	/// (Adiciona aluno ID 10 à turma ID 5)
+	/// (Adiciona aluno ID 10 ï¿½ turma ID 5)
 	/// </remarks>
 	/// <param name="turmaId">ID da turma</param>
 	/// <param name="alunoId">ID do aluno a ser adicionado</param>
 	/// <returns>Turma atualizada com novo aluno</returns>
 	/// <response code="200">Aluno adicionado com sucesso</response>
-	/// <response code="400">Aluno inválido ou já matriculado</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
-	/// <response code="404">Turma não encontrada</response>
+	/// <response code="400">Aluno invï¿½lido ou jï¿½ matriculado</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
+	/// <response code="404">Turma nï¿½o encontrada</response>
 	[HttpPost("{turmaId}/alunos/{alunoId}")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status200OK)]
@@ -315,7 +317,7 @@ public class TurmasController : ControllerBase
 			var turma = await _turmaService.AdicionarAlunoAsync(turmaId, alunoId);
 
 			if (turma == null)
-				return NotFound(new { mensagem = "Turma não encontrada." });
+				return NotFound(new { mensagem = "Turma nï¿½o encontrada." });
 
 			return Ok(turma);
 		}
@@ -329,14 +331,14 @@ public class TurmasController : ControllerBase
 	/// Remove um aluno da turma
 	/// </summary>
 	/// <remarks>
-	/// Desmatricula um aluno específico de uma turma.
+	/// Desmatricula um aluno especï¿½fico de uma turma.
 	/// Apenas Administradores e Professores podem remover alunos.
 	/// 
-	/// **Validações:**
+	/// **Validaï¿½ï¿½es:**
 	/// - Turma deve existir
 	/// - Aluno deve estar matriculado na turma
 	/// 
-	/// Exemplo de requisição:
+	/// Exemplo de requisiï¿½ï¿½o:
 	/// 
 	///     DELETE /api/turmas/5/alunos/10
 	///     
@@ -346,10 +348,10 @@ public class TurmasController : ControllerBase
 	/// <param name="alunoId">ID do aluno a ser removido</param>
 	/// <returns>Turma atualizada sem o aluno</returns>
 	/// <response code="200">Aluno removido com sucesso</response>
-	/// <response code="400">Aluno não está na turma</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
-	/// <response code="404">Turma não encontrada</response>
+	/// <response code="400">Aluno nï¿½o estï¿½ na turma</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o (apenas Admin e Professor)</response>
+	/// <response code="404">Turma nï¿½o encontrada</response>
 	[HttpDelete("{turmaId}/alunos/{alunoId}")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(TurmaResponse), StatusCodes.Status200OK)]
@@ -364,7 +366,7 @@ public class TurmasController : ControllerBase
 			var turma = await _turmaService.RemoverAlunoAsync(turmaId, alunoId);
 
 			if (turma == null)
-				return NotFound(new { mensagem = "Turma não encontrada." });
+				return NotFound(new { mensagem = "Turma nï¿½o encontrada." });
 
 			return Ok(turma);
 		}
@@ -380,7 +382,7 @@ public class TurmasController : ControllerBase
 	/// <remarks>
 	/// Apenas Professores e Administradores podem atribuir ditados.
 	/// 
-	/// **Exemplo de requisição:**
+	/// **Exemplo de requisiï¿½ï¿½o:**
 	/// 
 	///     POST /api/turmas/5/ditados
 	///     {
@@ -389,12 +391,12 @@ public class TurmasController : ControllerBase
 	///     }
 	/// </remarks>
 	/// <param name="id">ID da turma</param>
-	/// <param name="request">Dados da atribuição</param>
-	/// <response code="204">Ditado atribuído com sucesso</response>
-	/// <response code="400">Dados inválidos (ditado já atribuído, etc.)</response>
-	/// <response code="401">Não autenticado</response>
-	/// <response code="403">Sem permissão</response>
-	/// <response code="404">Turma não encontrada</response>
+	/// <param name="request">Dados da atribuiï¿½ï¿½o</param>
+	/// <response code="204">Ditado atribuï¿½do com sucesso</response>
+	/// <response code="400">Dados invï¿½lidos (ditado jï¿½ atribuï¿½do, etc.)</response>
+	/// <response code="401">Nï¿½o autenticado</response>
+	/// <response code="403">Sem permissï¿½o</response>
+	/// <response code="404">Turma nï¿½o encontrada</response>
 	[HttpPost("{id}/ditados")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -406,10 +408,12 @@ public class TurmasController : ControllerBase
 	{
 		try
 		{
-			var sucesso = await _turmaService.AtribuirDitadoAsync(id, request);
+			var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+			var tipoUsuario = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Aluno");
+			var sucesso = await _turmaService.AtribuirDitadoAsync(id, request, usuarioId, tipoUsuario);
 
 			if (!sucesso)
-				return NotFound(new { mensagem = "Turma não encontrada." });
+				return NotFound(new { mensagem = "Turma nï¿½o encontrada." });
 
 			return NoContent();
 		}
@@ -420,13 +424,13 @@ public class TurmasController : ControllerBase
 	}
 
 	/// <summary>
-	/// Atualiza a data limite de um ditado atribuído
+	/// Atualiza a data limite de um ditado atribuï¿½do
 	/// </summary>
 	/// <param name="id">ID da turma</param>
 	/// <param name="ditadoId">ID do ditado</param>
 	/// <param name="request">Nova data limite</param>
 	/// <response code="204">Data limite atualizada</response>
-	/// <response code="404">Atribuição não encontrada</response>
+	/// <response code="404">Atribuiï¿½ï¿½o nï¿½o encontrada</response>
 	[HttpPut("{id}/ditados/{ditadoId}")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -436,21 +440,21 @@ public class TurmasController : ControllerBase
 	var sucesso = await _turmaService.AtualizarAtribuicaoAsync(id, ditadoId, request);
 
 	if (!sucesso)
-		return NotFound(new { mensagem = "Atribuição não encontrada." });
+		return NotFound(new { mensagem = "Atribuiï¿½ï¿½o nï¿½o encontrada." });
 
 	return NoContent();
 }
 
 	/// <summary>
-	/// Remove atribuição de ditado de uma turma
+	/// Remove atribuiï¿½ï¿½o de ditado de uma turma
 	/// </summary>
 	/// <remarks>
-	/// **ATENÇÃO:** Alunos ainda poderão ver suas tentativas anteriores mesmo após remover a atribuição.
+	/// **ATENï¿½ï¿½O:** Alunos ainda poderï¿½o ver suas tentativas anteriores mesmo apï¿½s remover a atribuiï¿½ï¿½o.
 	/// </remarks>
 	/// <param name="id">ID da turma</param>
 	/// <param name="ditadoId">ID do ditado</param>
-	/// <response code="204">Atribuição removida</response>
-	/// <response code="404">Atribuição não encontrada</response>
+	/// <response code="204">Atribuiï¿½ï¿½o removida</response>
+	/// <response code="404">Atribuiï¿½ï¿½o nï¿½o encontrada</response>
 	[HttpDelete("{id}/ditados/{ditadoId}")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(StatusCodes.Status204NoContent)]
@@ -460,7 +464,7 @@ public class TurmasController : ControllerBase
 	var sucesso = await _turmaService.RemoverAtribuicaoAsync(id, ditadoId);
 
 	if (!sucesso)
-		return NotFound(new { mensagem = "Atribuição não encontrada." });
+		return NotFound(new { mensagem = "Atribuiï¿½ï¿½o nï¿½o encontrada." });
 
 	return NoContent();
 }

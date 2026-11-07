@@ -3,6 +3,7 @@ namespace Ditado.Dominio.Entidades;
 public class Turma
 {
     public int Id { get; set; }
+    public int? EscolaId { get; set; }
     public string Nome { get; set; } = string.Empty;
     public int Serie { get; set; }
     public int AnoLetivo { get; set; }
@@ -13,6 +14,7 @@ public class Turma
 
     public int ProfessorResponsavelId { get; set; }
     public Usuario ProfessorResponsavel { get; set; } = null!;
+    public Escola? Escola { get; set; }
     
     public ICollection<Usuario> Alunos { get; set; } = new List<Usuario>();
     public ICollection<TurmaDitado> TurmaDitados { get; set; } = new List<TurmaDitado>(); // ADICIONADO
