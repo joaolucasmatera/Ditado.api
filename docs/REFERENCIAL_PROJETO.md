@@ -1,6 +1,6 @@
 # Referencial consolidado do projeto
 
-**Atualizado em:** 06/11/2026  
+**Atualizado em:** 07/11/2026  
 **Finalidade:** apontar rapidamente para as fontes vigentes do planejamento, evitando redescoberta e divergência entre documentos.
 
 ## Como usar este arquivo
@@ -114,6 +114,13 @@ Consulte este índice antes de abrir novas histórias, revisar contratos ou resp
 - Procedimento operacional do responsável que acumula Administrador Geral e Administrador Técnico, incluindo acesso emergencial, logs, backup e recuperação.
 - Parâmetros finais de backup no ambiente da universidade.
 - Pendências do refinamento CAT-09 registradas no contrato, sem tratá-las como autorização de implementação.
+
+### Mudança de escopo — importação de lista de chamada (2026-11-07)
+
+- A importação de alunos em lote por CSV, XLS e XLSX permanece no escopo funcional atual e já está disponível para revisão e confirmação pelo professor ou administrador.
+- A melhoria da extração de matrícula e da revisão das linhas foi separada na issue [PER-43](https://linear.app/joaomoutinho/issue/PER-43/importacao-de-chamada-melhorar-extracao-de-matricula-e-edicao-de), sem alterar o fluxo funcional já existente.
+- A PER-43 deve tratar: exclusão de linhas inválidas, investigação da matrícula não identificada no arquivo sintético, mapeamento manual de colunas quando a detecção automática falhar e eventual separação entre extração e revisão.
+- Status: melhoria planejada; não autoriza implementação automática nesta etapa.
 
 ## Sequência aceita para o épico Multi-tenant
 

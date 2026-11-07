@@ -155,6 +155,8 @@ O ciclo CAT-02 registra publicação, persistência, validações, testes automa
 - backup e restauração integral;
 - isolamento multi-tenant.
 
+O cadastro de alunos em lote e a importação de listas de presença em CSV, XLS e XLSX já fazem parte do fluxo funcional atual. O refinamento da extração de matrícula, da exclusão de linhas inválidas e do mapeamento manual de colunas está planejado separadamente na [PER-43](https://linear.app/joaomoutinho/issue/PER-43/importacao-de-chamada-melhorar-extracao-de-matricula-e-edicao-de).
+
 ## 7. Escopo incluído e excluído
 
 ### Incluído na documentação
@@ -172,7 +174,7 @@ O ciclo CAT-02 registra publicação, persistência, validações, testes automa
 - visibilidade multi-tenant aplicada ao código;
 - auditoria integral;
 - sessões revogáveis;
-- importação CSV/XLSX, QR/PIN e presença;
+- QR/PIN e presença; a importação CSV/XLS/XLSX está funcional, mas ainda possui melhorias planejadas na PER-43;
 - fallback LLM funcional;
 - OCR para respostas manuscritas;
 - qualquer resultado pedagógico não sustentado por avaliação específica.

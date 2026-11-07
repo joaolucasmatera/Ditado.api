@@ -1,5 +1,13 @@
 # Changelog da documentação
 
+## 07/11/2026 — Escopo da importação de lista de chamada atualizado
+
+- Registrado que o cadastro em lote e a importação de listas de presença em CSV, XLS e XLSX estão no fluxo funcional atual.
+- Registrada a issue `PER-43` como melhoria planejada, sem reabrir o fluxo já funcional.
+- Delimitadas as melhorias futuras: excluir linhas inválidas, corrigir a extração de matrícula do arquivo sintético, permitir mapeamento manual de colunas e avaliar a separação entre extração e revisão.
+- Status: mudança de escopo documental baseada na decisão do usuário e na issue Linear PER-43; nenhuma alteração de código, banco ou artefato derivado foi feita nesta atualização.
+- Fontes: decisão do usuário em 07/11/2026, arquivo de referência `C:\Users\lucas\Downloads\lista_presenca_ficticia.csv` e issue [PER-43](https://linear.app/joaomoutinho/issue/PER-43/importacao-de-chamada-melhorar-extracao-de-matricula-e-edicao-de).
+
 ## 07/11/2026 — V0 do relatório vivo
 
 - Criado `docs/documentacao/relatorio-aplicacao.md`.
