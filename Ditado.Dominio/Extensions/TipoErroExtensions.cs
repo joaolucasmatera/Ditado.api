@@ -13,8 +13,8 @@ public static class TipoErroExtensions
         {
             TipoErro.Nenhum => "Nenhum erro",
             TipoErro.Ortografico => "Erro ortográfico",
-            TipoErro.Acentuacao => "Erro de acentuação",
-            TipoErro.Omissao => "Omissão de letra(s)",
+            TipoErro.Acentuacao => "Acentua\u00E7\u00E3o",
+            TipoErro.Omissao => "Omiss\u00E3o (tipo legado)",
 
             // Erros de PRIMEIRA LETRA
             TipoErro.SupressaoInicio => "Supressão da PRIMEIRA letra",
@@ -34,6 +34,20 @@ public static class TipoErroExtensions
             TipoErro.ConfusaoSC => "Confusão entre S e Ç FINAL",
             TipoErro.ConfusaoSX => "Confusão entre S e X FINAL",
 
+            TipoErro.TranscricaoFonetica => "Transcri\u00E7\u00E3o da fala / escrita fon\u00E9tica",
+            TipoErro.TrocaGrafemasSurdaSonora => "Troca de grafemas / surda-sonora",
+            TipoErro.RegraContextual => "Regra contextual",
+            TipoErro.GrafiaArbitrariaIrregular => "Grafia arbitr\u00E1ria / irregular",
+            TipoErro.Nasalizacao => "Nasaliza\u00E7\u00E3o",
+            TipoErro.OmissaoAcrescimoSubstituicao => "Opera\u00E7\u00E3o de escrita n\u00E3o discriminada (tipo legado)",
+            TipoErro.OmissaoLetra => "Omiss\u00E3o",
+            TipoErro.AcrescimoLetra => "Acr\u00E9scimo",
+            TipoErro.SubstituicaoLetra => "Substitui\u00E7\u00E3o",
+            TipoErro.ComplexidadeSilabica => "Complexidade sil\u00E1bica",
+            TipoErro.HipercorrecaoSupergeneralizacao => "Hipercorre\u00E7\u00E3o / supergeneraliza\u00E7\u00E3o",
+            TipoErro.JunturaSegmentacao => "Juntura / segmenta\u00E7\u00E3o",
+            TipoErro.ConcordanciaFlexao => "Concord\u00E2ncia/flex\u00E3o",
+            TipoErro.MaiusculasPontuacao => "Mai\u00FAsculas e pontua\u00E7\u00E3o",
             _ => "Erro desconhecido"
         };
     }
@@ -47,8 +61,8 @@ public static class TipoErroExtensions
         {
             TipoErro.Nenhum => "OK",
             TipoErro.Ortografico => "Ortografia",
-            TipoErro.Acentuacao => "Acentuação",
-            TipoErro.Omissao => "Omissão",
+            TipoErro.Acentuacao => "Acentua\u00E7\u00E3o",
+            TipoErro.Omissao => "Omiss\u00E3o (tipo legado)",
 
             // Erros de PRIMEIRA LETRA
             TipoErro.SupressaoInicio => "Supressão (início)",
@@ -67,6 +81,20 @@ public static class TipoErroExtensions
             TipoErro.ConfusaoSSS => "S/SS",
             TipoErro.ConfusaoSC => "S/Ç",
             TipoErro.ConfusaoSX => "S/X",
+            TipoErro.TranscricaoFonetica => "Transcri\u00E7\u00E3o da fala / escrita fon\u00E9tica",
+            TipoErro.TrocaGrafemasSurdaSonora => "Troca de grafemas / surda-sonora",
+            TipoErro.RegraContextual => "Regra contextual",
+            TipoErro.GrafiaArbitrariaIrregular => "Grafia arbitr\u00E1ria / irregular",
+            TipoErro.Nasalizacao => "Nasaliza\u00E7\u00E3o",
+            TipoErro.OmissaoAcrescimoSubstituicao => "Opera\u00E7\u00E3o de escrita n\u00E3o discriminada (tipo legado)",
+            TipoErro.OmissaoLetra => "Omiss\u00E3o",
+            TipoErro.AcrescimoLetra => "Acr\u00E9scimo",
+            TipoErro.SubstituicaoLetra => "Substitui\u00E7\u00E3o",
+            TipoErro.ComplexidadeSilabica => "Complexidade sil\u00E1bica",
+            TipoErro.HipercorrecaoSupergeneralizacao => "Hipercorre\u00E7\u00E3o / supergeneraliza\u00E7\u00E3o",
+            TipoErro.JunturaSegmentacao => "Juntura / segmenta\u00E7\u00E3o",
+            TipoErro.ConcordanciaFlexao => "Concord\u00E2ncia/flex\u00E3o",
+            TipoErro.MaiusculasPontuacao => "Mai\u00FAsculas e pontua\u00E7\u00E3o",
 
             _ => "Desconhecido"
         };

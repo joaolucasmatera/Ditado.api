@@ -16,5 +16,7 @@ public class DetalheRespostaDto
     public string RespostaFornecida { get; set; } = string.Empty;
     public string RespostaEsperada { get; set; } = string.Empty;
     public bool Correto { get; set; }
-    public string? TipoErro { get; set; }
+    public string EstadoClassificacao { get; set; } = "NaoClassificado";
+    public string? MetodoClassificacao { get; set; }
+    public List<string> TiposErro { get; set; } = new();
 }

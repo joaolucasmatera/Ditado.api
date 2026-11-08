@@ -31,13 +31,21 @@ public class RespostaDitadoConfiguration : IEntityTypeConfiguration<RespostaDita
             .WithMany()
             .HasForeignKey(r => r.AlunoId)
             .OnDelete(DeleteBehavior.Cascade);
+
+        builder.HasOne(r => r.AplicacaoDitado)
+            .WithMany(a => a.Tentativas)
+            .HasForeignKey(r => r.AplicacaoDitadoId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        builder.Property(r => r.EscolaId);
         
         builder.HasMany(r => r.RespostasSegmentos)
             .WithOne(rs => rs.RespostaDitado)
             .HasForeignKey(rs => rs.RespostaDitadoId)
             .OnDelete(DeleteBehavior.Cascade);
         
-        // Índice para buscar tentativas de um aluno em um ditado
+        // ï¿½ndice para buscar tentativas de um aluno em um ditado
         builder.HasIndex(r => new { r.AlunoId, r.DitadoId, r.DataRealizacao });
+        builder.HasIndex(r => new { r.AplicacaoDitadoId, r.AlunoId, r.DataRealizacao });
     }
 }

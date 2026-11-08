@@ -25,7 +25,7 @@ public class AlunoService
 		if (!turmasDoAluno.Any())
 			return new List<DitadoAlunoResponse>();
 
-		// 2. Buscar ditados atribuídos às turmas do aluno
+		// 2. Buscar ditados atribuï¿½dos ï¿½s turmas do aluno
 		var ditadosAtribuidos = await _context.TurmaDitados
 			.Where(td => turmasDoAluno.Contains(td.TurmaId))
 			.Include(td => td.Ditado)
@@ -43,7 +43,7 @@ public class AlunoService
 					TurmaNome = td.Turma.Nome,
 					DataAtribuicao = td.DataAtribuicao
 				}).ToList(),
-				DataLimite = g.Min(td => td.DataLimite) // Pega a data limite mais próxima
+				DataLimite = g.Min(td => td.DataLimite) // Pega a data limite mais prï¿½xima
 			})
 			.ToListAsync();
 
@@ -87,10 +87,47 @@ public class AlunoService
 					.ToList()
 			};
 		})
-		.OrderBy(d => d.DataLimite) // Mais próximo de vencer primeiro
+		.OrderBy(d => d.DataLimite) // Mais prï¿½ximo de vencer primeiro
 		.ToList();
 
-		return resultado;
+		// Adaptador de transiÃ§Ã£o: novas aplicaÃ§Ãµes sÃ£o a fonte de escrita, enquanto
+		// TurmaDitado permanece disponÃ­vel para leitura do histÃ³rico legado.
+		var aplicacoes = await _context.AplicacoesDitados
+			.Where(a => a.Ativa && a.Participacoes.Any(p => p.AlunoId == alunoId && !p.RevogadaEm.HasValue))
+			.Include(a => a.Ditado)
+			.ThenInclude(d => d.DitadoCategorias)
+			.ThenInclude(dc => dc.Categoria)
+			.Include(a => a.Turma)
+			.ToListAsync();
+		foreach (var aplicacao in aplicacoes)
+		{
+			var tentativasAplicacao = await _context.RespostaDitados
+				.Where(r => r.AlunoId == alunoId && r.AplicacaoDitadoId == aplicacao.Id)
+			.ToListAsync();
+			var existente = resultado.FirstOrDefault(r => r.DitadoId == aplicacao.DitadoId);
+			if (existente == null)
+			{
+				resultado.Add(new DitadoAlunoResponse
+				{
+					DitadoId = aplicacao.DitadoId,
+					Titulo = aplicacao.Ditado.Titulo,
+					Descricao = aplicacao.Ditado.Descricao,
+					DataLimite = aplicacao.DataLimite ?? DateTime.MaxValue,
+					Atrasado = aplicacao.DataLimite.HasValue && DateTime.UtcNow > aplicacao.DataLimite.Value,
+					Turmas = new List<TurmaAtribuicaoDto> { new() { TurmaId = aplicacao.TurmaId, TurmaNome = aplicacao.Turma.Nome, DataAtribuicao = aplicacao.DataAtribuicao } },
+					Status = new StatusDitadoDto
+					{
+						JaTentou = tentativasAplicacao.Count > 0,
+						Tentativas = tentativasAplicacao.Count,
+						UltimaTentativaEm = tentativasAplicacao.Count == 0 ? null : tentativasAplicacao.Max(t => t.DataRealizacao),
+						MelhorNota = tentativasAplicacao.Count == 0 ? null : tentativasAplicacao.Max(t => t.Nota)
+					},
+					CategoriasNomes = aplicacao.Ditado.DitadoCategorias.Select(dc => dc.Categoria.Nome).ToList()
+				});
+			}
+		}
+
+		return resultado.OrderBy(d => d.DataLimite).ToList();
 	}
 
 	public async Task<List<TentativaDitadoResponse>> ListarMinhasTentativasAsync(int alunoId, int ditadoId)
@@ -103,6 +140,11 @@ public class AlunoService
 				t => t.Id,
 				(td, t) => td.DataLimite)
 			.FirstOrDefaultAsync();
+		if (dataLimite == default)
+			dataLimite = await _context.AplicacoesDitados
+				.Where(a => a.DitadoId == ditadoId && a.Ativa && a.Participacoes.Any(p => p.AlunoId == alunoId && !p.RevogadaEm.HasValue))
+				.Select(a => a.DataLimite ?? DateTime.MaxValue)
+				.FirstOrDefaultAsync();
 
 		var tentativas = await _context.RespostaDitados
 			.Where(r => r.AlunoId == alunoId && r.DitadoId == ditadoId)

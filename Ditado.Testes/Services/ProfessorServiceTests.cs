@@ -30,7 +30,7 @@ public class ProfessorServiceTests : IDisposable
         _context.Dispose();
     }
 
-    private async Task<Usuario> CriarUsuarioAsync(TipoUsuario tipo, string nome = "Usuário Teste")
+    private async Task<Usuario> CriarUsuarioAsync(TipoUsuario tipo, string nome = "Usuï¿½rio Teste")
     {
         var usuario = new Usuario
         {
@@ -45,7 +45,7 @@ public class ProfessorServiceTests : IDisposable
         return usuario;
     }
 
-    private async Task<Turma> CriarTurmaAsync(int professorId, string nome = "5º Ano A")
+    private async Task<Turma> CriarTurmaAsync(int professorId, string nome = "5ï¿½ Ano A")
     {
         var turma = new Turma
         {
@@ -174,7 +174,7 @@ public class ProfessorServiceTests : IDisposable
         // Arrange
         var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
         var turma = await CriarTurmaAsync(professor.Id);
-        var ditado = await CriarDitadoAsync(professor.Id, "Ortografia Básica");
+        var ditado = await CriarDitadoAsync(professor.Id, "Ortografia Bï¿½sica");
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
 
         // Act
@@ -184,7 +184,7 @@ public class ProfessorServiceTests : IDisposable
         Assert.Single(resultado);
         Assert.Equal(turma.Id, resultado[0].TurmaId);
         Assert.Equal(ditado.Id, resultado[0].DitadoId);
-        Assert.Equal("Ortografia Básica", resultado[0].DitadoTitulo);
+        Assert.Equal("Ortografia Bï¿½sica", resultado[0].DitadoTitulo);
         Assert.Equal(0, resultado[0].TotalAlunos);
         Assert.Equal(0, resultado[0].AlunosQueFizeram);
         Assert.Equal(0, resultado[0].PercentualConclusao);
@@ -224,7 +224,7 @@ public class ProfessorServiceTests : IDisposable
     }
 
     [Fact]
-    public async Task ListarMeusDitadosAtribuidos_ApenasConsideraPrimeiraTentativa()
+    public async Task ListarMeusDitadosAtribuidos_ConsideraMelhorResultado()
     {
         // Arrange
         var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
@@ -239,14 +239,14 @@ public class ProfessorServiceTests : IDisposable
         await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 60.0m);
         await Task.Delay(100); // Garantir ordem temporal
 
-        // Segunda tentativa: 80 (NÃO deve ser considerada)
+        // Segunda tentativa: 80 (melhor resultado principal)
         await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 80.0m);
 
         // Act
         var resultado = await _professorService.ListarMeusDitadosAtribuidosAsync(professor.Id);
 
         // Assert
-        Assert.Equal(60.0m, resultado[0].NotaMedia); // Apenas primeira tentativa
+        Assert.Equal(80.0m, resultado[0].NotaMedia); // Melhor resultado
     }
 
     [Fact]
@@ -262,7 +262,7 @@ public class ProfessorServiceTests : IDisposable
         // Atribuir com datas limite diferentes
         await AtribuirDitadoAsync(turma.Id, ditado1.Id, DateTime.UtcNow.AddDays(10)); // Mais distante
         await AtribuirDitadoAsync(turma.Id, ditado2.Id, DateTime.UtcNow.AddDays(-2)); // Vencido
-        await AtribuirDitadoAsync(turma.Id, ditado3.Id, DateTime.UtcNow.AddDays(3)); // Próximo
+        await AtribuirDitadoAsync(turma.Id, ditado3.Id, DateTime.UtcNow.AddDays(3)); // Prï¿½ximo
 
         // Act
         var resultado = await _professorService.ListarMeusDitadosAtribuidosAsync(professor.Id);
@@ -270,7 +270,7 @@ public class ProfessorServiceTests : IDisposable
         // Assert
         Assert.Equal(3, resultado.Count);
         Assert.Equal("Ditado 2", resultado[0].DitadoTitulo); // Vencido primeiro
-        Assert.Equal("Ditado 3", resultado[1].DitadoTitulo); // Próximo
+        Assert.Equal("Ditado 3", resultado[1].DitadoTitulo); // Prï¿½ximo
         Assert.Equal("Ditado 1", resultado[2].DitadoTitulo); // Mais distante
     }
 
@@ -327,8 +327,8 @@ public class ProfessorServiceTests : IDisposable
     {
         // Arrange
         var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
-        var turma = await CriarTurmaAsync(professor.Id, "5º Ano A");
-        var aluno1 = await CriarUsuarioAsync(TipoUsuario.Aluno, "João Silva");
+        var turma = await CriarTurmaAsync(professor.Id, "5ï¿½ Ano A");
+        var aluno1 = await CriarUsuarioAsync(TipoUsuario.Aluno, "Joï¿½o Silva");
         aluno1.Matricula = "2024001";
         await AdicionarAlunoNaTurmaAsync(aluno1.Id, turma.Id);
 
@@ -342,7 +342,7 @@ public class ProfessorServiceTests : IDisposable
 
         // Assert
         Assert.NotNull(resultado);
-        Assert.Equal("5º Ano A", resultado.TurmaNome);
+        Assert.Equal("5ï¿½ Ano A", resultado.TurmaNome);
         Assert.Equal("Ortografia", resultado.DitadoTitulo);
         Assert.Equal(1, resultado.TotalAlunos);
         Assert.Equal(1, resultado.AlunosQueFizeram);
@@ -350,7 +350,7 @@ public class ProfessorServiceTests : IDisposable
         Assert.Equal(85.0m, resultado.NotaMedia);
 
         Assert.Single(resultado.Alunos);
-        Assert.Equal("João Silva", resultado.Alunos[0].Nome);
+        Assert.Equal("Joï¿½o Silva", resultado.Alunos[0].Nome);
         Assert.Equal("2024001", resultado.Alunos[0].Matricula);
         Assert.True(resultado.Alunos[0].Fez);
         Assert.Equal(85.0m, resultado.Alunos[0].Nota);
@@ -369,7 +369,7 @@ public class ProfessorServiceTests : IDisposable
         var ditado = await CriarDitadoAsync(professor.Id);
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
 
-        // Act (aluno não fez)
+        // Act (aluno nï¿½o fez)
         var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
 
         // Assert
@@ -390,7 +390,7 @@ public class ProfessorServiceTests : IDisposable
         await AdicionarAlunoNaTurmaAsync(aluno.Id, turma.Id);
 
         var ditado = await CriarDitadoAsync(professor.Id);
-        var dataLimite = DateTime.UtcNow.AddDays(-2); // Limite há 2 dias atrás
+        var dataLimite = DateTime.UtcNow.AddDays(-2); // Limite hï¿½ 2 dias atrï¿½s
         await AtribuirDitadoAsync(turma.Id, ditado.Id, dataLimite);
 
         // Aluno fez hoje (atrasado)
@@ -419,10 +419,16 @@ public class ProfessorServiceTests : IDisposable
         var ditado = await CriarDitadoAsync(professor.Id);
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
 
-        // Aluno 1: erro de acentuação
-        await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 0m, TipoErro.Acentuacao);
+        // Aluno 1: erro de acentuaï¿½ï¿½o
+        var respostaAluno1 = await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 0m, TipoErro.Acentuacao);
+        var respostaMultipla = respostaAluno1.RespostasSegmentos.First(rs => !rs.Correto);
+        respostaMultipla.EstadoClassificacao = EstadoClassificacao.Classificado;
+        respostaMultipla.MetodoClassificacao = MetodoClassificacao.Codigo;
+        respostaMultipla.TiposErro.Add(new RespostaSegmentoTipoErro { TipoErro = TipoErro.Acentuacao });
+        respostaMultipla.TiposErro.Add(new RespostaSegmentoTipoErro { TipoErro = TipoErro.OmissaoAcrescimoSubstituicao });
+        await _context.SaveChangesAsync();
 
-        // Aluno 2: erro de acentuação também
+        // Aluno 2: erro de acentuaï¿½ï¿½o tambï¿½m
         await CriarRespostaDitadoAsync(ditado.Id, aluno2.Id, 0m, TipoErro.Acentuacao);
 
         // Act
@@ -430,10 +436,14 @@ public class ProfessorServiceTests : IDisposable
 
         // Assert
         Assert.NotEmpty(resultado!.ErrosPorTipo);
+        Assert.Equal(2, resultado.ErrosPorTipo.Count);
         var erroAcentuacao = resultado.ErrosPorTipo.First(e => e.TipoErroId == (int)TipoErro.Acentuacao);
-        Assert.Equal(2, erroAcentuacao.Quantidade); // 2 alunos erraram acentuação
-        Assert.Equal("Erro de acentuação", erroAcentuacao.Descricao);
-        Assert.Equal("Acentuação", erroAcentuacao.DescricaoCurta);
+        Assert.Equal(2, erroAcentuacao.Quantidade);
+        var erroOperacional = resultado.ErrosPorTipo.First(e => e.TipoErroId == (int)TipoErro.OmissaoAcrescimoSubstituicao);
+        Assert.Equal(1, erroOperacional.Quantidade);
+        Assert.Equal("Opera\u00E7\u00E3o de escrita n\u00E3o discriminada (tipo legado)", erroOperacional.Descricao);
+        Assert.Equal("Acentua\u00E7\u00E3o", erroAcentuacao.Descricao);
+        Assert.Equal("AcentuaÃ§Ã£o", erroAcentuacao.DescricaoCurta);
     }
 
     [Fact]
@@ -455,7 +465,7 @@ public class ProfessorServiceTests : IDisposable
 
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
 
-        // Aluno 1: 3 erros de acentuação (lacunas 0, 1, 2), 1 ortográfico (lacuna 3), 1 acerto (lacuna 4)
+        // Aluno 1: 3 erros de acentuaï¿½ï¿½o (lacunas 0, 1, 2), 1 ortogrï¿½fico (lacuna 3), 1 acerto (lacuna 4)
         await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 20m, 
             TipoErro.Acentuacao,   // Lacuna 1
             TipoErro.Acentuacao,   // Lacuna 2
@@ -504,29 +514,29 @@ public class ProfessorServiceTests : IDisposable
             DitadoId = ditado.Id, 
             Ordem = 4, 
             Tipo = TipoSegmento.Lacuna, 
-            Conteudo = "árvore" 
+            Conteudo = "ï¿½rvore" 
         });
         await _context.SaveChangesAsync();
 
         await AtribuirDitadoAsync(turma.Id, ditado.Id, DateTime.UtcNow.AddDays(7));
 
-        // Aluno 1: erra "gato" e "árvore"
+        // Aluno 1: erra "gato" e "ï¿½rvore"
         await CriarRespostaDitadoAsync(ditado.Id, aluno1.Id, 33.33m, 
             TipoErro.Ortografico,  // "gato"
             TipoErro.Nenhum,       // "cachorro" (acerto)
-            TipoErro.Acentuacao);  // "árvore"
+            TipoErro.Acentuacao);  // "ï¿½rvore"
 
         // Aluno 2: erra "gato" e "cachorro"
         await CriarRespostaDitadoAsync(ditado.Id, aluno2.Id, 33.33m, 
             TipoErro.Ortografico,  // "gato"
             TipoErro.Ortografico,  // "cachorro"
-            TipoErro.Nenhum);      // "árvore" (acerto)
+            TipoErro.Nenhum);      // "ï¿½rvore" (acerto)
 
         // Aluno 3: acerta tudo
         await CriarRespostaDitadoAsync(ditado.Id, aluno3.Id, 100m, 
             TipoErro.Nenhum,       // "gato"
             TipoErro.Nenhum,       // "cachorro"
-            TipoErro.Nenhum);      // "árvore"
+            TipoErro.Nenhum);      // "ï¿½rvore"
 
         // Act
         var resultado = await _professorService.ObterDetalhesAtribuicaoAsync(turma.Id, ditado.Id, professor.Id);
@@ -547,15 +557,15 @@ public class ProfessorServiceTests : IDisposable
         Assert.Equal(1, palavraCachorro.QuantidadeErros);
         Assert.Equal(33.33m, palavraCachorro.PercentualErro);
 
-        // Terceira palavra: "árvore" - 1 aluno errou de 3 = 33.33%
+        // Terceira palavra: "ï¿½rvore" - 1 aluno errou de 3 = 33.33%
         var palavraArvore = resultado.ErrosPorPalavra[2];
-        Assert.Equal("árvore", palavraArvore.Palavra);
+        Assert.Equal("ï¿½rvore", palavraArvore.Palavra);
         Assert.Equal(1, palavraArvore.QuantidadeErros);
         Assert.Equal(33.33m, palavraArvore.PercentualErro);
     }
 
     [Fact]
-    public async Task ObterDetalhesAtribuicao_ErrosPorPalavra_ApenasConsideraPrimeiraTentativa()
+    public async Task ObterDetalhesAtribuicao_ErrosPorPalavra_ConsideraMelhorResultado()
     {
         // Arrange
         var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
@@ -570,7 +580,7 @@ public class ProfessorServiceTests : IDisposable
         await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 0m, TipoErro.Ortografico);
         await Task.Delay(100);
 
-        // Segunda tentativa: acertou "gato" (NÃO deve ser considerada)
+        // Segunda tentativa: acertou "gato" (melhor resultado principal)
         await CriarRespostaDitadoAsync(ditado.Id, aluno.Id, 100m, TipoErro.Nenhum);
 
         // Act
@@ -582,8 +592,8 @@ public class ProfessorServiceTests : IDisposable
         
         var palavraGato = resultado.ErrosPorPalavra[0];
         Assert.Equal("gato", palavraGato.Palavra);
-        Assert.Equal(1, palavraGato.QuantidadeErros); // Considerou apenas 1ª tentativa (erro)
-        Assert.Equal(100.0m, palavraGato.PercentualErro); // 1 de 1 = 100%
+        Assert.Equal(0, palavraGato.QuantidadeErros); // Melhor resultado nÃ£o contÃ©m erro
+        Assert.Equal(0.0m, palavraGato.PercentualErro);
     }
 
     [Fact]
@@ -631,7 +641,7 @@ public class ProfessorServiceTests : IDisposable
 
         var ditado = await CriarDitadoAsync(professor.Id);
         
-        // Adicionar lacunas com ordens específicas
+        // Adicionar lacunas com ordens especï¿½ficas
         ditado.Segmentos.Add(new DitadoSegmento 
         { 
             DitadoId = ditado.Id, 
@@ -658,7 +668,7 @@ public class ProfessorServiceTests : IDisposable
             DitadoId = ditado.Id, 
             Ordem = 6, 
             Tipo = TipoSegmento.Lacuna, 
-            Conteudo = "árvore" // Terceira lacuna
+            Conteudo = "ï¿½rvore" // Terceira lacuna
         });
         await _context.SaveChangesAsync();
 
@@ -679,6 +689,7 @@ public class ProfessorServiceTests : IDisposable
         // Verificar ordem
         Assert.Equal("gato", resultado.ErrosPorPalavra[0].Palavra); // Ordem 2
         Assert.Equal("cachorro", resultado.ErrosPorPalavra[1].Palavra); // Ordem 4
-        Assert.Equal("árvore", resultado.ErrosPorPalavra[2].Palavra); // Ordem 6
+        Assert.Equal("ï¿½rvore", resultado.ErrosPorPalavra[2].Palavra); // Ordem 6
     }
 }
+

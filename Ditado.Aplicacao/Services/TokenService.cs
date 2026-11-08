@@ -16,19 +16,26 @@ public class TokenService
         _configuration = configuration;
     }
 
+    public static TimeSpan DuracaoToken => TimeSpan.FromHours(8);
+
     public string GerarToken(Usuario usuario)
+        => GerarToken(usuario, Guid.NewGuid());
+
+    public string GerarToken(Usuario usuario, Guid sessaoId)
     {
         var chaveSecreta = _configuration["Jwt:ChaveSecreta"] 
-            ?? throw new InvalidOperationException("Chave secreta JWT não configurada");
+            ?? throw new InvalidOperationException("Chave secreta JWT nï¿½o configurada");
         
         var key = new SymmetricSecurityKey(Encoding.UTF8.GetBytes(chaveSecreta));
         var credentials = new SigningCredentials(key, SecurityAlgorithms.HmacSha256);
 
         var claims = new[]
         {
+            new Claim(JwtRegisteredClaimNames.Jti, sessaoId.ToString()),
             new Claim(ClaimTypes.NameIdentifier, usuario.Id.ToString()),
             new Claim(ClaimTypes.Name, usuario.Nome),
             new Claim(ClaimTypes.Role, usuario.Tipo.ToString()),
+            new Claim("AdministradorGeral", usuario.AdministradorGeral.ToString().ToLowerInvariant()),
             new Claim("Login", usuario.Login)
         };
 
@@ -36,7 +43,7 @@ public class TokenService
             issuer: _configuration["Jwt:Emissor"],
             audience: _configuration["Jwt:Audiencia"],
             claims: claims,
-            expires: DateTime.UtcNow.AddHours(8),
+            expires: DateTime.UtcNow.Add(DuracaoToken),
             signingCredentials: credentials
         );
 

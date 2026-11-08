@@ -128,8 +128,8 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		{
 			Respostas = new List<RespostaSegmentoDto>
 			{
-				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "cachorro" },
-				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = "gato" }
+				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "  cachorro  " },
+				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = " gato " }
 			}
 		};
 
@@ -147,6 +147,35 @@ public class DitadosControllerTests : TesteIntegracaoBase
 	}
 
 	[Fact]
+	public async Task SubmeterResposta_DiferencaDeMaiusculas_DeveContarComoErroSemAlterarNotaObjetiva()
+	{
+		var token = await ObterTokenAdminAsync();
+		AdicionarTokenAutorizacao(token);
+
+		var ditadoId = await CriarDitadoTeste();
+		var ditado = await GetAsync<DitadoParaRealizarResponse>($"/api/ditados/{ditadoId}/realizar");
+		var lacunas = ditado!.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
+		var request = new SubmeterRespostaRequest
+		{
+			Respostas = new List<RespostaSegmentoDto>
+			{
+				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "Cachorro" },
+				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = " gato " }
+			}
+		};
+
+		var response = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{ditadoId}/submeter", request);
+
+		response.Should().NotBeNull();
+		response!.Acertos.Should().Be(1);
+		response.Erros.Should().Be(1);
+		response.Nota.Should().Be(50);
+
+		var detalheCapitalizado = response.Detalhes.First(d => d.RespostaEsperada == "cachorro");
+		detalheCapitalizado.Correto.Should().BeFalse();
+		detalheCapitalizado.TiposErro.Should().ContainSingle().Which.Should().Be("Mai\u00FAsculas e pontua\u00E7\u00E3o");
+	}
+	[Fact]
 	public async Task SubmeterResposta_ComErrosOrtograficos_DeveIdentificarTipoErro()
 	{
 		// Arrange
@@ -162,7 +191,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Respostas = new List<RespostaSegmentoDto>
 			{
 				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "cachoro" },
-				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = "gato" }
+				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = " gato " }
 			}
 		};
 
@@ -178,7 +207,9 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		var erroOrtografico = response.Detalhes.First(d => !d.Correto);
 		erroOrtografico.RespostaFornecida.Should().Be("cachoro");
 		erroOrtografico.RespostaEsperada.Should().Be("cachorro");
-		erroOrtografico.TipoErro.Should().Be("Erro ortográfico"); // ATUALIZADO para descrição completa
+		erroOrtografico.TiposErro.Should().Equal("Regra contextual", "Omissão");
+		erroOrtografico.EstadoClassificacao.Should().Be("Classificado");
+		erroOrtografico.MetodoClassificacao.Should().Be("Codigo");
 	}
 
 	[Fact]
@@ -207,7 +238,9 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		response.Should().NotBeNull();
 		var erro = response!.Detalhes.First();
 		erro.Correto.Should().BeFalse();
-		erro.TipoErro.Should().Be("Erro de acentuação"); // ATUALIZADO para descrição completa
+		erro.TiposErro.Should().ContainSingle().Which.Should().Be("Acentua\u00E7\u00E3o");
+		erro.EstadoClassificacao.Should().Be("Classificado");
+		erro.MetodoClassificacao.Should().Be("Codigo");
 		erro.RespostaEsperada.Should().Be("árvore");
 	}
 
@@ -227,7 +260,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Respostas = new List<RespostaSegmentoDto>
 			{
 				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "" },
-				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = "gato" }
+				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = " gato " }
 			}
 		};
 
@@ -236,7 +269,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 
 		// Assert
 		var omissao = response!.Detalhes.First(d => d.RespostaFornecida == "");
-		omissao.TipoErro.Should().Be("Omissão de letra(s)"); // ATUALIZADO para descrição completa
+		omissao.TiposErro.Should().ContainSingle().Which.Should().Be("Omiss\u00E3o"); // ATUALIZADO para descrição completa
 	}
 
 	[Fact]
@@ -306,19 +339,22 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		ditado.Segmentos[3].Tipo.Should().Be("Lacuna");
 		ditado.Segmentos[4].Conteudo.Should().Be(". final");
 
-		// Testar comparação case-insensitive
+		// Caixa diferente deve contar como erro na nota.
 		var lacunas = ditado.Segmentos.Where(s => s.Tipo == "Lacuna").ToList();
 		var respostaRequest = new SubmeterRespostaRequest
 		{
 			Respostas = new List<RespostaSegmentoDto>
 			{
 				new() { SegmentoId = lacunas[0].SegmentoId!.Value, Resposta = "nova" },
-				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = "gato" }
+				new() { SegmentoId = lacunas[1].SegmentoId!.Value, Resposta = " gato " }
 			}
 		};
 
 		var resultado = await PostAsync<ResultadoDitadoResponse>($"/api/ditados/{response.Id}/submeter", respostaRequest);
-		resultado!.Nota.Should().Be(100);
+		resultado!.Nota.Should().Be(0);
+		resultado.Acertos.Should().Be(0);
+		resultado.Erros.Should().Be(2);
+		resultado.Detalhes.Should().OnlyContain(d => !d.Correto && d.TiposErro.SequenceEqual(new[] { "Maiúsculas e pontuação" }));
 	}
 
 	#region Testes para Novos Tipos de Erro
@@ -349,7 +385,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		response.Should().NotBeNull();
 		var erro = response!.Detalhes.First();
 		erro.Correto.Should().BeFalse();
-		erro.TipoErro.Should().Be("Supressão da ÚLTIMA letra");
+		erro.TiposErro.Should().ContainSingle().Which.Should().Be("Omissão");
 	}
 
 	[Fact]
@@ -378,7 +414,9 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		response.Should().NotBeNull();
 		var erro = response!.Detalhes.First();
 		erro.Correto.Should().BeFalse();
-		erro.TipoErro.Should().Be("Inversão das duas ÚLTIMAS letras");
+		erro.TiposErro.Should().BeEmpty();
+		erro.EstadoClassificacao.Should().Be("NaoClassificado");
+		erro.MetodoClassificacao.Should().BeNull();
 	}
 
 	[Fact]
@@ -407,7 +445,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		response.Should().NotBeNull();
 		var erro = response!.Detalhes.First();
 		erro.Correto.Should().BeFalse();
-		erro.TipoErro.Should().Be("Confusão entre S e Z FINAL");
+		erro.TiposErro.Should().Equal("Grafia arbitrária / irregular", "Substituição");
 	}
 
 	[Fact]
@@ -436,7 +474,7 @@ public class DitadosControllerTests : TesteIntegracaoBase
 		response.Should().NotBeNull();
 		var erro = response!.Detalhes.First();
 		erro.Correto.Should().BeFalse();
-		erro.TipoErro.Should().Be("Troca da PRIMEIRA letra");
+		erro.TiposErro.Should().Equal("Troca de grafemas / surda-sonora", "Substituição");
 	}
 
 	// Método auxiliar adicional

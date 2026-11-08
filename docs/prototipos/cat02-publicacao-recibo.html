@@ -1,0 +1,126 @@
+<!doctype html>
+<html lang="pt-BR">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>CAT-02 — Publicar erro</title>
+  <style>
+    :root { --primary:#3d647d; --navy:#2f4355; --surface:#fff; --bg:#f3f5f7; --text:#1f2933; --muted:#5f6f7c; --line:#d9e0e5; --success:#16845b; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--bg); color:var(--text); font:16px/1.5 Arial, sans-serif; }
+    .shell { max-width:1020px; margin:0 auto; padding:32px 24px 56px; }
+    .eyebrow { margin:0 0 6px; color:var(--muted); font-size:.78rem; letter-spacing:.08em; text-transform:uppercase; }
+    h1,h2 { margin:0; color:#172532; }
+    h1 { font-size:2rem; line-height:1.2; }
+    h2 { font-size:1.3rem; }
+    .intro { margin:8px 0 24px; color:var(--muted); }
+    .card { background:var(--surface); border:1px solid #e1e6ea; border-radius:8px; box-shadow:0 1px 3px #1d2c3814; }
+    .card-head { padding:24px 28px 20px; border-bottom:1px solid var(--line); }
+    .card-body { padding:24px 28px; }
+    .section { padding:0 0 22px; margin:0 0 22px; border-bottom:1px solid var(--line); }
+    .section:last-child { margin:0; padding:0; border-bottom:0; }
+    .section-title { margin:0 0 16px; font-size:1.05rem; color:#263746; }
+    .grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 20px; }
+    .field { display:flex; flex-direction:column; gap:6px; }
+    .field.full { grid-column:1/-1; }
+    label { font-weight:700; color:#334654; }
+    .optional { color:var(--muted); font-size:.84rem; font-weight:400; }
+    input, textarea { width:100%; border:1px solid #aab7c1; border-radius:6px; padding:11px 12px; color:var(--text); background:#fff; font:inherit; }
+    textarea { min-height:112px; resize:vertical; }
+    input:focus, textarea:focus { outline:2px solid #6b91a8; outline-offset:1px; }
+    .help { margin:0; color:var(--muted); font-size:.88rem; }
+    .actions { display:flex; justify-content:flex-end; gap:12px; padding:20px 28px; background:#f7f8f9; border-top:1px solid var(--line); border-radius:0 0 8px 8px; }
+    button { border:0; border-radius:6px; padding:12px 20px; font:700 1rem inherit; cursor:pointer; }
+    .primary { color:#fff; background:var(--navy); }
+    .secondary { color:var(--navy); background:transparent; }
+    .status-row { display:flex; align-items:center; gap:12px; flex-wrap:wrap; }
+    .chip { display:inline-flex; align-items:center; border-radius:999px; padding:5px 12px; color:var(--success); background:#e5f5ee; font-size:.9rem; }
+    .notice { margin:18px 0 0; color:#394b58; font-size:1rem; }
+    .receipt-grid { display:grid; grid-template-columns:repeat(2,minmax(0,1fr)); gap:18px 28px; }
+    .value { margin:3px 0 0; white-space:pre-wrap; overflow-wrap:anywhere; }
+    .muted-value { color:var(--muted); }
+    [hidden] { display:none !important; }
+    .switcher { display:flex; gap:8px; margin:0 0 18px; }
+    .switcher button { padding:8px 14px; font-size:.9rem; border:1px solid var(--line); background:#fff; color:var(--navy); }
+    .switcher button.active { background:var(--navy); color:#fff; border-color:var(--navy); }
+    @media (max-width:640px) {
+      .shell { padding:22px 14px 36px; }
+      .card-head, .card-body { padding:20px; }
+      .grid, .receipt-grid { grid-template-columns:1fr; }
+      .field.full { grid-column:auto; }
+      .actions { padding:16px 20px; }
+      .actions button { width:100%; }
+      .actions { flex-direction:column-reverse; }
+    }
+  </style>
+</head>
+<body>
+  <main class="shell">
+    <div class="switcher" aria-label="Alternar protótipo">
+      <button id="show-form" class="active" type="button">Cadastro</button>
+      <button id="show-receipt" type="button">Recibo</button>
+    </div>
+
+    <section id="form-screen">
+      <p class="eyebrow">Catálogo de erros</p>
+      <h1>Publicar erro</h1>
+      <p class="intro">Cadastre um padrão de escrita para consulta e uso pedagógico.</p>
+      <article class="card">
+        <div class="card-head"><h2>Dados do erro</h2></div>
+        <div class="card-body">
+          <div class="section">
+            <h3 class="section-title">Identificação</h3>
+            <div class="grid">
+              <div class="field full"><label for="nome">Nome do erro <span aria-hidden="true">*</span></label><input id="nome" placeholder="Ex.: Troca de M por N antes de P ou B"><p class="help">Dê um nome curto para o padrão de escrita.</p></div>
+              <div class="field full"><label for="descricao">Descrição do erro <span aria-hidden="true">*</span></label><textarea id="descricao" placeholder="Ex.: O aluno escreve N no lugar de M antes de P ou B."></textarea><p class="help">Explique o que o aluno escreveu e em que situação o erro aparece. Você pode incluir exemplos e orientações.</p></div>
+            </div>
+          </div>
+          <div class="section">
+            <h3 class="section-title">Exemplo <span class="optional">(opcional)</span></h3>
+            <div class="grid">
+              <div class="field"><label for="esperada">Escrita esperada</label><input id="esperada" placeholder="Ex.: também"><p class="help">Escreva a forma correta.</p></div>
+              <div class="field"><label for="resposta">Resposta do aluno</label><input id="resposta" placeholder="Ex.: tanbém"><p class="help">Escreva como o aluno respondeu.</p></div>
+            </div>
+          </div>
+          <div class="section">
+            <h3 class="section-title">Orientação pedagógica</h3>
+            <div class="grid">
+              <div class="field full"><label for="observacao">Observação pedagógica <span class="optional">(opcional)</span></label><textarea id="observacao" placeholder="Ex.: Retomar o uso de M antes de P e B."></textarea><p class="help">Registre uma orientação para trabalhar esse padrão em sala.</p></div>
+              <div class="field full"><label for="serie">Série/ano <span class="optional">(opcional)</span></label><input id="serie" placeholder="Ex.: 3º ano do Ensino Fundamental"><p class="help">Informe para qual turma ou etapa esta orientação é mais adequada.</p></div>
+            </div>
+          </div>
+        </div>
+        <div class="actions"><button class="secondary" type="button">Cancelar</button><button id="publish" class="primary" type="button">Publicar erro</button></div>
+      </article>
+    </section>
+
+    <section id="receipt-screen" hidden>
+      <p class="eyebrow">Catálogo de erros</p>
+      <article class="card">
+        <div class="card-head">
+          <div class="status-row"><h1>Erro publicado</h1><span class="chip">Ativo</span></div>
+          <p class="notice">No momento erros cadastrados ainda não entram na correção automática.</p>
+        </div>
+        <div class="card-body">
+          <div class="section"><h2 class="section-title">Publicação</h2><div class="receipt-grid"><div><label>Número do registro</label><p class="value">3</p></div><div><label>Nome do erro</label><p class="value">Troca de M por N antes de P ou B</p></div><div class="field full"><label>Descrição do erro</label><p class="value">O aluno escreve N no lugar de M antes de P ou B.</p></div></div></div>
+          <div class="section"><h2 class="section-title">Exemplo</h2><div class="receipt-grid"><div><label>Escrita esperada</label><p class="value">também</p></div><div><label>Resposta do aluno</label><p class="value">tanbém</p></div></div></div>
+          <div class="section"><h2 class="section-title">Orientação pedagógica</h2><div class="receipt-grid"><div><label>Observação pedagógica</label><p class="value muted-value">Não informado</p></div><div><label>Série/ano</label><p class="value muted-value">Não informado</p></div></div></div>
+        </div>
+        <div class="actions"><button id="new-error" class="primary" type="button">Publicar outro erro</button></div>
+      </article>
+    </section>
+  </main>
+  <script>
+    const form = document.getElementById('form-screen');
+    const receipt = document.getElementById('receipt-screen');
+    const formTab = document.getElementById('show-form');
+    const receiptTab = document.getElementById('show-receipt');
+    function showReceipt() { form.hidden = true; receipt.hidden = false; formTab.classList.remove('active'); receiptTab.classList.add('active'); window.scrollTo({top:0, behavior:'smooth'}); }
+    function showForm() { form.hidden = false; receipt.hidden = true; formTab.classList.add('active'); receiptTab.classList.remove('active'); window.scrollTo({top:0, behavior:'smooth'}); }
+    document.getElementById('publish').addEventListener('click', showReceipt);
+    document.getElementById('new-error').addEventListener('click', showForm);
+    formTab.addEventListener('click', showForm);
+    receiptTab.addEventListener('click', showReceipt);
+  </script>
+</body>
+</html>

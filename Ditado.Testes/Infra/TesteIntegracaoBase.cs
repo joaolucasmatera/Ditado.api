@@ -2,6 +2,11 @@ using System.Net.Http.Json;
 using System.Text;
 using System.Text.Json;
 using Ditado.Aplicacao.DTOs.Usuarios;
+using Ditado.Dominio.Entidades;
+using Ditado.Dominio.Enums;
+using Ditado.Infra.Data;
+using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.DependencyInjection;
 using Xunit;
 
 namespace Ditado.Testes.Infra;
@@ -9,6 +14,7 @@ namespace Ditado.Testes.Infra;
 public abstract class TesteIntegracaoBase : IClassFixture<CustomWebApplicationFactory>
 {
     protected readonly HttpClient Client;
+    private readonly CustomWebApplicationFactory _factory;
     private string? _tokenAdmin; // Cache do token admin
     
     protected readonly JsonSerializerOptions JsonOptions = new()
@@ -19,11 +25,31 @@ public abstract class TesteIntegracaoBase : IClassFixture<CustomWebApplicationFa
 
     protected TesteIntegracaoBase(CustomWebApplicationFactory factory)
     {
+        _factory = factory;
         Client = factory.CreateClient();
     }
 
+    protected async Task<int> GarantirEscolaEVinculoAsync(int usuarioId, PapelEscolar papel = PapelEscolar.Professor)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var escola = await context.Escolas.FirstOrDefaultAsync(e => e.Codigo == "TESTE-GLOBAL");
+        if (escola == null)
+        {
+            escola = new Escola { Nome = "Escola de Testes", Codigo = "TESTE-GLOBAL", Ativa = true };
+            context.Escolas.Add(escola);
+            await context.SaveChangesAsync();
+        }
+        if (!await context.VinculosEscolares.AnyAsync(v => v.UsuarioId == usuarioId && v.EscolaId == escola.Id && v.Ativo))
+        {
+            context.VinculosEscolares.Add(new VinculoEscolar { UsuarioId = usuarioId, EscolaId = escola.Id, Papel = papel, Ativo = true });
+            await context.SaveChangesAsync();
+        }
+        return escola.Id;
+    }
+
     /// <summary>
-    /// Obtém token do admin temporário (criado no seed da factory)
+    /// Obtï¿½m token do admin temporï¿½rio (criado no seed da factory)
     /// </summary>
     protected async Task<string> ObterTokenAdminAsync()
     {
@@ -39,7 +65,7 @@ public abstract class TesteIntegracaoBase : IClassFixture<CustomWebApplicationFa
         var loginResponse = await PostAsync<LoginResponse>("/api/usuarios/login", loginRequest);
 
         if (loginResponse?.Token == null)
-            throw new InvalidOperationException("Não foi possível obter token de admin. Certifique-se de que o usuário admin@admin.com existe.");
+            throw new InvalidOperationException("Nï¿½o foi possï¿½vel obter token de admin. Certifique-se de que o usuï¿½rio admin@admin.com existe.");
 
         _tokenAdmin = loginResponse.Token;
         return _tokenAdmin;

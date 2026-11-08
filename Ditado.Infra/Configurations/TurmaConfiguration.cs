@@ -34,11 +34,17 @@ public class TurmaConfiguration : IEntityTypeConfiguration<Turma>
         builder.Property(t => t.DataCriacao)
             .IsRequired();
 
-        // Relacionamento: Turma -> Professor Responsável
+        builder.HasIndex(t => t.EscolaId);
+        builder.HasOne(t => t.Escola)
+            .WithMany()
+            .HasForeignKey(t => t.EscolaId)
+            .OnDelete(DeleteBehavior.Restrict);
+
+        // Relacionamento: Turma -> Professor Responsï¿½vel
         builder.HasOne(t => t.ProfessorResponsavel)
             .WithMany(u => u.TurmasComoProfessor)
             .HasForeignKey(t => t.ProfessorResponsavelId)
-            .OnDelete(DeleteBehavior.Restrict); // Não permite deletar professor se tiver turma
+            .OnDelete(DeleteBehavior.Restrict); // Nï¿½o permite deletar professor se tiver turma
 
         // Relacionamento: Turma -> Alunos (N:N)
         builder.HasMany(t => t.Alunos)

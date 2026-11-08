@@ -2,6 +2,7 @@ using Ditado.Aplicacao.DTOs;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
 using Ditado.Dominio.Extensions;
+using Ditado.Dominio.Services;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 using System.Text.RegularExpressions;
@@ -59,11 +60,16 @@ public class DitadoService
 		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
-	public async Task<DitadoParaRealizarResponse?> ObterDitadoParaRealizarAsync(int id)
+	public async Task<DitadoParaRealizarResponse?> ObterDitadoParaRealizarAsync(int id, int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
+		var administradorGlobal = usuarioId.HasValue && tipoUsuario == TipoUsuario.Administrador && await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral);
 		var ditado = await _context.Ditados
 			.Include(d => d.Segmentos)
-			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo);
+			.Include(d => d.Publicacoes).ThenInclude(p => p.TurmasAlvo)
+			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo && (usuarioId == null || administradorGlobal ||
+				d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
+				(p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
+				(p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))));
 
 		if (ditado == null)
 			return null;
@@ -85,6 +91,50 @@ public class DitadoService
 		};
 	}
 
+	/// <summary>
+	/// ObtÃ©m os metadados, Ã¡udio e segmentos completos de um ditado ativo para visualizaÃ§Ã£o por staff.
+	/// </summary>
+	public async Task<DitadoCompletoDto?> ObterDitadoCompletoPorIdAsync(int id)
+	{
+		var ditado = await _context.Ditados
+			.Include(d => d.Segmentos)
+			.Include(d => d.Autor)
+			.Include(d => d.DitadoCategorias)
+				.ThenInclude(dc => dc.Categoria)
+			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo);
+
+		if (ditado == null)
+			return null;
+
+		return new DitadoCompletoDto
+		{
+			Id = ditado.Id,
+			Titulo = ditado.Titulo,
+			Descricao = ditado.Descricao,
+			DataCriacao = ditado.DataCriacao,
+			AutorId = ditado.AutorId,
+			AutorNome = ditado.Autor?.Nome,
+			Categorias = ditado.DitadoCategorias
+				.Select(associacao => new CategoriaSimplificadaDto
+				{
+					Id = associacao.Categoria.Id,
+					Nome = associacao.Categoria.Nome
+				})
+				.ToList(),
+			AudioBase64 = $"data:{Dominio.Entidades.Ditado.AudioMimeTypePadrao};base64,{Convert.ToBase64String(ditado.AudioLeitura)}",
+			Segmentos = ditado.Segmentos
+				.OrderBy(segmento => segmento.Ordem)
+				.Select(segmento => new SegmentoCompletoDto
+				{
+					Id = segmento.Id,
+					Ordem = segmento.Ordem,
+					Tipo = segmento.Tipo.ToString(),
+					Conteudo = segmento.Conteudo
+				})
+				.ToList()
+		};
+	}
+
 	public async Task<ResultadoDitadoResponse?> SubmeterRespostaAsync(int ditadoId, SubmeterRespostaRequest request, int alunoId)
 	{
 		var ditado = await _context.Ditados
@@ -94,10 +144,17 @@ public class DitadoService
 		if (ditado == null)
 			return null;
 
+		var aplicacao = await _context.AplicacoesDitados
+			.Where(a => a.DitadoId == ditadoId && a.Ativa && a.Participacoes.Any(p => p.AlunoId == alunoId && !p.RevogadaEm.HasValue))
+			.OrderByDescending(a => a.DataAtribuicao)
+			.FirstOrDefaultAsync();
+
 		var respostaDitado = new RespostaDitado
 		{
 			DitadoId = ditadoId,
 			AlunoId = alunoId,
+			AplicacaoDitadoId = aplicacao?.Id,
+			EscolaId = aplicacao?.EscolaId,
 			DataRealizacao = DateTime.UtcNow
 		};
 
@@ -112,17 +169,21 @@ public class DitadoService
 				continue;
 
 			totalLacunas++;
-			var correto = NormalizarTexto(resposta.Resposta) == NormalizarTexto(segmento.Conteudo);
+			var correto = NormalizarTextoParaComparacao(resposta.Resposta) == NormalizarTextoParaComparacao(segmento.Conteudo);
 			if (correto) acertos++;
 
-			var tipoErro = correto ? TipoErro.Nenhum : IdentificarTipoErro(resposta.Resposta, segmento.Conteudo);
+			var tiposErro = correto ? Array.Empty<TipoErro>() : IdentificarTiposErro(resposta.Resposta, segmento.Conteudo);
 
 			var respostaSegmento = new RespostaSegmento
 			{
 				SegmentoId = segmento.Id,
 				RespostaFornecida = resposta.Resposta,
+				RespostaEsperada = segmento.Conteudo,
 				Correto = correto,
-				TipoErro = correto ? null : tipoErro
+				EstadoClassificacao = correto ? EstadoClassificacao.NaoSeAplica :
+					(tiposErro.Count > 0 ? EstadoClassificacao.Classificado : EstadoClassificacao.NaoClassificado),
+				MetodoClassificacao = tiposErro.Count > 0 ? MetodoClassificacao.Codigo : null,
+				TiposErro = tiposErro.Select(tipo => new RespostaSegmentoTipoErro { TipoErro = tipo }).ToList()
 			};
 
 			respostaDitado.RespostasSegmentos.Add(respostaSegmento);
@@ -133,7 +194,10 @@ public class DitadoService
 				RespostaFornecida = resposta.Resposta,
 				RespostaEsperada = segmento.Conteudo,
 				Correto = correto,
-				TipoErro = correto ? null : tipoErro.ObterDescricao()
+				EstadoClassificacao = (correto ? EstadoClassificacao.NaoSeAplica :
+					(tiposErro.Count > 0 ? EstadoClassificacao.Classificado : EstadoClassificacao.NaoClassificado)).ToString(),
+				MetodoClassificacao = tiposErro.Count > 0 ? MetodoClassificacao.Codigo.ToString() : null,
+				TiposErro = tiposErro.Select(tipo => tipo.ObterDescricao()).ToList()
 			});
 		}
 
@@ -153,13 +217,17 @@ public class DitadoService
 		};
 	}
 
-	public async Task<List<DitadoResponse>> ListarDitadosAsync()
+	public async Task<List<DitadoResponse>> ListarDitadosAsync(int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
+		var administradorGlobal = usuarioId.HasValue && tipoUsuario == TipoUsuario.Administrador && await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral);
 		return await _context.Ditados
 			.Include(d => d.DitadoCategorias)
 			.ThenInclude(dc => dc.Categoria)
 			.Include(d => d.Autor)
-			.Where(d => d.Ativo)
+			.Where(d => d.Ativo && (usuarioId == null || administradorGlobal ||
+				d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
+				(p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
+				(p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))))
 			.OrderByDescending(d => d.DataCriacao)
 			.Select(d => new DitadoResponse
 			{
@@ -189,7 +257,7 @@ public class DitadoService
 			.FirstOrDefaultAsync(d => d.Id == ditadoId);
 
 		if (ditado == null)
-			throw new InvalidOperationException("Ditado não encontrado.");
+			throw new InvalidOperationException("Ditado nï¿½o encontrado.");
 
 		return new DitadoResponse
 		{
@@ -221,10 +289,10 @@ public class DitadoService
 		// Validar categorias
 		await _categoriaService.ValidarCategoriasAsync(categoriaIds);
 
-		// Remover associações antigas
+		// Remover associaï¿½ï¿½es antigas
 		_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
 
-		// Adicionar novas associações
+		// Adicionar novas associaï¿½ï¿½es
 		foreach (var categoriaId in categoriaIds.Distinct())
 		{
 			_context.DitadoCategorias.Add(new DitadoCategoria
@@ -249,11 +317,11 @@ public class DitadoService
 		if (ditado == null)
 			return null;
 
-		// Atualizar título se fornecido
+		// Atualizar tï¿½tulo se fornecido
 		if (!string.IsNullOrWhiteSpace(request.Titulo))
 			ditado.Titulo = request.Titulo;
 
-		// Atualizar descrição se fornecido (permite limpar)
+		// Atualizar descriï¿½ï¿½o se fornecido (permite limpar)
 		if (request.Descricao != null)
 			ditado.Descricao = string.IsNullOrWhiteSpace(request.Descricao) ? null : request.Descricao;
 
@@ -268,10 +336,10 @@ public class DitadoService
 			if (request.CategoriaIds.Any())
 				await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
 
-			// Remover associações antigas
+			// Remover associaï¿½ï¿½es antigas
 			_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
 
-			// Adicionar novas associações (pode ser lista vazia)
+			// Adicionar novas associaï¿½ï¿½es (pode ser lista vazia)
 			foreach (var categoriaId in request.CategoriaIds.Distinct())
 			{
 				_context.DitadoCategorias.Add(new DitadoCategoria
@@ -296,7 +364,7 @@ public class DitadoService
 			return false;
 
 		if (tipoUsuarioLogado != TipoUsuario.Administrador && ditado.AutorId != usuarioLogadoId)
-			throw new InvalidOperationException("Apenas o autor do ditado ou um administrador podem excluí-lo.");
+			throw new InvalidOperationException("Apenas o autor do ditado ou um administrador podem excluï¿½-lo.");
 
 		_context.Ditados.Remove(ditado);
 		await _context.SaveChangesAsync();
@@ -313,10 +381,10 @@ public class DitadoService
 
 		foreach (Match match in regex.Matches(texto))
 		{
-			// Extrai o conteúdo dentro dos colchetes (pode ter espaços/pontuação)
+			// Extrai o conteï¿½do dentro dos colchetes (pode ter espaï¿½os/pontuaï¿½ï¿½o)
 			var conteudoBruto = match.Groups[1].Value;
 
-			// Separa palavra limpa de prefixo/sufixo (espaços e pontuação)
+			// Separa palavra limpa de prefixo/sufixo (espaï¿½os e pontuaï¿½ï¿½o)
 			var (prefixo, palavraLimpa, sufixo) = ExtrairPalavraComContexto(conteudoBruto);
 
 			// Adiciona texto ANTES da lacuna (incluindo o que estava antes dos colchetes + prefixo)
@@ -332,7 +400,7 @@ public class DitadoService
 				});
 			}
 
-			// Adiciona a LACUNA com apenas a palavra limpa (preserva maiúscula/minúscula original)
+			// Adiciona a LACUNA com apenas a palavra limpa (preserva maiï¿½scula/minï¿½scula original)
 			segmentos.Add(new DitadoSegmento
 			{
 				Ordem = ordem++,
@@ -340,13 +408,13 @@ public class DitadoService
 				Conteudo = palavraLimpa
 			});
 
-			// Atualiza índice
+			// Atualiza ï¿½ndice
 			ultimoIndice = match.Index + match.Length;
 
-			// Se tem sufixo, ele será o início do próximo segmento de texto
+			// Se tem sufixo, ele serï¿½ o inï¿½cio do prï¿½ximo segmento de texto
 			if (!string.IsNullOrEmpty(sufixo))
 			{
-				// Guarda o sufixo para concatenar com o próximo texto
+				// Guarda o sufixo para concatenar com o prï¿½ximo texto
 				var proximoTextoInicio = ultimoIndice;
 				var proximoTextoFim = ultimoIndice < texto.Length ?
 					(regex.Match(texto, ultimoIndice).Success ? regex.Match(texto, ultimoIndice).Index : texto.Length)
@@ -366,7 +434,7 @@ public class DitadoService
 						Conteudo = textoComSufixo
 					});
 
-					// Atualiza índice para pular o texto já processado
+					// Atualiza ï¿½ndice para pular o texto jï¿½ processado
 					ultimoIndice = proximoTextoFim;
 				}
 				else if (!string.IsNullOrEmpty(sufixo))
@@ -382,7 +450,7 @@ public class DitadoService
 			}
 		}
 
-		// Adiciona texto restante após a última lacuna
+		// Adiciona texto restante apï¿½s a ï¿½ltima lacuna
 		if (ultimoIndice < texto.Length)
 		{
 			segmentos.Add(new DitadoSegmento
@@ -397,19 +465,19 @@ public class DitadoService
 	}
 
 	/// <summary>
-	/// Extrai a palavra limpa e separa prefixo/sufixo (espaços e pontuação).
-	/// Preserva a capitalização original da palavra.
+	/// Extrai a palavra limpa e separa prefixo/sufixo (espaï¿½os e pontuaï¿½ï¿½o).
+	/// Preserva a capitalizaï¿½ï¿½o original da palavra.
 	/// Exemplo: ", Gato. " > (", ", "Gato", ". ")
 	/// </summary>
 	private (string prefixo, string palavra, string sufixo) ExtrairPalavraComContexto(string conteudo)
 	{
 		// Regex que captura: (prefixo) (palavra) (sufixo)
-		// Prefixo: espaços e pontuação (incluindo ponto) no início
-		// Palavra: letras (com acentos), números, apóstrofo e hífen
-		// Sufixo: espaços e pontuação (incluindo ponto) no fim
+		// Prefixo: espaï¿½os e pontuaï¿½ï¿½o (incluindo ponto) no inï¿½cio
+		// Palavra: letras (com acentos), nï¿½meros, apï¿½strofo e hï¿½fen
+		// Sufixo: espaï¿½os e pontuaï¿½ï¿½o (incluindo ponto) no fim
 		var match = Regex.Match(
 			conteudo,
-			@"^([\s,\.;:!?\-—'""«»]*)([a-zA-ZáàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ'\-]+)([\s,\.;:!?\-—'""«»]*)$"
+			@"^([\s,\.;:!?\-ï¿½'""ï¿½ï¿½]*)([a-zA-Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½'\-]+)([\s,\.;:!?\-ï¿½'""ï¿½ï¿½]*)$"
 		);
 
 		if (match.Success)
@@ -417,7 +485,7 @@ public class DitadoService
 			return (match.Groups[1].Value, match.Groups[2].Value, match.Groups[3].Value);
 		}
 
-		// Fallback: Se não conseguiu fazer match, tenta pelo menos separar espaços
+		// Fallback: Se nï¿½o conseguiu fazer match, tenta pelo menos separar espaï¿½os
 		var trimmed = conteudo.Trim();
 		var prefixoEspacos = conteudo.Substring(0, conteudo.IndexOf(trimmed[0]));
 		var sufixoEspacos = conteudo.Substring(conteudo.LastIndexOf(trimmed[^1]) + 1);
@@ -431,225 +499,15 @@ public class DitadoService
 		return Convert.FromBase64String(base64Data);
 	}
 
-	private string NormalizarTexto(string texto)
+	private string NormalizarTextoParaComparacao(string texto)
 	{
-		// ignora maiúsculas/minúsculas
-		return texto.Trim().ToLowerInvariant();
+		// Capitalization is part of objective grading; only outer whitespace is ignored.
+		return texto.Trim();
 	}
 
-	private TipoErro IdentificarTipoErro(string resposta, string esperado)
+	private IReadOnlyList<TipoErro> IdentificarTiposErro(string resposta, string esperado)
 	{
-		var respostaNorm = NormalizarTexto(resposta);
-		var esperadoNorm = NormalizarTexto(esperado);
-		
-		// 1. Verifica omissão completa (resposta vazia)
-		if (string.IsNullOrWhiteSpace(respostaNorm))
-			return TipoErro.Omissao;
-
-		// 2. Se são iguais (acerto perfeito)
-		if (respostaNorm == esperadoNorm)
-			return TipoErro.Nenhum;
-
-		// 3. Criar versões sem acentos para comparações de estrutura
-		var respostaSemAcento = RemoverAcentos(respostaNorm);
-		var esperadoSemAcento = RemoverAcentos(esperadoNorm);
-
-		// === PRIORIDADE: ERROS DE ÚLTIMA LETRA ===
-		if (respostaSemAcento.Length >= 3 && esperadoSemAcento.Length >= 3)
-		{
-			var ultimaLetraResposta = respostaSemAcento[^1];
-			var ultimaLetraEsperado = esperadoSemAcento[^1];
-			var penultimaLetraResposta = respostaSemAcento.Length >= 2 ? respostaSemAcento[^2] : '\0';
-			var penultimaLetraEsperado = esperadoSemAcento.Length >= 2 ? esperadoSemAcento[^2] : '\0';
-
-			// A. Inversão (bola > boal)
-			if (respostaSemAcento.Length == esperadoSemAcento.Length &&
-				respostaSemAcento.Length >= 3 &&
-				ultimaLetraResposta == penultimaLetraEsperado &&
-				penultimaLetraResposta == ultimaLetraEsperado &&
-				respostaSemAcento[..^2] == esperadoSemAcento[..^2])
-			{
-				return TipoErro.InversaoFim;
-			}
-
-			// B. Supressão (gato > gat)
-			if (respostaSemAcento.Length == esperadoSemAcento.Length - 1 &&
-				respostaSemAcento == esperadoSemAcento[..^1])
-			{
-				return TipoErro.SupressaoFim;
-			}
-
-			// C. Confusão S/SS (três > tress)
-			if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
-				ultimaLetraResposta == 's' &&
-				penultimaLetraResposta == 's' &&
-				ultimaLetraEsperado == 's' &&
-				respostaSemAcento[..^2] == esperadoSemAcento[..^1])
-			{
-				return TipoErro.ConfusaoSSS;
-			}
-			if (respostaSemAcento.Length == esperadoSemAcento.Length - 1 &&
-				ultimaLetraResposta == 's' &&
-				ultimaLetraEsperado == 's' &&
-				penultimaLetraEsperado == 's' &&
-				respostaSemAcento[..^1] == esperadoSemAcento[..^2])
-			{
-				return TipoErro.ConfusaoSSS;
-			}
-
-			// D. H Final Indevido (alô > aloh)
-			// ANTES de Acréscimo genérico
-			if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
-				ultimaLetraResposta == 'h' &&
-				respostaSemAcento[..^1] == esperadoSemAcento)
-			{
-				return TipoErro.HFinalIndevido;
-			}
-
-			// E. Acréscimo (casa > casaa)
-			if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
-				esperadoSemAcento == respostaSemAcento[..^1])
-			{
-				return TipoErro.AcrescimoFim;
-			}
-
-			// F. Troca da última letra (bom > bon)
-			if (respostaSemAcento.Length == esperadoSemAcento.Length &&
-				ultimaLetraResposta != ultimaLetraEsperado &&
-				respostaSemAcento[..^1] == esperadoSemAcento[..^1])
-			{
-				// F.1. Confusão S/Z
-				if ((ultimaLetraResposta == 's' && ultimaLetraEsperado == 'z') ||
-					(ultimaLetraResposta == 'z' && ultimaLetraEsperado == 's'))
-				{
-					return TipoErro.ConfusaoSZ;
-				}
-
-				// F.2. Confusão S/X
-				if ((ultimaLetraResposta == 's' && ultimaLetraEsperado == 'x') ||
-					(ultimaLetraResposta == 'x' && ultimaLetraEsperado == 's'))
-				{
-					return TipoErro.ConfusaoSX;
-				}
-
-				// F.3. Confusão S/Ç
-				if ((ultimaLetraResposta == 's' && ultimaLetraEsperado == 'ç') ||
-					(ultimaLetraResposta == 'ç' && ultimaLetraEsperado == 's'))
-				{
-					return TipoErro.ConfusaoSC;
-				}
-
-				return TipoErro.TrocaFim;
-			}
-		}
-
-		// === ERROS DE PRIMEIRA LETRA (USAR VERSÕES SEM ACENTO) ===
-
-		// 3. Omissão de "H" inicial (ex: homem > omem)
-		if (esperadoSemAcento.Length > 0 && esperadoSemAcento[0] == 'h' &&
-			respostaSemAcento.Length > 0 && respostaSemAcento[0] != 'h' &&
-			esperadoSemAcento.Substring(1) == respostaSemAcento)
-		{
-			return TipoErro.IrregularidadeHInicio;
-		}
-
-		// 4. Acréscimo de "H" inicial (ex: ontem > hontem)
-		if (respostaSemAcento.Length > 0 && respostaSemAcento[0] == 'h' &&
-			esperadoSemAcento.Length > 0 && esperadoSemAcento[0] != 'h' &&
-			respostaSemAcento.Substring(1) == esperadoSemAcento)
-		{
-			return TipoErro.IrregularidadeHInicio;
-		}
-
-		// 5. Troca S/C iniciais antes de E/I
-		if (respostaSemAcento.Length > 1 && esperadoSemAcento.Length > 1)
-		{
-			var primeiraLetraResposta = respostaSemAcento[0];
-			var primeiraLetraEsperado = esperadoSemAcento[0];
-			var segundaLetraResposta = respostaSemAcento[1];
-			var segundaLetraEsperado = esperadoSemAcento[1];
-
-			if ((primeiraLetraResposta == 's' || primeiraLetraResposta == 'c') &&
-				(primeiraLetraEsperado == 's' || primeiraLetraEsperado == 'c') &&
-				primeiraLetraResposta != primeiraLetraEsperado &&
-				(segundaLetraResposta == 'e' || segundaLetraResposta == 'i') &&
-				segundaLetraResposta == segundaLetraEsperado &&
-				respostaSemAcento.Substring(1) == esperadoSemAcento.Substring(1))
-			{
-				return TipoErro.ContextualSCInicio;
-			}
-		}
-
-		// 6. Supressão da primeira letra (ex: teste > este)
-		if (respostaSemAcento.Length == esperadoSemAcento.Length - 1 &&
-			esperadoSemAcento.Substring(1) == respostaSemAcento)
-		{
-			return TipoErro.SupressaoInicio;
-		}
-
-		// 7. Acréscimo de letra inicial (ex: teste > oteste)
-		if (respostaSemAcento.Length == esperadoSemAcento.Length + 1 &&
-			respostaSemAcento.Substring(1) == esperadoSemAcento)
-		{
-			return TipoErro.AcrescimoInicio;
-		}
-
-		// 8. Troca da primeira letra (ex: teste > deste)
-		if (respostaSemAcento.Length == esperadoSemAcento.Length &&
-			respostaSemAcento.Length > 0 &&
-			respostaSemAcento[0] != esperadoSemAcento[0] &&
-			respostaSemAcento.Substring(1) == esperadoSemAcento.Substring(1))
-		{
-			return TipoErro.TrocaInicio;
-		}
-
-		// === VERIFICAÇÃO DE ACENTUAÇÃO (DEPOIS dos erros específicos!) ===
-		// Se sem acentos ficam iguais, o único erro é acentuação
-		if (respostaSemAcento == esperadoSemAcento)
-			return TipoErro.Acentuacao;
-
-		// === ERROS ORTOGRÁFICOS GENÉRICOS ===
-
-		// 9. Erro ortográfico puro (mesmo comprimento, letras diferentes)
-		if (respostaSemAcento.Length == esperadoSemAcento.Length)
-		{
-			int diferencas = 0;
-			for (int i = 0; i < respostaSemAcento.Length; i++)
-			{
-				if (respostaSemAcento[i] != esperadoSemAcento[i])
-					diferencas++;
-			}
-
-			if (diferencas > 0)
-				return TipoErro.Ortografico;
-		}
-
-		// 10. Diferença de comprimento
-		var diferencaComprimento = Math.Abs(respostaSemAcento.Length - esperadoSemAcento.Length);
-
-		if (diferencaComprimento <= 2)
-		{
-			var caracteresComuns = respostaSemAcento.Intersect(esperadoSemAcento).Count();
-			var tamanhoMenor = Math.Min(respostaSemAcento.Length, esperadoSemAcento.Length);
-
-			if (tamanhoMenor > 0 && (double)caracteresComuns / tamanhoMenor >= 0.7)
-				return TipoErro.Ortografico;
-		}
-
-		// 11. Grande diferença = omissão genérica
-		return TipoErro.Omissao;
+		return ClassificadorTiposErro.IdentificarTiposErro(resposta, esperado);
 	}
 
-	private string RemoverAcentos(string texto)
-	{
-		var acentos = "áàâãäéèêëíìîïóòôõöúùûüçÁÀÂÃÄÉÈÊËÍÌÎÏÓÒÔÕÖÚÙÛÜÇ";
-		var semAcentos = "aaaaaeeeeiiiiooooouuuucAAAAAEEEEIIIIOOOOOUUUUC";
-
-		for (int i = 0; i < acentos.Length; i++)
-		{
-			texto = texto.Replace(acentos[i], semAcentos[i]);
-		}
-
-		return texto;
-	}
 }

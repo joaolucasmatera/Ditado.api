@@ -10,10 +10,17 @@ public class Usuario
     public string Login { get; set; } = string.Empty;
     public string SenhaHash { get; set; } = string.Empty;
     public string? Matricula { get; set; }
+    public string? CodigoCadastro { get; set; }
+    public int? NumeroChamada { get; set; }
+    public bool PinConfigurado { get; set; }
     public TipoUsuario Tipo { get; set; }
+    public bool AdministradorGeral { get; set; }
     public bool Ativo { get; set; } = true;
     public DateTime DataCriacao { get; set; } = DateTime.UtcNow;
     public DateTime? DataUltimoAcesso { get; set; }
+
+    public ICollection<VinculoEscolar> VinculosEscolares { get; set; } = new List<VinculoEscolar>();
+    public ICollection<SessaoUsuario> Sessoes { get; set; } = new List<SessaoUsuario>();
 
     // Relacionamentos com Turma
     public ICollection<Turma> TurmasComoAluno { get; set; } = new List<Turma>();

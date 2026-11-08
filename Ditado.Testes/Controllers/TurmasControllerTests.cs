@@ -43,7 +43,7 @@ public class TurmasControllerTests : TesteIntegracaoBase
 		var tokenAdmin = await ObterTokenAdminAsync();
 		AdicionarTokenAutorizacao(tokenAdmin);
 
-		// Buscar se já existe
+		// Buscar se jï¿½ existe
 		var usuarios = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
 		var professorExistente = usuarios!.FirstOrDefault(u => u.Login == "professor.turmas@teste.com");
 
@@ -76,22 +76,24 @@ public class TurmasControllerTests : TesteIntegracaoBase
 		return (_tokenProfessor, _professorId);
 	}
 
-    #region Criação de Turmas
+    #region Criaï¿½ï¿½o de Turmas
 
     [Fact]
     public async Task CriarTurma_ComoProfessor_SemAlunos_DevePermitir()
     {
         // Arrange
         var (tokenProf, profId) = await CriarELogarProfessorAsync();
+        var escolaId = await GarantirEscolaEVinculoAsync(profId);
         AdicionarTokenAutorizacao(tokenProf);
 
         var request = new CriarTurmaRequest
         {
-            Nome = "5º Ano A",
+            Nome = "5ï¿½ Ano A",
             Serie = 5,
             AnoLetivo = 2024,
-            Semestre = "1º Semestre",
-            Descricao = "Turma da manhã",
+            Semestre = "1ï¿½ Semestre",
+            Descricao = "Turma da manhï¿½",
+            EscolaId = escolaId,
             ProfessorResponsavelId = profId,
             AlunosIds = new List<int>()
         };
@@ -102,10 +104,10 @@ public class TurmasControllerTests : TesteIntegracaoBase
         // Assert
         response.Should().NotBeNull();
         response!.Id.Should().BeGreaterThan(0);
-        response.Nome.Should().Be("5º Ano A");
+        response.Nome.Should().Be("5ï¿½ Ano A");
         response.Serie.Should().Be(5);
         response.AnoLetivo.Should().Be(2024);
-        response.Semestre.Should().Be("1º Semestre");
+        response.Semestre.Should().Be("1ï¿½ Semestre");
         response.ProfessorResponsavelId.Should().Be(profId);
         response.TotalAlunos.Should().Be(0);
         response.Ativo.Should().BeTrue();
@@ -118,15 +120,17 @@ public class TurmasControllerTests : TesteIntegracaoBase
         var tokenAdmin = await ObterTokenAdminAsync();
         AdicionarTokenAutorizacao(tokenAdmin);
 
-        // Admin pode ser professor responsável
+        // Admin pode ser professor responsï¿½vel
         var adminUser = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
         var admin = adminUser!.First(u => u.Login == "admin@admin.com");
+        var escolaId = await GarantirEscolaEVinculoAsync(admin.Id, PapelEscolar.Administrador);
 
         var request = new CriarTurmaRequest
         {
-            Nome = "6º Ano B",
+            Nome = "6ï¿½ Ano B",
             Serie = 6,
             AnoLetivo = 2024,
+            EscolaId = escolaId,
             ProfessorResponsavelId = admin.Id,
             AlunosIds = new List<int>()
         };
@@ -147,14 +151,16 @@ public class TurmasControllerTests : TesteIntegracaoBase
         var aluno1Id = await CriarAlunoAsync("aluno.turma1@teste.com", "Aluno Turma 1");
         var aluno2Id = await CriarAlunoAsync("aluno.turma2@teste.com", "Aluno Turma 2");
         var aluno3Id = await CriarAlunoAsync("aluno.turma3@teste.com", "Aluno Turma 3");
+        var escolaId = await GarantirEscolaEVinculoAsync(profId);
 
         AdicionarTokenAutorizacao(tokenProf);
 
         var request = new CriarTurmaRequest
         {
-            Nome = "7º Ano C",
+            Nome = "7ï¿½ Ano C",
             Serie = 7,
             AnoLetivo = 2024,
+            EscolaId = escolaId,
             ProfessorResponsavelId = profId,
             AlunosIds = new List<int> { aluno1Id, aluno2Id, aluno3Id }
         };
@@ -175,13 +181,16 @@ public class TurmasControllerTests : TesteIntegracaoBase
         // Arrange
         var tokenAdmin = await ObterTokenAdminAsync();
         AdicionarTokenAutorizacao(tokenAdmin);
+        var adminUsers = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
+        var escolaId = await GarantirEscolaEVinculoAsync(adminUsers!.First(u => u.Login == "admin@admin.com").Id, PapelEscolar.Administrador);
 
         var request = new CriarTurmaRequest
         {
-            Nome = "8º Ano D",
+            EscolaId = escolaId,
+            Nome = "8ï¿½ Ano D",
             Serie = 8,
             AnoLetivo = 2024,
-            ProfessorResponsavelId = 99999, // ID inválido
+            ProfessorResponsavelId = 99999, // ID invï¿½lido
             AlunosIds = new List<int>()
         };
 
@@ -191,7 +200,7 @@ public class TurmasControllerTests : TesteIntegracaoBase
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var conteudo = await response.Content.ReadAsStringAsync();
-        conteudo.Should().Contain("Professor responsável inválido");
+        conteudo.Should().Contain("vÃ­nculo ativo");
     }
 
     [Fact]
@@ -200,14 +209,16 @@ public class TurmasControllerTests : TesteIntegracaoBase
         // Arrange
         var (tokenProf, profId) = await CriarELogarProfessorAsync();
         AdicionarTokenAutorizacao(tokenProf);
+        var escolaId = await GarantirEscolaEVinculoAsync(profId);
 
         var request = new CriarTurmaRequest
         {
-            Nome = "9º Ano E",
+            EscolaId = escolaId,
+            Nome = "9ï¿½ Ano E",
             Serie = 9,
             AnoLetivo = 2024,
             ProfessorResponsavelId = profId,
-            AlunosIds = new List<int> { 99999 } // Aluno inválido
+            AlunosIds = new List<int> { 99999 } // Aluno invï¿½lido
         };
 
         // Act
@@ -216,7 +227,7 @@ public class TurmasControllerTests : TesteIntegracaoBase
         // Assert
         response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
         var conteudo = await response.Content.ReadAsStringAsync();
-        conteudo.Should().Contain("alunos são inválidos");
+        conteudo.Should().Contain("alunos sï¿½o invï¿½lidos");
     }
 
     #endregion
@@ -343,7 +354,7 @@ public async Task ListarTurmasPorAluno_AlunoTentaVerTurmasDeOutro_DeveNegar()
 	// Assert
 	response.StatusCode.Should().Be(HttpStatusCode.Forbidden);
 	var conteudo = await response.Content.ReadAsStringAsync();
-	conteudo.Should().Contain("só pode visualizar suas próprias turmas");
+	conteudo.Should().Contain("sï¿½ pode visualizar suas prï¿½prias turmas");
 }
 
 [Fact]
@@ -631,7 +642,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		// Assert
 		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 		var conteudo = await response.Content.ReadAsStringAsync();
-		conteudo.Should().Contain("já está matriculado");
+		conteudo.Should().Contain("jï¿½ estï¿½ matriculado");
 	}
 
 	[Fact]
@@ -649,7 +660,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		// Assert
 		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 		var conteudo = await response.Content.ReadAsStringAsync();
-		conteudo.Should().Contain("Aluno não encontrado");
+		conteudo.Should().Contain("Aluno nï¿½o encontrado");
 	}
 
 	[Fact]
@@ -683,7 +694,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		AdicionarTokenAutorizacao(tokenProf);
 
 		var turmaId = await CriarTurmaTeste(profId);
-		var alunoId = await CriarAlunoAsync("aluno.naopertence@teste.com", "Aluno Não Pertence");
+		var alunoId = await CriarAlunoAsync("aluno.naopertence@teste.com", "Aluno Nï¿½o Pertence");
 
 		// Act
 		var response = await DeleteAsync($"/api/turmas/{turmaId}/alunos/{alunoId}");
@@ -691,7 +702,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		// Assert
 		response.StatusCode.Should().Be(HttpStatusCode.BadRequest);
 		var conteudo = await response.Content.ReadAsStringAsync();
-		conteudo.Should().Contain("não está matriculado");
+		conteudo.Should().Contain("nï¿½o estï¿½ matriculado");
 	}
 
 	[Fact]
@@ -701,7 +712,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		var (tokenProf, profId) = await CriarELogarProfessorAsync();
 		AdicionarTokenAutorizacao(tokenProf);
 
-		var alunoId = await CriarAlunoAsync("aluno.ultimo@teste.com", "Aluno Último");
+		var alunoId = await CriarAlunoAsync("aluno.ultimo@teste.com", "Aluno ï¿½ltimo");
 		var turmaId = await CriarTurmaComAlunosAsync(profId, new List<int> { alunoId });
 
 		// Act
@@ -716,10 +727,10 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 
 	#endregion
 
-	// Métodos auxiliares
+	// Mï¿½todos auxiliares
 	private async Task<int> CriarTurmaTeste(int professorId)
 	{
-		// Garantir que há um token ativo
+		// Garantir que hï¿½ um token ativo
 		var tokenAtual = Client.DefaultRequestHeaders.Authorization?.Parameter;
 		if (string.IsNullOrEmpty(tokenAtual))
 		{
@@ -729,13 +740,16 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 
 		var request = new CriarTurmaRequest
 		{
+			EscolaId = await GarantirEscolaEVinculoAsync(professorId),
 			Nome = $"Turma Teste {Guid.NewGuid().ToString("N")[..8]}",
 			Serie = 5,
 			AnoLetivo = 2024,
-			Semestre = "1º Semestre",
+			Semestre = "1ï¿½ Semestre",
 			ProfessorResponsavelId = professorId,
 			AlunosIds = new List<int>()
 		};
+		var admins = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
+		await GarantirEscolaEVinculoAsync(admins!.First(u => u.Login == "admin@admin.com").Id, PapelEscolar.Administrador);
 
 		var response = await PostAsync<TurmaResponse>("/api/turmas", request);
 		return response!.Id;
@@ -743,7 +757,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 
 	private async Task<int> CriarTurmaComAlunosAsync(int professorId, List<int> alunosIds)
 	{
-		// Garantir que há um token ativo
+		// Garantir que hï¿½ um token ativo
 		var tokenAtual = Client.DefaultRequestHeaders.Authorization?.Parameter;
 		if (string.IsNullOrEmpty(tokenAtual))
 		{
@@ -753,12 +767,15 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 
 		var request = new CriarTurmaRequest
 		{
+			EscolaId = await GarantirEscolaEVinculoAsync(professorId),
 			Nome = $"Turma Com Alunos {Guid.NewGuid().ToString("N")[..8]}",
 			Serie = 5,
 			AnoLetivo = 2024,
 			ProfessorResponsavelId = professorId,
 			AlunosIds = alunosIds
 		};
+		var admins = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
+		await GarantirEscolaEVinculoAsync(admins!.First(u => u.Login == "admin@admin.com").Id, PapelEscolar.Administrador);
 
 		var response = await PostAsync<TurmaResponse>("/api/turmas", request);
 		return response!.Id;
@@ -785,7 +802,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		}
 		catch
 		{
-			// Já existe - buscar ID
+			// Jï¿½ existe - buscar ID
 			var usuarios = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
 			var professorExistente = usuarios!.First(u => u.Login == email);
 			return professorExistente.Id;
@@ -813,7 +830,7 @@ public async Task ListarTurmasPorAluno_AlunoSemTurmas_DeveRetornarListaVazia()
 		}
 		catch
 		{
-			// Já existe - buscar ID
+			// Jï¿½ existe - buscar ID
 			var usuarios = await GetAsync<List<UsuarioResponse>>("/api/usuarios");
 			var alunoExistente = usuarios!.First(u => u.Login == email);
 			return alunoExistente.Id;
