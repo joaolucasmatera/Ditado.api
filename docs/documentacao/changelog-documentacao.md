@@ -1,5 +1,12 @@
 # Changelog da documentação
 
+## 09/11/2026 — SDK local do backend estabilizado
+
+- Fixado o SDK `9.0.320` em `global.json`, alinhado ao alvo `net9.0` da API.
+- Adicionado `scripts/build-api.ps1`, que usa a instalação local do SDK, desativa servidores persistentes e limita o MSBuild a um nó para ambientes com poucos recursos/permissões restritas.
+- Validação confirmada: restore e build da API concluídos com 0 erros; permanecem apenas avisos existentes de conflito de versões do EF Core e variável não utilizada.
+- Fonte: diagnóstico do ambiente local em 09/11/2026 e arquivos de projeto do backend.
+
 ## 09/11/2026 — Correção da criação de turmas
 
 - A tela de Turmas passou a carregar o contexto escolar ativo e enviar `escolaId` no POST de criação; o backend exige esse vínculo para novas turmas.

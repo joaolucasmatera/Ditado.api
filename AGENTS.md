@@ -10,6 +10,7 @@
 - Usar o container existente para o gate do PER-37; não recriar, remover, resetar ou limpar dados sem backup e autorização explícita.
 - Essas informações são apenas de desenvolvimento local; não registrar senhas, tokens ou valores de conexão neste arquivo.
 - Priorizar scripts reutilizáveis existentes para operações repetitivas. Para reiniciar a API local, usar `powershell -ExecutionPolicy Bypass -File .\scripts\restart-api.ps1`; parâmetros úteis incluem `-Port`, `-Schema`, `-BuildOutput` e `-SkipBuild`.
+- Para validar a compilação da API, usar `powershell -ExecutionPolicy Bypass -File .\scripts\build-api.ps1`; o script fixa o SDK .NET 9 do `global.json`, evita servidores persistentes e limita o MSBuild a um nó.
 - Para execução containerizada, usar `powershell -ExecutionPolicy Bypass -File .\scripts\docker-up.ps1 -Build`, `docker-status.ps1`, `docker-logs.ps1` e `docker-down.ps1`; o Compose preserva o container MySQL existente `ditado-mysql`.
 
 - Antes de levar uma dúvida de escopo ao usuário, consulte o responsável pelo assunto.
