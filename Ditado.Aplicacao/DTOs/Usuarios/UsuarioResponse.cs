@@ -8,6 +8,7 @@ public class UsuarioResponse
     public string? Matricula { get; set; }
     public string? CodigoCadastro { get; set; }
     public string Tipo { get; set; } = string.Empty;
+    public bool AdministradorGeral { get; set; }
     public bool Ativo { get; set; }
     public DateTime DataCriacao { get; set; }
     public DateTime? DataUltimoAcesso { get; set; }

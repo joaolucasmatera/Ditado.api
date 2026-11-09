@@ -169,21 +169,29 @@ public class UsuarioService
         return MapearParaResponse(aluno);
     }
 
-    public async Task<List<UsuarioResponse>> ListarSolicitacoesPendentesAsync()
+    public async Task<List<UsuarioResponse>> ListarSolicitacoesPendentesAsync(int atorId, TipoUsuario tipoAtor)
     {
+        var escolasDoAtor = await ObterEscolasDoAtorAsync(atorId, tipoAtor);
+        var administradorGeral = await EhAdministradorGeralAsync(atorId, tipoAtor);
         return await _context.Usuarios
-            .Where(u => u.Tipo == TipoUsuario.AcessoSolicitado && !u.Ativo)
+            .Where(u => u.Tipo == TipoUsuario.AcessoSolicitado && !u.Ativo &&
+                (administradorGeral || u.VinculosEscolares.Any(v => escolasDoAtor.Contains(v.EscolaId) && v.Escola.Ativa)))
             .OrderBy(u => u.DataCriacao)
             .Select(u => MapearParaResponse(u))
             .ToListAsync();
     }
 
-    public async Task<UsuarioResponse?> AprovarAcessoAsync(int usuarioId, AprovarAcessoRequest request, TipoUsuario tipoAprovador)
+    public async Task<UsuarioResponse?> AprovarAcessoAsync(int usuarioId, AprovarAcessoRequest request, int atorId, TipoUsuario tipoAprovador)
     {
-        var usuario = await _context.Usuarios.FindAsync(usuarioId);
+        var usuario = await _context.Usuarios
+            .Include(u => u.VinculosEscolares)
+            .FirstOrDefaultAsync(u => u.Id == usuarioId);
         
         if (usuario == null)
             return null;
+
+        if (!await PodeOperarUsuarioAsync(usuario, atorId, tipoAprovador, incluirVinculosInativos: true))
+            throw new InvalidOperationException("Usuário fora do escopo escolar do aprovador.");
 
         if (usuario.Tipo != TipoUsuario.AcessoSolicitado)
             throw new InvalidOperationException("Este usu�rio n�o est� pendente de aprova��o.");
@@ -199,6 +207,9 @@ public class UsuarioService
 
         usuario.Tipo = request.NovoTipo;
         usuario.Ativo = true;
+
+        foreach (var vinculo in usuario.VinculosEscolares)
+            vinculo.Ativo = true;
 
         await _context.SaveChangesAsync();
 
@@ -235,20 +246,30 @@ public class UsuarioService
     }
 
 
-    public async Task<UsuarioResponse?> ObterPorIdAsync(int id)
+    public async Task<UsuarioResponse?> ObterPorIdAsync(int id, int? atorId = null, TipoUsuario? tipoAtor = null)
     {
-        var usuario = await _context.Usuarios
+        var usuario = await ConsultaUsuariosNoEscopo(atorId, tipoAtor)
             .FirstOrDefaultAsync(u => u.Id == id);
 
         return usuario == null ? null : MapearParaResponse(usuario);
     }
 
-    public async Task<List<UsuarioResponse>> ListarUsuariosAsync()
+    public async Task<List<UsuarioResponse>> ListarUsuariosAsync(int? atorId = null, TipoUsuario? tipoAtor = null)
     {
-        return await _context.Usuarios
+        return await ConsultaUsuariosNoEscopo(atorId, tipoAtor)
             .OrderBy(u => u.Nome)
             .Select(u => MapearParaResponse(u))
             .ToListAsync();
+    }
+
+    private IQueryable<Usuario> ConsultaUsuariosNoEscopo(int? atorId, TipoUsuario? tipoAtor)
+    {
+        if (!atorId.HasValue || !tipoAtor.HasValue) return _context.Usuarios;
+        var escolas = _context.VinculosEscolares.Where(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa).Select(v => v.EscolaId);
+        var global = tipoAtor == TipoUsuario.Administrador && _context.Usuarios.Any(u => u.Id == atorId && u.Ativo && u.AdministradorGeral);
+        return _context.Usuarios.Where(u => global || u.Id == atorId ||
+            u.VinculosEscolares.Any(v => v.Ativo && escolas.Contains(v.EscolaId)) ||
+            u.TurmasComoAluno.Any(t => t.EscolaId.HasValue && escolas.Contains(t.EscolaId.Value)));
     }
 
     public async Task<UsuarioResponse?> AtualizarUsuarioAsync(int id, AtualizarUsuarioRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
@@ -258,6 +279,9 @@ public class UsuarioService
             return null;
 
         var isEdicaoPropria = id == usuarioLogadoId;
+
+        if (!isEdicaoPropria && !await PodeOperarUsuarioAsync(usuario, usuarioLogadoId, tipoUsuarioLogado))
+            throw new InvalidOperationException("Usuário fora do escopo escolar do operador.");
 
         // EDI��O PR�PRIA: Apenas Nome, Senha e Matr�cula
         if (isEdicaoPropria)
@@ -403,11 +427,14 @@ public class UsuarioService
         // Admin pode fazer qualquer altera��o (exceto para AcessoSolicitado, j� validado acima)
     }
 
-    public async Task<bool> BloquearUsuarioAsync(int id)
+    public async Task<bool> BloquearUsuarioAsync(int id, int atorId, TipoUsuario tipoAtor)
     {
         var usuario = await _context.Usuarios.FindAsync(id);
         if (usuario == null)
             return false;
+
+        if (!await PodeOperarUsuarioAsync(usuario, atorId, tipoAtor))
+            throw new InvalidOperationException("Usuário fora do escopo escolar do operador.");
 
         usuario.Ativo = false;
         await _context.SaveChangesAsync();
@@ -415,11 +442,14 @@ public class UsuarioService
         return true;
     }
 
-    public async Task<bool> DesbloquearUsuarioAsync(int id)
+    public async Task<bool> DesbloquearUsuarioAsync(int id, int atorId, TipoUsuario tipoAtor)
     {
         var usuario = await _context.Usuarios.FindAsync(id);
         if (usuario == null)
             return false;
+
+        if (!await PodeOperarUsuarioAsync(usuario, atorId, tipoAtor))
+            throw new InvalidOperationException("Usuário fora do escopo escolar do operador.");
 
         usuario.Ativo = true;
         await _context.SaveChangesAsync();
@@ -507,17 +537,52 @@ public class UsuarioService
         await _context.SaveChangesAsync();
     }
 
-    public async Task<bool> DeletarUsuarioAsync(int id)
+    public async Task<bool> DeletarUsuarioAsync(int id, int atorId, TipoUsuario tipoAtor)
     {
         var usuario = await _context.Usuarios.FindAsync(id);
         if (usuario == null)
             return false;
+
+        if (!await PodeOperarUsuarioAsync(usuario, atorId, tipoAtor))
+            throw new InvalidOperationException("Usuário fora do escopo escolar do operador.");
 
         _context.Usuarios.Remove(usuario);
         await _context.SaveChangesAsync();
 
         return true;
     }
+
+    private async Task<bool> PodeOperarUsuarioAsync(Usuario alvo, int atorId, TipoUsuario tipoAtor, bool incluirVinculosInativos = false)
+    {
+        if (alvo.Id == atorId)
+            return true;
+        if (await EhAdministradorGeralAsync(atorId, tipoAtor))
+            return true;
+
+        var escolasDoAtor = await ObterEscolasDoAtorAsync(atorId, tipoAtor);
+        if (escolasDoAtor.Count == 0)
+            return false;
+
+        var possuiVinculo = await _context.VinculosEscolares.AnyAsync(v => v.UsuarioId == alvo.Id &&
+            (incluirVinculosInativos || v.Ativo) && escolasDoAtor.Contains(v.EscolaId) && v.Escola.Ativa);
+        return possuiVinculo ||
+            await _context.Turmas.AnyAsync(t => t.EscolaId.HasValue && escolasDoAtor.Contains(t.EscolaId.Value) && t.Alunos.Any(a => a.Id == alvo.Id));
+    }
+
+    private async Task<List<int>> ObterEscolasDoAtorAsync(int atorId, TipoUsuario tipoAtor)
+    {
+        if (tipoAtor == TipoUsuario.Administrador && await _context.Usuarios.AnyAsync(u => u.Id == atorId && u.Ativo && u.AdministradorGeral))
+            return await _context.Escolas.Where(e => e.Ativa).Select(e => e.Id).ToListAsync();
+
+        return await _context.VinculosEscolares
+            .Where(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa)
+            .Select(v => v.EscolaId)
+            .Distinct()
+            .ToListAsync();
+    }
+
+    private Task<bool> EhAdministradorGeralAsync(int atorId, TipoUsuario tipoAtor)
+        => _context.Usuarios.AnyAsync(u => u.Id == atorId && u.Ativo && tipoAtor == TipoUsuario.Administrador && u.AdministradorGeral);
 
     private static UsuarioResponse MapearParaResponse(Usuario usuario)
     {
@@ -529,6 +594,7 @@ public class UsuarioService
             Matricula = usuario.Matricula,
             CodigoCadastro = usuario.CodigoCadastro,
             Tipo = usuario.Tipo.ToString(),
+            AdministradorGeral = usuario.AdministradorGeral,
             Ativo = usuario.Ativo,
             DataCriacao = usuario.DataCriacao,
             DataUltimoAcesso = usuario.DataUltimoAcesso

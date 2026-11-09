@@ -73,6 +73,8 @@ public class TurmaService
 
 			if (alunos.Count != request.AlunosIds.Count)
 				throw new InvalidOperationException("Um ou mais alunos s�o inv�lidos.");
+			if (await _context.VinculosEscolares.AnyAsync(v => request.AlunosIds.Contains(v.UsuarioId) && v.Ativo && v.Escola.Ativa && v.EscolaId != escola.Id))
+				throw new InvalidOperationException("Um ou mais alunos pertencem a outra escola.");
 		}
 
 		var turma = new Turma
@@ -95,17 +97,18 @@ public class TurmaService
 		return await MapearParaResponseAsync(turma);
 	}
 
-	public async Task<TurmaResponse?> ObterPorIdAsync(int id)
+	public async Task<TurmaResponse?> ObterPorIdAsync(int id, int? atorId = null, TipoUsuario? tipoAtor = null)
 	{
-		var turma = await _context.Turmas
+		var query = _context.Turmas
 			.Include(t => t.ProfessorResponsavel)
-			.Include(t => t.Alunos)
-			.FirstOrDefaultAsync(t => t.Id == id);
+			.Include(t => t.Alunos).Where(t => t.Id == id);
+		query = AplicarEscopo(query, atorId, tipoAtor);
+		var turma = await query.FirstOrDefaultAsync();
 
 		return turma == null ? null : await MapearParaResponseAsync(turma);
 	}
 
-	public async Task<List<TurmaResponse>> ListarTurmasAsync(bool? apenasAtivas = true)
+	public async Task<List<TurmaResponse>> ListarTurmasAsync(bool? apenasAtivas = true, int? atorId = null, TipoUsuario? tipoAtor = null)
 	{
 		var query = _context.Turmas
 			.Include(t => t.ProfessorResponsavel)
@@ -114,6 +117,7 @@ public class TurmaService
 
 		if (apenasAtivas == true)
 			query = query.Where(t => t.Ativo);
+		query = AplicarEscopo(query, atorId, tipoAtor);
 
 		var turmas = await query.OrderBy(t => t.Serie).ThenBy(t => t.Nome).ToListAsync();
 
@@ -126,15 +130,25 @@ public class TurmaService
 		return responses;
 	}
 
-	public async Task<List<TurmaResponse>> ListarTurmasPorProfessorAsync(int professorId)
+	private IQueryable<Turma> AplicarEscopo(IQueryable<Turma> query, int? atorId, TipoUsuario? tipoAtor)
 	{
-		var turmas = await _context.Turmas
+		if (!atorId.HasValue || !tipoAtor.HasValue) return query;
+		if (tipoAtor == TipoUsuario.Administrador && _context.Usuarios.Any(u => u.Id == atorId && u.Ativo && u.AdministradorGeral)) return query;
+		if (tipoAtor == TipoUsuario.Aluno) return query.Where(t => t.Alunos.Any(a => a.Id == atorId));
+		return query.Where(t => t.EscolaId.HasValue && _context.VinculosEscolares.Any(v => v.UsuarioId == atorId && v.EscolaId == t.EscolaId && v.Ativo && v.Escola.Ativa));
+	}
+
+	public async Task<List<TurmaResponse>> ListarTurmasPorProfessorAsync(int professorId, int atorId, TipoUsuario tipoAtor)
+	{
+		if (tipoAtor == TipoUsuario.Professor && professorId != atorId)
+			throw new InvalidOperationException("Professor só pode consultar as próprias turmas.");
+
+		var query = _context.Turmas
 			.Include(t => t.ProfessorResponsavel)
 			.Include(t => t.Alunos)
-			.Where(t => t.ProfessorResponsavelId == professorId && t.Ativo)
-			.OrderBy(t => t.Serie)
-			.ThenBy(t => t.Nome)
-			.ToListAsync();
+			.Where(t => t.ProfessorResponsavelId == professorId && t.Ativo);
+		query = AplicarEscopo(query, atorId, tipoAtor);
+		var turmas = await query.OrderBy(t => t.Serie).ThenBy(t => t.Nome).ToListAsync();
 
 		var responses = new List<TurmaResponse>();
 		foreach (var turma in turmas)
@@ -148,15 +162,16 @@ public class TurmaService
 	/// <summary>
 	/// Lista turmas de um aluno espec�fico
 	/// </summary>
-	public async Task<List<TurmaResponse>> ListarTurmasPorAlunoAsync(int alunoId)
+	public async Task<List<TurmaResponse>> ListarTurmasPorAlunoAsync(int alunoId, int atorId, TipoUsuario tipoAtor)
 	{
-		var turmas = await _context.Turmas
+		var query = _context.Turmas
 			.Include(t => t.ProfessorResponsavel)
 			.Include(t => t.Alunos)
-			.Where(t => t.Alunos.Any(a => a.Id == alunoId) && t.Ativo)
-			.OrderBy(t => t.Serie)
-			.ThenBy(t => t.Nome)
-			.ToListAsync();
+			.Where(t => t.Alunos.Any(a => a.Id == alunoId) && t.Ativo);
+		if (tipoAtor == TipoUsuario.Aluno && alunoId != atorId)
+			throw new InvalidOperationException("Aluno só pode consultar as próprias turmas.");
+		query = AplicarEscopo(query, atorId, tipoAtor);
+		var turmas = await query.OrderBy(t => t.Serie).ThenBy(t => t.Nome).ToListAsync();
 
 		var responses = new List<TurmaResponse>();
 		foreach (var turma in turmas)
@@ -167,14 +182,18 @@ public class TurmaService
 		return responses;
 	}
 
-	public async Task<TurmaResponse?> AtualizarTurmaAsync(int id, AtualizarTurmaRequest request)
+	public async Task<TurmaResponse?> AtualizarTurmaAsync(int id, AtualizarTurmaRequest request, int? atorId = null, TipoUsuario? tipoAtor = null)
 	{
-		var turma = await _context.Turmas
+		var query = _context.Turmas
 			.Include(t => t.Alunos)
-			.FirstOrDefaultAsync(t => t.Id == id);
+			.AsQueryable();
+		query = AplicarEscopo(query, atorId, tipoAtor);
+		var turma = await query.FirstOrDefaultAsync(t => t.Id == id);
 
 		if (turma == null)
 			return null;
+		if (atorId.HasValue && tipoAtor == TipoUsuario.Professor && turma.ProfessorResponsavelId != atorId.Value)
+			throw new InvalidOperationException("Professor só pode alterar as próprias turmas.");
 
 		if (!string.IsNullOrWhiteSpace(request.Nome))
 			turma.Nome = request.Nome;
@@ -196,6 +215,8 @@ public class TurmaService
 			var professor = await _context.Usuarios.FindAsync(request.ProfessorResponsavelId.Value);
 			if (professor == null || (professor.Tipo != TipoUsuario.Professor && professor.Tipo != TipoUsuario.Administrador))
 				throw new InvalidOperationException("Professor respons�vel inv�lido.");
+			if (turma.EscolaId.HasValue && !await _context.VinculosEscolares.AnyAsync(v => v.UsuarioId == professor.Id && v.EscolaId == turma.EscolaId.Value && v.Ativo && v.Escola.Ativa))
+				throw new InvalidOperationException("O professor respons�vel n�o possui v�nculo ativo na escola da turma.");
 
 			turma.ProfessorResponsavelId = request.ProfessorResponsavelId.Value;
 		}
@@ -208,6 +229,8 @@ public class TurmaService
 
 			if (novosAlunos.Count != request.AlunosIds.Count)
 				throw new InvalidOperationException("Um ou mais alunos s�o inv�lidos.");
+			if (turma.EscolaId.HasValue && await _context.VinculosEscolares.AnyAsync(v => request.AlunosIds.Contains(v.UsuarioId) && v.Ativo && v.Escola.Ativa && v.EscolaId != turma.EscolaId.Value))
+				throw new InvalidOperationException("Um ou mais alunos pertencem a outra escola.");
 
 			turma.Alunos.Clear();
 			foreach (var aluno in novosAlunos)
@@ -226,7 +249,9 @@ public class TurmaService
 
 	public async Task<bool> ExcluirTurmaAsync(int id, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
 	{
-		var turma = await _context.Turmas.FindAsync(id);
+		var query = _context.Turmas.Include(t => t.Escola).Where(t => t.Id == id);
+		query = AplicarEscopo(query, usuarioLogadoId, tipoUsuarioLogado);
+		var turma = await query.FirstOrDefaultAsync();
 		if (turma == null)
 			return false;
 
@@ -248,7 +273,7 @@ public class TurmaService
 	/// <summary>
 	/// Adiciona um aluno a uma turma
 	/// </summary>
-	public async Task<TurmaResponse?> AdicionarAlunoAsync(int turmaId, int alunoId)
+	public async Task<TurmaResponse?> AdicionarAlunoAsync(int turmaId, int alunoId, int? atorId = null, TipoUsuario? tipoAtor = null)
 	{
 		var turma = await _context.Turmas
 			.Include(t => t.Alunos)
@@ -256,6 +281,8 @@ public class TurmaService
 
 		if (turma == null)
 			return null;
+		if (atorId.HasValue && tipoAtor.HasValue && !await PodeOperarTurmaAsync(turmaId, atorId.Value, tipoAtor.Value))
+			throw new InvalidOperationException("Turma fora do escopo escolar do operador.");
 
 		// Verificar se aluno existe e � realmente um aluno
 		var aluno = await _context.Usuarios.FindAsync(alunoId);
@@ -275,7 +302,7 @@ public class TurmaService
 	/// <summary>
 	/// Remove um aluno de uma turma
 	/// </summary>
-	public async Task<TurmaResponse?> RemoverAlunoAsync(int turmaId, int alunoId)
+	public async Task<TurmaResponse?> RemoverAlunoAsync(int turmaId, int alunoId, int? atorId = null, TipoUsuario? tipoAtor = null)
 	{
 		var turma = await _context.Turmas
 			.Include(t => t.Alunos)
@@ -283,6 +310,8 @@ public class TurmaService
 
 		if (turma == null)
 			return null;
+		if (atorId.HasValue && tipoAtor.HasValue && !await PodeOperarTurmaAsync(turmaId, atorId.Value, tipoAtor.Value))
+			throw new InvalidOperationException("Turma fora do escopo escolar do operador.");
 
 		// Verificar se aluno est� na turma
 		var aluno = turma.Alunos.FirstOrDefault(a => a.Id == alunoId);
@@ -293,6 +322,12 @@ public class TurmaService
 		await _context.SaveChangesAsync();
 
 		return await MapearParaResponseAsync(turma);
+	}
+
+	private async Task<bool> PodeOperarTurmaAsync(int turmaId, int atorId, TipoUsuario tipoAtor)
+	{
+		var query = _context.Turmas.Where(t => t.Id == turmaId && (tipoAtor != TipoUsuario.Professor || t.ProfessorResponsavelId == atorId));
+		return await AplicarEscopo(query, atorId, tipoAtor).AnyAsync();
 	}
 
 	public async Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)

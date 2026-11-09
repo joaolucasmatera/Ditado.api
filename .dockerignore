@@ -1,0 +1,12 @@
+.git
+.vs
+bin
+obj
+work
+backups
+docs
+Ditado.Testes
+**/bin
+**/obj
+*.user
+*.suo

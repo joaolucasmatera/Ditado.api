@@ -8,6 +8,7 @@ public class DitadoResponse
     public DateTime DataCriacao { get; set; }
     public int? AutorId { get; set; }
     public string? AutorNome { get; set; }
+    public string? NivelVisibilidade { get; set; }
     public List<CategoriaSimplificadaDto> Categorias { get; set; } = new();
 }
 

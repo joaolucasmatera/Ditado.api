@@ -86,7 +86,9 @@ public class TurmasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<TurmaResponse>> ObterTurma(int id)
     {
-        var turma = await _turmaService.ObterPorIdAsync(id);
+		var atorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+		var tipo = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
+		var turma = await _turmaService.ObterPorIdAsync(id, atorId, tipo);
 
         if (turma == null)
             return NotFound(new { mensagem = "Turma n�o encontrada." });
@@ -110,7 +112,9 @@ public class TurmasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     public async Task<ActionResult<List<TurmaResponse>>> ListarTurmas([FromQuery] bool? apenasAtivas = true)
     {
-        var turmas = await _turmaService.ListarTurmasAsync(apenasAtivas);
+        var atorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+		var tipo = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? "Aluno");
+        var turmas = await _turmaService.ListarTurmasAsync(apenasAtivas, atorId, tipo);
         return Ok(turmas);
     }
 
@@ -118,8 +122,8 @@ public class TurmasController : ControllerBase
     /// Lista turmas de um professor espec�fico
     /// </summary>
     /// <remarks>
-    /// Retorna apenas as turmas onde o professor especificado � o respons�vel.
-    /// Apenas Administradores e Professores podem acessar este endpoint.
+    /// Retorna apenas as turmas onde o professor especificado � o respons�vel,
+    /// filtradas pelo escopo escolar do operador. Professor s� pode consultar as pr�prias turmas.
     /// </remarks>
     /// <param name="professorId">ID do professor</param>
     /// <returns>Lista de turmas do professor</returns>
@@ -133,19 +137,26 @@ public class TurmasController : ControllerBase
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
     public async Task<ActionResult<List<TurmaResponse>>> ListarTurmasPorProfessor(int professorId)
     {
-        var turmas = await _turmaService.ListarTurmasPorProfessorAsync(professorId);
-        return Ok(turmas);
+        try
+        {
+            var atorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var tipoAtor = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? nameof(TipoUsuario.Aluno));
+            var turmas = await _turmaService.ListarTurmasPorProfessorAsync(professorId, atorId, tipoAtor);
+            return Ok(turmas);
+        }
+        catch (InvalidOperationException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
     }
 
     /// <summary>
     /// Lista turmas de um aluno espec�fico
     /// </summary>
     /// <remarks>
-    /// Retorna todas as turmas onde o aluno especificado est� matriculado.
+    /// Retorna todas as turmas onde o aluno especificado est� matriculado,
+    /// filtradas pelo escopo escolar do operador.
     /// 
     /// **Permiss�es:**
     /// - **Aluno**: Pode consultar apenas suas pr�prias turmas
-    /// - **Professor/Admin**: Podem consultar turmas de qualquer aluno
+    /// - **Professor/Admin**: Podem consultar turmas do aluno dentro das escolas autorizadas
     /// 
     /// Retorna apenas turmas ativas.
     /// </remarks>
@@ -170,8 +181,12 @@ public class TurmasController : ControllerBase
             return StatusCode(403, new { mensagem = "Voc� s� pode visualizar suas pr�prias turmas." });
         }
 
-        var turmas = await _turmaService.ListarTurmasPorAlunoAsync(alunoId);
-        return Ok(turmas);
+        try
+        {
+            var turmas = await _turmaService.ListarTurmasPorAlunoAsync(alunoId, usuarioLogadoId, tipoUsuarioLogado);
+            return Ok(turmas);
+        }
+        catch (InvalidOperationException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
     }
 
     /// <summary>
@@ -219,7 +234,9 @@ public class TurmasController : ControllerBase
     {
         try
         {
-            var turma = await _turmaService.AtualizarTurmaAsync(id, request);
+            var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? nameof(TipoUsuario.Aluno));
+            var turma = await _turmaService.AtualizarTurmaAsync(id, request, usuarioLogadoId, tipoUsuarioLogado);
 
             if (turma == null)
                 return NotFound(new { mensagem = "Turma n�o encontrada." });
@@ -314,7 +331,9 @@ public class TurmasController : ControllerBase
 	{
 		try
 		{
-			var turma = await _turmaService.AdicionarAlunoAsync(turmaId, alunoId);
+            var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? nameof(TipoUsuario.Aluno));
+			var turma = await _turmaService.AdicionarAlunoAsync(turmaId, alunoId, usuarioLogadoId, tipoUsuarioLogado);
 
 			if (turma == null)
 				return NotFound(new { mensagem = "Turma n�o encontrada." });
@@ -363,7 +382,9 @@ public class TurmasController : ControllerBase
 	{
 		try
 		{
-			var turma = await _turmaService.RemoverAlunoAsync(turmaId, alunoId);
+            var usuarioLogadoId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+            var tipoUsuarioLogado = Enum.Parse<TipoUsuario>(User.FindFirst(ClaimTypes.Role)?.Value ?? nameof(TipoUsuario.Aluno));
+			var turma = await _turmaService.RemoverAlunoAsync(turmaId, alunoId, usuarioLogadoId, tipoUsuarioLogado);
 
 			if (turma == null)
 				return NotFound(new { mensagem = "Turma n�o encontrada." });

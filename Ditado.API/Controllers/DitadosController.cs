@@ -216,7 +216,9 @@ public class DitadosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<DitadoCompletoDto>> ObterDitadoCompleto(int id)
 	{
-		var ditado = await _ditadoService.ObterDitadoCompletoPorIdAsync(id);
+			var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+			var tipoUsuario = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Aluno");
+			var ditado = await _ditadoService.ObterDitadoCompletoPorIdAsync(id, usuarioId, tipoUsuario);
 		if (ditado == null)
 			return NotFound(new { mensagem = "Ditado não encontrado." });
 
@@ -324,7 +326,8 @@ public class DitadosController : ControllerBase
 	/// </summary>
 	/// <remarks>
 	/// Permite atualizar informações do ditado, incluindo suas categorias.
-	/// Apenas Administradores e Professores podem atualizar.
+	/// Apenas Administradores e Professores podem atualizar recursos dentro do próprio escopo escolar;
+	/// Administrador Geral possui escopo global e o professor pode atualizar o próprio ditado.
 	/// 
 	/// **Exemplo de requisição:**
 	/// 
@@ -355,7 +358,9 @@ public class DitadosController : ControllerBase
 	{
 		try
 		{
-			var ditado = await _ditadoService.AtualizarDitadoAsync(id, request);
+			var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
+			var tipoUsuario = Enum.Parse<Dominio.Enums.TipoUsuario>(User.FindFirst(System.Security.Claims.ClaimTypes.Role)?.Value ?? "Aluno");
+			var ditado = await _ditadoService.AtualizarDitadoAsync(id, request, usuarioId, tipoUsuario);
 
 			if (ditado == null)
 				return NotFound(new { mensagem = "Ditado não encontrado." });
@@ -375,7 +380,8 @@ public class DitadosController : ControllerBase
 	/// Remove um ditado do sistema de forma irreversível.
 	/// 
 	/// **Permissões:**
-	/// - **Administrador**: Pode excluir qualquer ditado
+	/// - **Administrador Geral**: Pode excluir qualquer ditado
+	/// - **Administrador da Escola**: Pode excluir ditados da própria escola
 	/// - **Professor**: Pode excluir apenas ditados que ele mesmo criou
 	/// - **Aluno**: Não pode excluir ditados
 	/// 

@@ -1,5 +1,35 @@
 # Changelog da documentação
 
+## 09/11/2026 — Correção da criação de turmas
+
+- A tela de Turmas passou a carregar o contexto escolar ativo e enviar `escolaId` no POST de criação; o backend exige esse vínculo para novas turmas.
+- Mensagens de erro da API agora são exibidas no snackbar em vez de apenas `Erro ao salvar turma`.
+- Frontend recompilado e container local atualizado; MySQL preservado.
+
+## 09/11/2026 — Criação de erro com visibilidade explícita
+
+- Atualizado o texto da tela para `Criar novo "Erro"` e `Preencha os dados para registrar um novo tipo de erro encontrado em ditados.`
+- Adicionado seletor de nível de privacidade, ordenado do mais restrito ao mais amplo; novos erros passam a ser publicados por padrão como `Instituição`, sem estado ambíguo de `Não publicado`.
+- O POST de criação agora persiste a publicação de visibilidade junto com o erro; a opção `Turmas` permanece bloqueada no formulário até que existam turmas-alvo para seleção.
+- A seção de visibilidade foi movida para antes de Exemplo e os rótulos foram simplificados para `Apenas professores da turma`, `Todos da escola` e `Todos os usuários da plataforma`; removida a referência à correção automática/IA do recibo.
+- Fontes: decisão do usuário, `PublicarErro.vue`, `PublicarErroRequest`, `MarketplaceService` e `VisibilidadeService`; builds local da API, testes e frontend concluídos sem erros.
+
+## 09/11/2026 — PER-55: atualização do catálogo de erros e controle de escopo
+
+- Criado `PUT /api/ErrosCatalogo/{id}` com validação de autoria, vínculo escolar do Administrador da Escola e capability `AdministradorGeral`.
+- Mantida a imutabilidade após a primeira associação do erro a uma aplicação de ditado; erros arquivados não podem ser editados.
+- Atualizadas as anotações Swagger, testes de serviço/controller e a tela do catálogo para ocultar Editar/Arquivar quando o administrador não possui vínculo/capability global.
+- Corrigida a regra visual para considerar qualquer contexto escolar ativo como escopo válido do Administrador da Escola; a capability global continua sendo reconhecida separadamente.
+- Fontes: código do backend/frontend, testes `Per53TenantScopeTests` e `MarketplaceControllerTests`, issue `PER-55`; status: build validado, execução do host de testes pendente de ambiente.
+
+## 09/11/2026 — Criação de erro apresentada como cartão
+
+- Registrada a melhoria visual da tela de criação/edição de erros do catálogo: o formulário passou a ter um cartão próprio, com cabeçalho contextual, ícone e destaque visual.
+- Mantidos os campos, validações, ações e contratos existentes.
+- Issue de acompanhamento: [PER-54](https://linear.app/joaomoutinho/issue/PER-54/transformar-criacao-de-erro-em-cartao-no-catalogo).
+- Status: implementação realizada no frontend `ditado-main`; `npm run build` concluído com sucesso (apenas aviso já existente sobre tamanho de chunks).
+- Fonte: decisão do usuário em 09/11/2026 e alteração em `src/views/PublicarErro.vue`.
+
 ## 07/11/2026 — Escopo da importação de lista de chamada atualizado
 
 - Registrado que o cadastro em lote e a importação de listas de presença em CSV, XLS e XLSX estão no fluxo funcional atual.
@@ -436,3 +466,29 @@
 - QA Playwright MCP confirmou: verificação HTTP 200, criação do PIN HTTP 200, login automático HTTP 200, navegação para `/aluno` e carregamento de `/api/Alunos/meus-ditados` HTTP 200. Não houve segunda chamada com PIN vazio.
 - O caso de identificador inexistente continua exibindo a mensagem exata de não pré-cadastro. A validação usou schema isolado, sem alterar o banco compartilhado.
 - Fonte: código do frontend, Fullstack, Runner, QA Playwright e Linear `PER-41`; status: implementado e validado.
+
+## 09/11/2026 — Isolamento de tenant em usuários e ditados (PER-53)
+
+- Consultas de usuários agora respeitam os vínculos escolares ativos do ator; Administrador Geral mantém escopo global explícito e contas sem vínculo não recebem acesso ampliado.
+- Listagens e detalhes de ditados incluem o próprio autor e aplicam publicação pública/institucional/de turma conforme o vínculo do ator; atualização de ditado passou a validar escopo server-side.
+- A consulta do catálogo permanece global conforme contrato vigente; a publicação exige papel autorizado e vínculo ativo ou capability global.
+- Operações por ID de usuários, turmas e ditados agora recebem o ator e validam a escola vinculada; Administrador Geral permanece global, professor fica restrito ao próprio recurso/turma e publicação pública continua consultável.
+- Testes de regressão cobrem atualização/aprovação entre escolas, listagem de turmas por ID e exclusão de ditado de outro tenant, além dos cenários anteriores.
+- Fonte: código, testes `Per53TenantScopeTests`, `Ditado/docs/ESPECIFICACAO_PG2.md`, `docs/REFERENCIAL_PROJETO.md` e `PER-53`; status: implementação revisada, build validado, execução dos testes pendente por instabilidade do host VSTest local, QA independente ainda não acionado.
+
+## 09/11/2026 — Correção CAT-03 e aceite final do isolamento (PER-53/PER-55)
+
+- Criado o endpoint `PUT /api/ErrosCatalogo/{id}`, com autorização para professor autor, Administrador da Escola com vínculo ativo e Administrador Geral, preservando a imutabilidade de erros arquivados ou já utilizados.
+- Ajustadas as ações da tela do catálogo: Administrador sem vínculo/capability não vê edição/arquivamento; Administrador da Escola com contexto ativo e Administrador Geral veem as ações permitidas; professor permanece limitado ao próprio erro.
+- Swagger passou a documentar o PUT com respostas 200, 400, 401, 403 e 404. O erro anterior 405 foi eliminado.
+- O QA COR-01 revalidou com Playwright visível: edição autorizada 200, arquivamento/restauração 204, bloqueio sem escopo 403, consulta pública compartilhada, ações corretas por perfil, Swagger 200 e console sem erros. Os registros sintéticos foram restaurados para Ativo.
+- Limitação não bloqueante: os fluxos completos de ditado/turma não foram exercitados nesta rodada por ausência de fixture de áudio e pelo formulário ainda não enviar `EscolaId`; o isolamento server-side foi coberto pelos testes automatizados e pelos endpoints disponíveis.
+- Fonte: código, `Per53TenantScopeTests`, `MarketplaceControllerTests`, Local App Runner, QA COR-01, `Ditado/docs/ESPECIFICACAO_PG2.md`, `docs/REFERENCIAL_PROJETO.md`, `PER-53` e `PER-55`; status: implementado e aceito pelo QA, com limitações de fixture documentadas.
+## 2026-11-09 — Catálogo de erros e privacidade nas listagens
+
+- **Status:** implementado/confirmado pelo código e build local.
+- **Motivo:** corrigir a ausência de erros recém-criados no catálogo, a separação entre ativos e arquivados e a identificação incompleta de autoria; tornar explícito o nível de privacidade dos erros e ditados.
+- **Alterações:** `GET /api/ErrosCatalogo` agora documenta e aplica o filtro `estado=ativo|arquivado`, inclui erros próprios sem publicação vigente e retorna `autorNome` e `nivelVisibilidade`; a consulta de recibo permite ao autor consultar seu próprio erro sem publicação vigente. A tabela do catálogo exibe autoria, privacidade e o estado real do item. A biblioteca de ditados ganhou a coluna de privacidade (`Público geral`, `Instituição`, `Turmas` ou `Não publicado`).
+- **Arquivos:** `Ditado.Aplicacao/DTOs/Marketplace/ErroPublicadoResponse.cs`, `Ditado.Aplicacao/DTOs/DitadoResponse.cs`, `Ditado.Aplicacao/Services/MarketplaceService.cs`, `Ditado.Aplicacao/Services/DitadoService.cs`, `Ditado.API/Controllers/ErrosCatalogoController.cs`, `ditado-main/src/views/CatalogoErros.vue`, `ditado-main/src/views/Ditados.vue`.
+- **Validação:** build da API concluído com 0 erros; `npm run build` concluído com sucesso; documentação Swagger do endpoint de listagem atualizada por XML annotations. Testes automatizados de integração não foram executados neste ciclo porque a execução local permanece bloqueada pelo runner de testes já identificado no ciclo anterior.
+- **Pendência:** QA visual/API deve validar publicação, listagem, arquivamento/restauração e os três níveis de privacidade em ambiente de desenvolvimento.

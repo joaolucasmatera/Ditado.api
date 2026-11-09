@@ -66,7 +66,7 @@ public class DitadoService
 		var ditado = await _context.Ditados
 			.Include(d => d.Segmentos)
 			.Include(d => d.Publicacoes).ThenInclude(p => p.TurmasAlvo)
-			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo && (usuarioId == null || administradorGlobal ||
+			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo && (usuarioId == null || administradorGlobal || d.AutorId == usuarioId ||
 				d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
 				(p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
 				(p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))));
@@ -96,12 +96,18 @@ public class DitadoService
 	/// </summary>
 	public async Task<DitadoCompletoDto?> ObterDitadoCompletoPorIdAsync(int id)
 	{
+		return await ObterDitadoCompletoPorIdAsync(id, null, null);
+	}
+
+	public async Task<DitadoCompletoDto?> ObterDitadoCompletoPorIdAsync(int id, int? usuarioId, TipoUsuario? tipoUsuario)
+	{
+		var administradorGlobal = usuarioId.HasValue && tipoUsuario == TipoUsuario.Administrador && await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral);
 		var ditado = await _context.Ditados
 			.Include(d => d.Segmentos)
 			.Include(d => d.Autor)
 			.Include(d => d.DitadoCategorias)
 				.ThenInclude(dc => dc.Categoria)
-			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo);
+			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo && (usuarioId == null || administradorGlobal || d.AutorId == usuarioId || d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral || (p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) || (p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))));
 
 		if (ditado == null)
 			return null;
@@ -224,7 +230,7 @@ public class DitadoService
 			.Include(d => d.DitadoCategorias)
 			.ThenInclude(dc => dc.Categoria)
 			.Include(d => d.Autor)
-			.Where(d => d.Ativo && (usuarioId == null || administradorGlobal ||
+			.Where(d => d.Ativo && (usuarioId == null || administradorGlobal || d.AutorId == usuarioId ||
 				d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral ||
 				(p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) ||
 				(p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))))
@@ -237,6 +243,7 @@ public class DitadoService
 				DataCriacao = d.DataCriacao,
 				AutorId = d.AutorId,
 				AutorNome = d.Autor != null ? d.Autor.Nome : null, 
+				NivelVisibilidade = d.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault(),
 				Categorias = d.DitadoCategorias
 					.Select(dc => new CategoriaSimplificadaDto
 					{
@@ -254,6 +261,7 @@ public class DitadoService
 			.Include(d => d.DitadoCategorias)
 			.ThenInclude(dc => dc.Categoria)
 			.Include(d => d.Autor)
+			.Include(d => d.Publicacoes)
 			.FirstOrDefaultAsync(d => d.Id == ditadoId);
 
 		if (ditado == null)
@@ -267,6 +275,7 @@ public class DitadoService
 			DataCriacao = ditado.DataCriacao,
 			AutorId = ditado.AutorId,
 			AutorNome = ditado.Autor?.Nome,
+			NivelVisibilidade = ditado.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault(),
 			Categorias = ditado.DitadoCategorias
 				.Select(dc => new CategoriaSimplificadaDto
 				{
@@ -277,7 +286,7 @@ public class DitadoService
 		};
 	}
 
-	public async Task<DitadoResponse?> AtualizarCategoriasAsync(int ditadoId, List<int> categoriaIds)
+	public async Task<DitadoResponse?> AtualizarCategoriasAsync(int ditadoId, List<int> categoriaIds, int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
 		var ditado = await _context.Ditados
 			.Include(d => d.DitadoCategorias)
@@ -285,6 +294,8 @@ public class DitadoService
 
 		if (ditado == null)
 			return null;
+		if (usuarioId.HasValue && !await PodeAdministrarDitadoAsync(ditado, usuarioId.Value, tipoUsuario))
+			throw new InvalidOperationException("Usuário sem escopo para este ditado.");
 
 		// Validar categorias
 		await _categoriaService.ValidarCategoriasAsync(categoriaIds);
@@ -308,7 +319,7 @@ public class DitadoService
 		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
-	public async Task<DitadoResponse?> AtualizarDitadoAsync(int id, AtualizarDitadoRequest request)
+	public async Task<DitadoResponse?> AtualizarDitadoAsync(int id, AtualizarDitadoRequest request, int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
 		var ditado = await _context.Ditados
 			.Include(d => d.DitadoCategorias)
@@ -316,6 +327,8 @@ public class DitadoService
 
 		if (ditado == null)
 			return null;
+		if (usuarioId.HasValue && !await PodeAdministrarDitadoAsync(ditado, usuarioId.Value, tipoUsuario))
+			throw new InvalidOperationException("Usuário sem escopo para este ditado.");
 
 		// Atualizar t�tulo se fornecido
 		if (!string.IsNullOrWhiteSpace(request.Titulo))
@@ -356,6 +369,16 @@ public class DitadoService
 		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
+	private async Task<bool> PodeAdministrarDitadoAsync(Dominio.Entidades.Ditado ditado, int usuarioId, TipoUsuario? tipoUsuario)
+	{
+		if (ditado.AutorId == usuarioId) return true;
+		if (tipoUsuario != TipoUsuario.Administrador) return false;
+		if (await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral)) return true;
+		return await _context.VinculosEscolares.AnyAsync(v => v.UsuarioId == usuarioId && v.Ativo && v.Escola.Ativa &&
+			((_context.PublicacoesDitados.Any(p => p.DitadoId == ditado.Id && p.EscolaId == v.EscolaId)) ||
+			 (ditado.AutorId.HasValue && _context.VinculosEscolares.Any(autorVinculo => autorVinculo.UsuarioId == ditado.AutorId.Value && autorVinculo.EscolaId == v.EscolaId && autorVinculo.Ativo && autorVinculo.Escola.Ativa))));
+	}
+
 	public async Task<bool> DeletarDitadoAsync(int ditadoId, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
 	{
 		var ditado = await _context.Ditados.FindAsync(ditadoId);
@@ -363,7 +386,7 @@ public class DitadoService
 		if (ditado == null)
 			return false;
 
-		if (tipoUsuarioLogado != TipoUsuario.Administrador && ditado.AutorId != usuarioLogadoId)
+		if (!await PodeAdministrarDitadoAsync(ditado, usuarioLogadoId, tipoUsuarioLogado))
 			throw new InvalidOperationException("Apenas o autor do ditado ou um administrador podem exclu�-lo.");
 
 		_context.Ditados.Remove(ditado);

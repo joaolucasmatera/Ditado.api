@@ -1,0 +1,36 @@
+services:
+  api:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: ditado-api
+    restart: unless-stopped
+    environment:
+      ASPNETCORE_ENVIRONMENT: ${ASPNETCORE_ENVIRONMENT:-Production}
+      ASPNETCORE_URLS: http://+:8080
+      ConnectionStrings__ConexaoPadrao: Server=${MYSQL_HOST:-host.docker.internal};Port=${MYSQL_PORT:-3306};Database=${MYSQL_DATABASE:-ditado};User=${MYSQL_USER:-root};Password=${MYSQL_ROOT_PASSWORD}
+      Jwt__ChaveSecreta: ${JWT_SECRET:?Defina JWT_SECRET no ambiente ou em .env.docker}
+      Jwt__Emissor: ${JWT_ISSUER:-DitadoAPI}
+      Jwt__Audiencia: ${JWT_AUDIENCE:-DitadoClientes}
+    extra_hosts:
+      - host.docker.internal:host-gateway
+    ports:
+      - "${API_PORT:-5031}:8080"
+    healthcheck:
+      test: ["CMD", "dotnet", "--info"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+  frontend:
+    build:
+      context: ../ditado-main/ditado-main
+      dockerfile: Dockerfile
+      args:
+        VITE_API_BASE_URL: ${VITE_API_BASE_URL:-/api}
+    container_name: ditado-frontend
+    restart: unless-stopped
+    depends_on:
+      api:
+        condition: service_healthy
+    ports:
+      - "${FRONTEND_PORT:-5173}:80"

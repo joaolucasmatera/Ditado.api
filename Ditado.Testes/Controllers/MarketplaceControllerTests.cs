@@ -122,6 +122,21 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Null(a.ExemploEsperado);
     }
 
+    [Fact]
+    public async Task Atualizar_AutorRecebe200EEndpointNaoRetorna405()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        var criado = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", new { nome = "Antes", descricao = "Descrição antes" });
+        Assert.NotNull(criado);
+
+        var response = await Client.PutAsJsonAsync($"/api/ErrosCatalogo/{criado.Id}", new { nome = "Depois", descricao = "Descrição depois" });
+
+        Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+        var atualizado = await response.Content.ReadFromJsonAsync<ErroPublicadoResponse>();
+        Assert.Equal("Depois", atualizado!.Nome);
+    }
+
     [Theory]
     [InlineData("id", 123)]
     [InlineData("autorId", 123)]

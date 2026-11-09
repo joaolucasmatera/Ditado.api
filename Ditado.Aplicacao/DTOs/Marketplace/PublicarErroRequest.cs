@@ -1,5 +1,6 @@
 using System.ComponentModel.DataAnnotations;
 using System.Text.Json.Serialization;
+using Ditado.Dominio.Enums;
 
 namespace Ditado.Aplicacao.DTOs.Marketplace;
 
@@ -18,6 +19,9 @@ public class PublicarErroRequest : IValidatableObject
     public string? ObservacaoPedagogica { get; set; }
     [StringLength(200)]
     public string? SerieAno { get; set; }
+    public NivelVisibilidade Nivel { get; set; } = NivelVisibilidade.Instituicao;
+    public int? EscolaId { get; set; }
+    public List<int> TurmaIds { get; set; } = new();
 
     public IEnumerable<ValidationResult> Validate(ValidationContext validationContext)
     {

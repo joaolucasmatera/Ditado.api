@@ -364,3 +364,4 @@ FodyWeavers.xsd
 
 # Local development credentials
 /docs/usuarios-de-teste.md
+.env.docker

@@ -155,8 +155,8 @@ public class UsuariosController : ControllerBase
 	/// Lista solicita��es de acesso pendentes
 	/// </summary>
 	/// <remarks>
-	/// Retorna todos os usu�rios com tipo "AcessoSolicitado" e status inativo,
-	/// aguardando aprova��o de um Administrador ou Professor.
+	/// Retorna as solicita��es com tipo "AcessoSolicitado" e status inativo
+	/// dentro das escolas vinculadas ao operador. Administrador Geral consulta todas.
 	/// 
 	/// Usado para:
 	/// - Administradores e Professores revisarem novos cadastros
@@ -165,7 +165,7 @@ public class UsuariosController : ControllerBase
 	/// <returns>Lista de solicita��es pendentes</returns>
 	/// <response code="200">Lista retornada com sucesso</response>
 	/// <response code="401">N�o autenticado</response>
-	/// <response code="403">Sem permiss�o (apenas Admin e Professor)</response>
+	/// <response code="403">Sem permiss�o ou solicita��o fora do escopo escolar</response>
 	[HttpGet("solicitacoes-pendentes")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(List<UsuarioResponse>), StatusCodes.Status200OK)]
@@ -173,7 +173,9 @@ public class UsuariosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status403Forbidden)]
 	public async Task<ActionResult<List<UsuarioResponse>>> ListarSolicitacoesPendentes()
 	{
-		var solicitacoes = await _usuarioService.ListarSolicitacoesPendentesAsync();
+		if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var atorId)) return Unauthorized();
+		var tipoAtor = Enum.Parse<TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? nameof(TipoUsuario.Aluno));
+		var solicitacoes = await _usuarioService.ListarSolicitacoesPendentesAsync(atorId, tipoAtor);
 		return Ok(solicitacoes);
 	}
 
@@ -181,7 +183,8 @@ public class UsuariosController : ControllerBase
 	/// Aprova uma solicita��o de acesso
 	/// </summary>
 	/// <remarks>
-	/// Permite que Administradores e Professores aprovem solicita��es de acesso pendentes.
+	/// Permite que Administradores e Professores aprovem solicita��es pendentes
+	/// apenas quando a solicita��o pertence � mesma escola; Administrador Geral � global.
 	/// 
 	/// **Regras de aprova��o:**
 	/// - **Administrador**: Pode aprovar para qualquer tipo (Aluno, Professor, Administrador)
@@ -205,7 +208,7 @@ public class UsuariosController : ControllerBase
 	/// <response code="200">Acesso aprovado com sucesso</response>
 	/// <response code="400">Dados inv�lidos (tipo n�o permitido, usu�rio j� aprovado, etc.)</response>
 	/// <response code="401">N�o autenticado</response>
-	/// <response code="403">Sem permiss�o (apenas Admin e Professor)</response>
+	/// <response code="403">Sem permiss�o ou usu�rio fora do escopo escolar</response>
 	/// <response code="404">Usu�rio n�o encontrado</response>
 	[HttpPost("{id}/aprovar-acesso")]
 	[Authorize(Roles = "Administrador,Professor")]
@@ -220,8 +223,9 @@ public class UsuariosController : ControllerBase
 		{
 			var tipoUsuarioLogado = User.FindFirst(ClaimTypes.Role)?.Value;
 			var tipoEnum = Enum.Parse<TipoUsuario>(tipoUsuarioLogado ?? "Aluno");
+			var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
 
-			var usuario = await _usuarioService.AprovarAcessoAsync(id, request, tipoEnum);
+			var usuario = await _usuarioService.AprovarAcessoAsync(id, request, atorId, tipoEnum);
 
 			if (usuario == null)
 				return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
@@ -234,6 +238,8 @@ public class UsuariosController : ControllerBase
 		}
 		catch (InvalidOperationException ex)
 		{
+			if (ex.Message.Contains("escopo", StringComparison.OrdinalIgnoreCase))
+				return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message });
 			return BadRequest(new { mensagem = ex.Message });
 		}
 	}
@@ -475,7 +481,9 @@ public class UsuariosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult<UsuarioResponse>> ObterUsuario(int id)
 	{
-		var usuario = await _usuarioService.ObterPorIdAsync(id);
+		var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+		var tipo = Enum.Parse<TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? "Aluno");
+		var usuario = await _usuarioService.ObterPorIdAsync(id, atorId, tipo);
 
 		if (usuario == null)
 			return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
@@ -501,7 +509,9 @@ public class UsuariosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status403Forbidden)]
 	public async Task<ActionResult<List<UsuarioResponse>>> ListarUsuarios()
 	{
-		var usuarios = await _usuarioService.ListarUsuariosAsync();
+		var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
+		var tipo = Enum.Parse<TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? "Aluno");
+		var usuarios = await _usuarioService.ListarUsuariosAsync(atorId, tipo);
 		return Ok(usuarios);
 	}
 
@@ -548,8 +558,9 @@ public class UsuariosController : ControllerBase
 	/// <param name="request">Dados a serem atualizados</param>
 	/// <returns>Usu�rio atualizado</returns>
 	/// <response code="200">Usu�rio atualizado com sucesso</response>
-	/// <response code="400">Dados inv�lidos (senha incorreta, permiss�o negada, etc.)</response>
+	/// <response code="400">Dados inv�lidos (senha incorreta, tipo n�o permitido, etc.)</response>
 	/// <response code="401">N�o autenticado</response>
+	/// <response code="403">Usu�rio alvo fora do escopo escolar do operador</response>
 	/// <response code="404">Usu�rio n�o encontrado</response>
 	[HttpPut("{id}")]
 	[Authorize]
@@ -574,6 +585,8 @@ public class UsuariosController : ControllerBase
 		}
 		catch (InvalidOperationException ex)
 		{
+			if (ex.Message.Contains("escopo", StringComparison.OrdinalIgnoreCase))
+				return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message });
 			return BadRequest(new { mensagem = ex.Message });
 		}
 	}
@@ -614,12 +627,15 @@ public class UsuariosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult> BloquearUsuario(int id)
 	{
-		var sucesso = await _usuarioService.BloquearUsuarioAsync(id);
-
-		if (!sucesso)
-			return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
-
-		return NoContent();
+		try
+		{
+			var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+			var tipoAtor = Enum.Parse<TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? nameof(TipoUsuario.Aluno));
+			var sucesso = await _usuarioService.BloquearUsuarioAsync(id, atorId, tipoAtor);
+			if (!sucesso) return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
+			return NoContent();
+		}
+		catch (InvalidOperationException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
 	}
 
 	/// <summary>
@@ -642,12 +658,15 @@ public class UsuariosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult> DesbloquearUsuario(int id)
 	{
-		var sucesso = await _usuarioService.DesbloquearUsuarioAsync(id);
-
-		if (!sucesso)
-			return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
-
-		return NoContent();
+		try
+		{
+			var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+			var tipoAtor = Enum.Parse<TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? nameof(TipoUsuario.Aluno));
+			var sucesso = await _usuarioService.DesbloquearUsuarioAsync(id, atorId, tipoAtor);
+			if (!sucesso) return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
+			return NoContent();
+		}
+		catch (InvalidOperationException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
 	}
 
 	/// <summary>
@@ -673,11 +692,14 @@ public class UsuariosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
 	public async Task<ActionResult> DeletarUsuario(int id)
 	{
-		var sucesso = await _usuarioService.DeletarUsuarioAsync(id);
-
-		if (!sucesso)
-			return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
-
-		return NoContent();
+		try
+		{
+			var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier) ?? "0");
+			var tipoAtor = Enum.Parse<TipoUsuario>(User.FindFirstValue(ClaimTypes.Role) ?? nameof(TipoUsuario.Aluno));
+			var sucesso = await _usuarioService.DeletarUsuarioAsync(id, atorId, tipoAtor);
+			if (!sucesso) return NotFound(new { mensagem = "Usu�rio n�o encontrado." });
+			return NoContent();
+		}
+		catch (InvalidOperationException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
 	}
 }
