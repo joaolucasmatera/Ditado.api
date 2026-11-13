@@ -29,7 +29,7 @@
 
 ## Execução do desenvolvimento
 
-- O responsável pelo desenvolvimento é o chat **Fullstack 01 — Ditado**, ID `01a1aeeb-e805-7010-a967-afb23a988599`, host `local`. Ele substitui o antigo subagente `fullstack`; não atribuir desenvolvimento ao subagente anterior.
+- O responsável pelo desenvolvimento é o chat **Novo desenvolvedor do projeto**, ID `01a1d29d-36e3-7371-b064-25b4ff37c7b3`. Direcionar novas demandas técnicas para esse chat; não atribuir desenvolvimento ao antigo Fullstack 01 nem ao subagente `fullstack`.
 - A coordenação fica no chat **SQUAD DITADO**, ID `01a1aa39-f543-7cc1-9825-3bbda26ecd38`. O QA oficial fica no chat **QA — COR-01 e validação visível**, ID `01a1ad2c-2c50-7280-83ca-1db03679fb20`.
 - Aplicar clean code, Clean Architecture e padrões úteis, considerando escalabilidade sem acrescentar complexidade desnecessária.
 - Alterações de comportamento devem ter testes pertinentes e atualizar os testes afetados; coordenar a validação independente com o QA.
