@@ -32,4 +32,12 @@ A coordenação encontrou um bloqueio para o QA em `POST /api/ErrosCatalogo/{id}
 - Os 72 testes pertinentes passaram. A alteração entre escolas e por professor sem autoria retorna 404, preserva a versão vigente e mantém o detalhe oculto ao ator externo. Autor e administradores autorizados recebem 204 e criam uma nova versão com o histórico anterior preservado. O destino escolar também foi validado e o Swagger gerado foi conferido.
 - A suíte completa teve 251 aprovados de 272. As 21 falhas são as mesmas da compilação anterior.
 
-Validação desta revisão realizada em TestServer e EF InMemory. A validação relacional com MySQL continua pendente e o QA aguarda a revisão do novo gate.
+O gate da coordenação recompilou o commit `3e402fb` e confirmou os 72 testes pertinentes. A suíte completa teve 251 aprovações de 272. A comparação com a referência `5526a4d` confirmou que os seis casos de publicação que falhavam passaram e que as 21 falhas restantes já existiam. [Acompanhamento da suíte na PER-57](https://linear.app/joaomoutinho/issue/PER-57/backend-investigar-e-corrigir-27-falhas-da-suite-de-testes)
+
+## QA independente em MySQL e navegador
+
+O QA aprovou o backend `3e402fb` com o frontend `a59529c`, duas contas sintéticas de escolas diferentes e um schema isolado no MySQL local. As publicações pública e institucional retornaram 201 com `Location` e apareceram na lista ativa. O autor abriu o detalhe de ambas. A outra escola viu somente o registro público e recebeu 404 para o detalhe institucional. No navegador, publicar pelo formulário exibiu o recibo e o erro apareceu ao voltar à lista.
+
+Os pedidos inválidos retornaram 400 e o MySQL confirmou a ausência de gravação parcial. A republicação pelo autor retornou 204, preservou o histórico e registrou a versão 2 vigente. A tentativa por outra escola retornou 404 e manteve o erro institucional. O Swagger respondeu 200 com as duas operações.
+
+O schema isolado precisou de um ajuste manual de cadastro, PIN e chamada. As três migrations correspondentes já existiam em `5526a4d` e o EF não as descobriu. A PER-59 preserva o schema do projeto, e a validação usou apenas dados sintéticos. [Registro do QA na PER-59](https://linear.app/joaomoutinho/issue/PER-59/cat-bug-01-publicacao-nao-aparece-na-listagem)
