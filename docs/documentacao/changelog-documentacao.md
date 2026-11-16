@@ -1,5 +1,12 @@
 # Changelog da documentação
 
+## 16/11/2026 — PER-59 corrige publicação e consulta no Catálogo de erros
+
+- A escola é inferida apenas para Instituição e Turmas. A definição ativa e sua publicação vigente passam pela validação antes de serem gravadas juntas.
+- O POST diferencia escopo inválido (400) de acesso recusado (403). A especificação OpenAPI documenta o corpo, o alcance e as respostas de publicação.
+- Build concluído com 0 erros. Os 65 testes pertinentes passaram, incluindo POST com 201, lista ativa, detalhe, isolamento entre escolas e ausência de gravação parcial em recusas. As 21 falhas da suíte completa já ocorriam na base.
+- Evidência obtida com API em memória. O Docker Engine estava indisponível e o fluxo com MySQL e navegador ficou pendente. Fontes, arquivos e resultados estão no [relatório do ciclo PER-59](../relatorio-ciclo-per59-2026-11-16.md).
+
 ## 09/11/2026 — SDK local do backend estabilizado
 
 - Fixado o SDK `9.0.320` em `global.json`, alinhado ao alvo `net9.0` da API.

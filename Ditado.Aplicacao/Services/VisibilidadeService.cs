@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
@@ -18,8 +19,6 @@ public sealed class VisibilidadeService(DitadoDbContext context)
             throw new InvalidOperationException("Ditado inexistente ou arquivado.");
         var turmas = await context.Turmas.Where(t => turmaIds.Contains(t.Id)).ToListAsync();
         ValidarEscopo(nivel, escolaId, turmaIds, turmas);
-        if (turmas.Any(t => t.EscolaId != escolaId))
-            throw new InvalidOperationException("Todos os alvos devem pertencer à escola da publicação.");
 
         var transacao = context.Database.IsRelational() ? await context.Database.BeginTransactionAsync() : null;
         try
@@ -50,6 +49,23 @@ public sealed class VisibilidadeService(DitadoDbContext context)
         }
     }
 
+    internal async Task<PublicacaoErroCatalogo> PrepararPublicacaoInicialErroAsync(
+        NivelVisibilidade nivel, int? escolaId, IReadOnlyCollection<int>? turmaIds, int atorId, CancellationToken cancellationToken)
+    {
+        if (!Enum.IsDefined(nivel))
+            throw new ValidationException("Nível de visibilidade inválido.");
+        if (turmaIds is null)
+            throw new ValidationException("Informe as turmas alvo como uma lista.");
+
+        var turmas = await context.Turmas.Where(t => turmaIds.Contains(t.Id)).ToListAsync(cancellationToken);
+        if (ObterErroEscopo(nivel, escolaId, turmaIds, turmas) is { } erroEscopo)
+            throw new ValidationException(erroEscopo);
+        if (escolaId.HasValue && !await context.Escolas.AnyAsync(e => e.Id == escolaId && e.Ativa, cancellationToken))
+            throw new ValidationException("A escola da publicação deve existir e estar ativa.");
+
+        return CriarPublicacaoErro(nivel, escolaId, turmas, versao: 1, atorId);
+    }
+
     public async Task<PublicacaoErroCatalogo> PublicarErroCatalogoAsync(int erroId, NivelVisibilidade nivel, int? escolaId, IReadOnlyCollection<int> turmaIds, int atorId)
     {
         await ValidarAtorAsync(atorId, escolaId, nivel);
@@ -57,15 +73,14 @@ public sealed class VisibilidadeService(DitadoDbContext context)
         if (erro is null || !erro.Ativo || erro.ArquivadoEm.HasValue) throw new InvalidOperationException("Erro de catálogo inexistente ou arquivado.");
         var turmas = await context.Turmas.Where(t => turmaIds.Contains(t.Id)).ToListAsync();
         ValidarEscopo(nivel, escolaId, turmaIds, turmas);
-        if (turmas.Any(t => t.EscolaId != escolaId)) throw new InvalidOperationException("Todos os alvos devem pertencer à escola da publicação.");
         var transacao = context.Database.IsRelational() ? await context.Database.BeginTransactionAsync() : null;
         try
         {
             var vigente = await context.PublicacoesErrosCatalogo.SingleOrDefaultAsync(p => p.ErroCatalogoId == erroId && p.ChaveVigente == 1);
             var versao = (await context.PublicacoesErrosCatalogo.Where(p => p.ErroCatalogoId == erroId).MaxAsync(p => (int?)p.Versao) ?? 0) + 1;
             if (vigente is not null) { vigente.ChaveVigente = null; vigente.EncerradaEm = DateTime.UtcNow; vigente.EncerradaPorId = atorId; }
-            var publicacao = new PublicacaoErroCatalogo { ErroCatalogoId = erroId, Nivel = nivel, EscolaId = escolaId, Versao = versao, ChaveVigente = 1, CriadaPorId = atorId };
-            foreach (var turma in turmas) publicacao.TurmasAlvo.Add(new PublicacaoErroCatalogoTurma { TurmaId = turma.Id });
+            var publicacao = CriarPublicacaoErro(nivel, escolaId, turmas, versao, atorId);
+            publicacao.ErroCatalogoId = erroId;
             context.PublicacoesErrosCatalogo.Add(publicacao);
             await context.SaveChangesAsync();
             if (transacao is not null) await transacao.CommitAsync();
@@ -128,13 +143,33 @@ public sealed class VisibilidadeService(DitadoDbContext context)
             throw new InvalidOperationException("Administrador sem vínculo escolar ou capability global não autorizado.");
     }
 
+    private static PublicacaoErroCatalogo CriarPublicacaoErro(
+        NivelVisibilidade nivel, int? escolaId, IEnumerable<Turma> turmas, int versao, int atorId) => new()
+    {
+        Nivel = nivel,
+        EscolaId = escolaId,
+        Versao = versao,
+        ChaveVigente = 1,
+        CriadaPorId = atorId,
+        TurmasAlvo = turmas.Select(t => new PublicacaoErroCatalogoTurma { TurmaId = t.Id }).ToList()
+    };
+
     private static void ValidarEscopo(NivelVisibilidade nivel, int? escolaId, IReadOnlyCollection<int> turmaIds, IReadOnlyCollection<Turma> turmas)
     {
+        if (ObterErroEscopo(nivel, escolaId, turmaIds, turmas) is { } erroEscopo)
+            throw new InvalidOperationException(erroEscopo);
+    }
+
+    private static string? ObterErroEscopo(NivelVisibilidade nivel, int? escolaId, IReadOnlyCollection<int> turmaIds, IReadOnlyCollection<Turma> turmas)
+    {
         if (nivel == NivelVisibilidade.PublicoGeral && (escolaId.HasValue || turmaIds.Count > 0))
-            throw new InvalidOperationException("Publicação pública não aceita escola ou turmas alvo.");
+            return "Publicação pública não aceita escola ou turmas alvo.";
         if (nivel == NivelVisibilidade.Instituicao && (!escolaId.HasValue || turmaIds.Count > 0))
-            throw new InvalidOperationException("Publicação institucional exige escola e não aceita turmas alvo.");
+            return "Publicação institucional exige escola e não aceita turmas alvo.";
         if (nivel == NivelVisibilidade.Turmas && (!escolaId.HasValue || turmaIds.Count == 0 || turmas.Count != turmaIds.Distinct().Count()))
-            throw new InvalidOperationException("Publicação por turmas exige alvos válidos da escola.");
+            return "Publicação por turmas exige alvos válidos da escola.";
+        if (turmas.Any(t => t.EscolaId != escolaId))
+            return "Todos os alvos devem pertencer à escola da publicação.";
+        return null;
     }
 }

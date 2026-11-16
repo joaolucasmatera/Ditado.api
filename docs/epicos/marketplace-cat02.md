@@ -6,7 +6,7 @@ Usuário aprovou o formulário revisado com “Ok, gostei”, conforme SQUAD, 6 
 
 Nome e Descrição obrigatórios; Exemplo opcional em um grupo Escrita esperada → Resposta do aluno (ambos ou nenhum); Observação pedagógica e Série/ano opcionais. Inputs vazios, placeholders apenas ilustrativos, labels e ajuda sempre visíveis. A descrição pode conter orientação/exemplos livres além do grupo estruturado. Sem executor/prompt/modelo, sem chamada LLM ou alteração de classificações/notas ao publicar.
 
-## Contrato implementado
+## Contrato da entrega original (PER-7)
 
 `POST /api/ErrosCatalogo` — Professor/Administrador; anônimo401, aluno403. Entrada:
 
@@ -28,6 +28,18 @@ Campos desconhecidos são rejeitados (400), inclusive forjas de ID/código/autor
 201 retorna registro criado completo com Location para `GET /api/ErrosCatalogo/{id}`. GET é consulta mínima do recibo, autorizada aos mesmos papéis; 404 inexistente. Nenhum GET de listagem ampla. UI em `/marketplace/publicar`, menu Marketplace staff; confirmação usa resposta real persistida e mostra nome, descrição, exemplo, observação, série, estado ativo e ID numérico como “Número do registro”. O código técnico ERR_... permanece no DTO/API/banco, mas não é renderizado na tela. Não é CAT-01 entregue.
 
 Erros de validação usam ProblemDetails/ValidationProblemDetails do ApiController. Falha mantém campos, não exibe recibo de sucesso; botão e campos ficam bloqueados durante envio, com guarda de reentrada. Retry não implica contrato novo de idempotência da API.
+
+## Publicação com visibilidade (PER-59)
+
+Na branch `codex/per-59-publicacao-catalogo`, o POST usa os seguintes valores de `nivel`:
+
+| Nível | Escola e turmas-alvo |
+| --- | --- |
+| `1` — Público geral | Omitir `escolaId` ou enviar `null`. Omitir `turmaIds` ou enviar `[]`. |
+| `2` — Instituição (padrão) | Usa a escola informada ou a do vínculo ativo. Omitir `turmaIds` ou enviar `[]`. |
+| `3` — Turmas | Usa a escola informada ou a do vínculo ativo e exige `turmaIds` dessa escola. |
+
+O POST retorna 201 com `Location` após gravar a definição ativa e sua publicação vigente na mesma operação. A lista em `GET /api/ErrosCatalogo?estado=ativo` e o detalhe em `GET /api/ErrosCatalogo/{id}` aplicam o escopo de visibilidade. Campos ou escopo inválidos retornam 400. Ator autenticado sem permissão ou sem o vínculo exigido recebe 403. As duas recusas ocorrem antes de gravar a definição ou a publicação.
 
 ## Persistência e preservação
 

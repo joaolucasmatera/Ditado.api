@@ -1,7 +1,9 @@
 using System.Net;
 using System.Net.Http.Json;
+using System.Text.Json;
 using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Aplicacao.DTOs.Usuarios;
+using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
 using Ditado.Testes.Infra;
@@ -21,11 +23,118 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     }
 
     [Theory]
+    [InlineData(NivelVisibilidade.PublicoGeral)]
+    [InlineData(NivelVisibilidade.Instituicao)]
+    public async Task Publicar_GravaVisibilidadeInicialEItemFicaDisponivelNoEscopo(NivelVisibilidade nivel)
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        var escolaId = await GarantirEscolaEVinculoAsync(autorId);
+        var response = await PostAsyncRaw("/api/ErrosCatalogo", new
+        {
+            nome = "Confusão de grafia",
+            descricao = "Descrição da ocorrência",
+            nivel,
+            turmaIds = Array.Empty<int>()
+        });
+
+        Assert.Equal(HttpStatusCode.Created, response.StatusCode);
+        var criado = Assert.IsType<ErroPublicadoResponse>(await response.Content.ReadFromJsonAsync<ErroPublicadoResponse>());
+        Assert.Equal(nivel.ToString(), criado.NivelVisibilidade);
+        Assert.Equal($"/api/ErrosCatalogo/{criado.Id}", response.Headers.Location!.AbsolutePath);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var publicacao = await db.PublicacoesErrosCatalogo.AsNoTracking().Include(p => p.TurmasAlvo)
+            .SingleAsync(p => p.ErroCatalogoId == criado.Id);
+        Assert.Equal(nivel, publicacao.Nivel);
+        Assert.Equal(nivel == NivelVisibilidade.Instituicao ? escolaId : null, publicacao.EscolaId);
+        Assert.Equal(1, publicacao.Versao);
+        Assert.Equal(1, publicacao.ChaveVigente);
+        Assert.Equal(autorId, publicacao.CriadaPorId);
+        Assert.Empty(publicacao.TurmasAlvo);
+
+        var colegaId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(colegaId);
+        var ativos = await Client.GetFromJsonAsync<List<ErroPublicadoResponse>>("/api/ErrosCatalogo?estado=ativo");
+        Assert.Contains(criado, ativos!);
+        Assert.Equal(criado, await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location));
+
+        var professorOutraEscolaId = await AutenticarAsync(TipoUsuario.Professor);
+        var outraEscola = new Escola { Nome = "Outra escola", Codigo = Guid.NewGuid().ToString("N") };
+        db.VinculosEscolares.Add(new VinculoEscolar { UsuarioId = professorOutraEscolaId, Escola = outraEscola, Papel = PapelEscolar.Professor });
+        await db.SaveChangesAsync();
+
+        ativos = await Client.GetFromJsonAsync<List<ErroPublicadoResponse>>("/api/ErrosCatalogo?estado=ativo");
+        if (nivel == NivelVisibilidade.PublicoGeral)
+        {
+            Assert.Contains(criado, ativos!);
+            Assert.Equal(criado, await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location));
+        }
+        else
+        {
+            Assert.DoesNotContain(ativos!, erro => erro.Id == criado.Id);
+            Assert.Equal(HttpStatusCode.NotFound, (await Client.GetAsync(response.Headers.Location)).StatusCode);
+        }
+    }
+
+    [Theory]
+    [InlineData(NivelVisibilidade.PublicoGeral, true, false)]
+    [InlineData(NivelVisibilidade.PublicoGeral, false, true)]
+    [InlineData(NivelVisibilidade.Instituicao, false, true)]
+    [InlineData(NivelVisibilidade.Turmas, false, false)]
+    [InlineData(NivelVisibilidade.Turmas, false, true)]
+    [InlineData((NivelVisibilidade)99, false, false)]
+    public async Task Publicar_EscopoInvalidoRetorna400SemGravar(NivelVisibilidade nivel, bool informarEscola, bool informarTurma)
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        var escola = await GarantirEscolaEVinculoAsync(autorId);
+        await AssertRecusadoSemGravar(new
+        {
+            nome = "Inválido",
+            descricao = "Escopo inválido",
+            nivel,
+            escolaId = informarEscola ? escola : (int?)null,
+            turmaIds = informarTurma ? new[] { int.MaxValue } : Array.Empty<int>()
+        });
+    }
+
+    [Fact]
+    public async Task Publicar_ProfessorSemVinculoRetorna403SemGravar()
+    {
+        await AutenticarAsync(TipoUsuario.Professor);
+        var antes = await ContarRegistrosAsync();
+        var response = await PostAsyncRaw("/api/ErrosCatalogo", new
+        {
+            nome = "Sem vínculo",
+            descricao = "Sem vínculo escolar ativo",
+            nivel = NivelVisibilidade.PublicoGeral
+        });
+
+        Assert.Equal(HttpStatusCode.Forbidden, response.StatusCode);
+        Assert.Equal(antes, await ContarRegistrosAsync());
+    }
+
+    [Fact]
+    public async Task Swagger_DocumentaPublicacaoInicialEAutorizacao()
+    {
+        var documento = await Client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json");
+        var post = documento.GetProperty("paths").GetProperty("/api/ErrosCatalogo").GetProperty("post");
+        Assert.Equal("Publica um novo erro no catálogo.", post.GetProperty("summary").GetString());
+        var respostas = post.GetProperty("responses");
+        foreach (var status in new[] { "201", "400", "401", "403" })
+            Assert.True(respostas.TryGetProperty(status, out _), $"Resposta {status} ausente no Swagger.");
+        var corpo = post.GetProperty("requestBody").GetProperty("content").GetProperty("application/json");
+        Assert.Equal("#/components/schemas/PublicarErroRequest", corpo.GetProperty("schema").GetProperty("$ref").GetString());
+        Assert.Contains(documento.GetProperty("security").EnumerateArray(), item => item.TryGetProperty("Bearer", out _));
+    }
+
+    [Theory]
     [InlineData(TipoUsuario.Administrador)]
     [InlineData(TipoUsuario.Professor)]
     public async Task Publicar_StaffPersisteRegistroCompletoEReciboEstavel(TipoUsuario tipo)
     {
         var autorId = await AutenticarAsync(tipo);
+        await GarantirEscolaEVinculoAsync(autorId, tipo == TipoUsuario.Professor ? PapelEscolar.Professor : PapelEscolar.Administrador);
         var antes = DateTime.UtcNow.AddSeconds(-1);
         var response = await PostAsyncRaw("/api/ErrosCatalogo", new PublicarErroRequest
         {
@@ -50,12 +159,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Equal("Retomar a regularidade.", criado.ObservacaoPedagogica);
         Assert.Equal("3º ano", criado.SerieAno);
         Assert.NotNull(response.Headers.Location);
-        if (tipo == TipoUsuario.Professor)
-            await GarantirEscolaEVinculoAsync(autorId);
-        else
-            await GarantirEscolaEVinculoAsync(autorId, PapelEscolar.Administrador);
-        var publicar = await PostAsyncRaw($"/api/ErrosCatalogo/{criado.Id}/visibilidade", new { nivel = NivelVisibilidade.PublicoGeral });
-        Assert.Equal(HttpStatusCode.NoContent, publicar.StatusCode);
+        Assert.Equal(nameof(NivelVisibilidade.Instituicao), criado.NivelVisibilidade);
         var recibo = await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location);
         Assert.Equal(criado, recibo);
         using var scope = factory.Services.CreateScope();
@@ -100,7 +204,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var criado = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", new
         {
             nome = "Opcionais", descricao = "Sem opcionais", exemploEsperado = valor,
-            exemploResposta = valor, observacaoPedagogica = valor, serieAno = valor
+            exemploResposta = valor, observacaoPedagogica = valor, serieAno = valor,
+            nivel = NivelVisibilidade.PublicoGeral
         });
         Assert.NotNull(criado);
         Assert.Null(criado.ExemploEsperado);
@@ -113,7 +218,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_NomeRepetidoPermitidoIdentidadesDistintasEOpcionaisOmitidos()
     {
         await AutenticarAsync(TipoUsuario.Administrador);
-        var request = new { nome = "Mesmo nome", descricao = "Nenhuma unicidade de nome" };
+        var request = new { nome = "Mesmo nome", descricao = "Nenhuma unicidade de nome", nivel = NivelVisibilidade.PublicoGeral };
         var a = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", request);
         var b = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", request);
         Assert.NotNull(a); Assert.NotNull(b);
@@ -158,13 +263,13 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_AlunoEAnonimoNaoGravamNemLeemRecibo()
     {
         var body = new { nome = "Não autorizado", descricao = "Sem escrita" };
-        var antes = await ContarAsync();
+        var antes = await ContarRegistrosAsync();
         Assert.Equal(HttpStatusCode.Unauthorized, (await PostAsyncRaw("/api/ErrosCatalogo", body)).StatusCode);
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetAsyncRaw("/api/ErrosCatalogo/1")).StatusCode);
         await AutenticarAsync(TipoUsuario.Aluno);
         Assert.Equal(HttpStatusCode.Forbidden, (await PostAsyncRaw("/api/ErrosCatalogo", body)).StatusCode);
         Assert.Equal(HttpStatusCode.Forbidden, (await GetAsyncRaw("/api/ErrosCatalogo/1")).StatusCode);
-        Assert.Equal(antes, await ContarAsync());
+        Assert.Equal(antes, await ContarRegistrosAsync());
     }
 
     [Fact]
@@ -190,16 +295,17 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
 
     private async Task AssertRecusadoSemGravar(object dados)
     {
-        var antes = await ContarAsync();
+        var antes = await ContarRegistrosAsync();
         var response = await PostAsyncRaw("/api/ErrosCatalogo", dados);
         Assert.Equal(HttpStatusCode.BadRequest, response.StatusCode);
-        Assert.Equal(antes, await ContarAsync());
+        Assert.Equal(antes, await ContarRegistrosAsync());
     }
 
-    private async Task<int> ContarAsync()
+    private async Task<(int Erros, int Publicacoes)> ContarRegistrosAsync()
     {
         using var scope = factory.Services.CreateScope();
-        return await scope.ServiceProvider.GetRequiredService<DitadoDbContext>().ErrosCatalogo.CountAsync();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        return (await db.ErrosCatalogo.CountAsync(), await db.PublicacoesErrosCatalogo.CountAsync());
     }
 
     private async Task<int> AutenticarAsync(TipoUsuario tipo)

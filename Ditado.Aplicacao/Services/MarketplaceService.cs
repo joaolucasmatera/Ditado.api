@@ -12,15 +12,32 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
     public async Task<ErroPublicadoResponse> PublicarAsync(PublicarErroRequest request, int autorId,
         CancellationToken cancellationToken = default)
     {
-        var ator = await context.Usuarios.Include(u => u.VinculosEscolares).SingleOrDefaultAsync(u => u.Id == autorId && u.Ativo, cancellationToken);
-        if (ator is null || (ator.Tipo != TipoUsuario.Professor && ator.Tipo != TipoUsuario.Administrador))
-            throw new InvalidOperationException("Ator não autorizado.");
-        if (ator.Tipo == TipoUsuario.Professor && !ator.VinculosEscolares.Any(v => v.Ativo))
-            throw new InvalidOperationException("Professor sem vínculo escolar ativo.");
-        if (ator.Tipo == TipoUsuario.Administrador && !ator.AdministradorGeral && !ator.VinculosEscolares.Any(v => v.Ativo))
-            throw new InvalidOperationException("Administrador sem vínculo escolar ou capability global não autorizado.");
         Validator.ValidateObject(request, new ValidationContext(request), validateAllProperties: true);
+
+        var ator = await context.Usuarios.SingleOrDefaultAsync(u => u.Id == autorId && u.Ativo, cancellationToken);
+        if (ator is null || (ator.Tipo != TipoUsuario.Professor && ator.Tipo != TipoUsuario.Administrador))
+            throw new UnauthorizedAccessException("Ator não autorizado.");
+
+        var escolasAtivas = await context.VinculosEscolares
+            .Where(v => v.UsuarioId == autorId && v.Ativo && v.Escola.Ativa)
+            .Select(v => v.EscolaId)
+            .ToListAsync(cancellationToken);
+        var administradorGeral = ator.Tipo == TipoUsuario.Administrador && ator.AdministradorGeral;
+        if (!administradorGeral && escolasAtivas.Count == 0)
+            throw new UnauthorizedAccessException("Ator sem vínculo escolar ativo.");
+
+        var escolaId = request.EscolaId;
+        if (request.Nivel is NivelVisibilidade.Instituicao or NivelVisibilidade.Turmas)
+        {
+            escolaId ??= escolasAtivas.Select(id => (int?)id).FirstOrDefault();
+            if (escolaId is int escolaAlvo && !administradorGeral && !escolasAtivas.Contains(escolaAlvo))
+                throw new UnauthorizedAccessException("Ator sem vínculo ativo com a escola.");
+        }
+
+        var publicacao = await visibilidade.PrepararPublicacaoInicialErroAsync(
+            request.Nivel, escolaId, request.TurmaIds, autorId, cancellationToken);
         var agora = DateTime.UtcNow;
+        publicacao.VigenteDesde = agora;
         var erro = new ErroCatalogo
         {
             Codigo = $"ERR_{Guid.NewGuid():N}",
@@ -29,17 +46,11 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
             ExemploResposta = NormalizarOpcional(request.ExemploResposta),
             ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica),
             SerieAno = NormalizarOpcional(request.SerieAno),
-            AutorId = autorId, Ativo = true, DataCriacao = agora, DataAlteracao = agora
+            AutorId = autorId, Autor = ator, Ativo = true, DataCriacao = agora, DataAlteracao = agora
         };
+        erro.Publicacoes.Add(publicacao);
         context.ErrosCatalogo.Add(erro);
         await context.SaveChangesAsync(cancellationToken);
-        var escolaId = request.EscolaId ?? await context.VinculosEscolares
-            .Where(v => v.UsuarioId == autorId && v.Ativo && v.Escola.Ativa)
-            .Select(v => (int?)v.EscolaId)
-            .FirstOrDefaultAsync(cancellationToken);
-        await visibilidade.PublicarErroCatalogoAsync(erro.Id, request.Nivel, escolaId, request.TurmaIds, autorId);
-        await context.Entry(erro).Reference(e => e.Autor).LoadAsync(cancellationToken);
-        await context.Entry(erro).Collection(e => e.Publicacoes).LoadAsync(cancellationToken);
         return Mapear(erro);
     }
 

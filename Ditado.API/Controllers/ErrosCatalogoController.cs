@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.DTOs.Marketplace;
@@ -12,12 +13,26 @@ namespace Ditado.API.Controllers;
 [Authorize(Roles = "Administrador,Professor")]
 public class ErrosCatalogoController(MarketplaceService marketplace, VisibilidadeService visibilidade) : ControllerBase
 {
+    /// <summary>Publica um novo erro no catálogo.</summary>
+    /// <remarks>
+    /// Requer JWT de Professor ou Administrador autorizado. O nível 1 (Público geral)
+    /// exige que a escola seja omitida e que a lista de turmas esteja vazia.
+    /// No nível 2 (Instituição, padrão), a escola informada ou a do vínculo ativo é usada.
+    /// O nível 3 (Turmas) também exige turmas-alvo da escola.
+    /// Exemplo público: {"nome":"Troca de M por N","descricao":"Descrição pedagógica","nivel":1,"turmaIds":[]}.
+    /// </remarks>
+    /// <param name="request">Definição do erro e escopo da publicação inicial.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <response code="201">Erro ativo e publicação vigente gravados. Location aponta para o recibo.</response>
+    /// <response code="400">Definição ou escopo de publicação inválido.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel, vínculo escolar ou permissão insuficiente para publicar.</response>
     [HttpPost]
     [ProducesResponseType(typeof(ErroPublicadoResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ErroPublicadoResponse>> Publicar(PublicarErroRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ErroPublicadoResponse>> Publicar([FromBody] PublicarErroRequest request, CancellationToken cancellationToken)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var autorId) || autorId <= 0)
             return Unauthorized();
@@ -26,7 +41,8 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
             var publicado = await marketplace.PublicarAsync(request, autorId, cancellationToken);
             return CreatedAtAction(nameof(ObterRecibo), new { id = publicado.Id }, publicado);
         }
-        catch (InvalidOperationException ex) { return Forbid(ex.Message); }
+        catch (ValidationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
     }
 
     /// <summary>Atualiza a definição de um erro do catálogo.</summary>

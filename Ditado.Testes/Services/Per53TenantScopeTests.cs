@@ -1,4 +1,5 @@
 using Ditado.Aplicacao.Services;
+using System.ComponentModel.DataAnnotations;
 using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
@@ -122,10 +123,44 @@ public sealed class Per53TenantScopeTests : IDisposable
         var semEscopo = new Usuario { Nome = "Sem escopo", Login = "sem-catalogo@teste", Tipo = TipoUsuario.Professor, Ativo = true };
         _context.Usuarios.Add(semEscopo);
         await _context.SaveChangesAsync();
-        var marketplace = new MarketplaceService(_context, new VisibilidadeService(_context));
-
-        await Assert.ThrowsAsync<InvalidOperationException>(() => marketplace.PublicarAsync(
+        await Assert.ThrowsAsync<UnauthorizedAccessException>(() => _marketplace.PublicarAsync(
             new PublicarErroRequest { Nome = "Erro", Descricao = "Definição" }, semEscopo.Id));
+    }
+
+    [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CatalogoPublicaPorTurmaSomenteNaEscolaDoAutor(bool mesmaEscola)
+    {
+        var (professor, escolaA, escolaB) = await CriarCenarioAsync();
+        var turma = new Turma
+        {
+            Nome = "Turma alvo",
+            EscolaId = mesmaEscola ? escolaA.Id : escolaB.Id,
+            ProfessorResponsavelId = professor.Id
+        };
+        _context.Turmas.Add(turma);
+        await _context.SaveChangesAsync();
+        var request = new PublicarErroRequest
+        {
+            Nome = "Erro", Descricao = "Definição", Nivel = NivelVisibilidade.Turmas, TurmaIds = [turma.Id]
+        };
+
+        if (mesmaEscola)
+        {
+            var criado = await _marketplace.PublicarAsync(request, professor.Id);
+            var publicacao = await _context.PublicacoesErrosCatalogo.AsNoTracking()
+                .Include(p => p.TurmasAlvo).SingleAsync();
+            Assert.Equal(criado.Id, publicacao.ErroCatalogoId);
+            Assert.Equal(escolaA.Id, publicacao.EscolaId);
+            Assert.Equal(turma.Id, Assert.Single(publicacao.TurmasAlvo).TurmaId);
+        }
+        else
+        {
+            await Assert.ThrowsAsync<ValidationException>(() => _marketplace.PublicarAsync(request, professor.Id));
+            Assert.Empty(await _context.ErrosCatalogo.ToListAsync());
+            Assert.Empty(await _context.PublicacoesErrosCatalogo.ToListAsync());
+        }
     }
 
     [Fact]
