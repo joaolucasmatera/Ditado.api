@@ -41,6 +41,8 @@ Na branch `codex/per-59-publicacao-catalogo`, o POST usa os seguintes valores de
 
 O POST retorna 201 com `Location` após gravar a definição ativa e sua publicação vigente na mesma operação. A lista em `GET /api/ErrosCatalogo?estado=ativo` e o detalhe em `GET /api/ErrosCatalogo/{id}` aplicam o escopo de visibilidade. Campos ou escopo inválidos retornam 400. Ator autenticado sem permissão ou sem o vínculo exigido recebe 403. As duas recusas ocorrem antes de gravar a definição ou a publicação.
 
+`POST /api/ErrosCatalogo/{id}/visibilidade` permite republicar ao professor autor com vínculo ativo, ao Administrador da Escola da autoria ou da publicação vigente e ao Administrador Geral. A API verifica a permissão sobre o registro persistido antes de validar a escola e as turmas de destino. O retorno 204 confirma a nova publicação vigente e o encerramento da anterior. Registro inexistente ou fora do escopo administrativo recebe 404. Escopo de destino inválido ou erro arquivado recebe 400.
+
 ## Persistência e preservação
 
 Entidade/tabela própria `ErroCatalogo`/`ErrosCatalogo`, sem Categoria/DitadoCategoria. Relação AutorId→Usuarios com Restrict; índice único em código e índice autor. Migration `PublicarErroMarketplace` cria somente tabela/índices/FK, sem N:N de seleção, seeds, alteração de enums ou respostas. Descrição/observação são TEXT para evitar exceder tamanho de linha MySQL mantendo os limites de validação. Outras escolhas globais de Marketplace continuam em CAT-09 e não são implementadas por esta fatia.

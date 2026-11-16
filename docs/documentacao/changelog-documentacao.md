@@ -6,6 +6,7 @@
 - O POST diferencia escopo inválido (400) de acesso recusado (403). A especificação OpenAPI documenta o corpo, o alcance e as respostas de publicação.
 - Build concluído com 0 erros. Os 65 testes pertinentes passaram, incluindo POST com 201, lista ativa, detalhe, isolamento entre escolas e ausência de gravação parcial em recusas. As 21 falhas da suíte completa já ocorriam na base.
 - Evidência obtida com API em memória. O Docker Engine estava indisponível e o fluxo com MySQL e navegador ficou pendente. Fontes, arquivos e resultados estão no [relatório do ciclo PER-59](../relatorio-ciclo-per59-2026-11-16.md).
+- Na revisão anterior ao QA, a alteração de visibilidade passou a verificar a autorização sobre o registro e o destino. A publicação vigente é preservada em recusas. Build com 0 erros e 72 testes pertinentes aprovados, com as mesmas 21 falhas preexistentes na suíte completa.
 
 ## 09/11/2026 — SDK local do backend estabilizado
 

@@ -34,8 +34,8 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
                 throw new UnauthorizedAccessException("Ator sem vínculo ativo com a escola.");
         }
 
-        var publicacao = await visibilidade.PrepararPublicacaoInicialErroAsync(
-            request.Nivel, escolaId, request.TurmaIds, autorId, cancellationToken);
+        var publicacao = await visibilidade.PrepararPublicacaoErroAsync(
+            request.Nivel, escolaId, request.TurmaIds, autorId, versao: 1, cancellationToken);
         var agora = DateTime.UtcNow;
         publicacao.VigenteDesde = agora;
         var erro = new ErroCatalogo
@@ -63,7 +63,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
             .SingleOrDefaultAsync(e => e.Id == erroId, cancellationToken);
         if (erro is null)
             return null;
-        if (!await PodeEditarAsync(erro, atorId, tipoAtor, cancellationToken))
+        if (!await visibilidade.PodeAdministrarErroAsync(erro, atorId, cancellationToken, tipoAtor))
             throw new UnauthorizedAccessException("Ator sem permissão para editar este erro no escopo atual.");
         if (!erro.Ativo || erro.ArquivadoEm.HasValue)
             throw new InvalidOperationException("Erros arquivados não podem ser editados.");
@@ -120,27 +120,6 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
     }
 
     private static string? NormalizarOpcional(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
-
-    private async Task<bool> PodeEditarAsync(ErroCatalogo erro, int atorId, TipoUsuario tipoAtor, CancellationToken cancellationToken)
-    {
-        var ator = await context.Usuarios.AsNoTracking().SingleOrDefaultAsync(u => u.Id == atorId && u.Ativo, cancellationToken);
-        if (ator is null || ator.Tipo != tipoAtor)
-            return false;
-        if (tipoAtor == TipoUsuario.Professor)
-            return ator.Id == erro.AutorId && await context.VinculosEscolares.AnyAsync(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa, cancellationToken);
-        if (tipoAtor != TipoUsuario.Administrador)
-            return false;
-        if (ator.AdministradorGeral)
-            return true;
-
-        var escolasDoAtor = context.VinculosEscolares
-            .Where(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa)
-            .Select(v => v.EscolaId);
-        if (!await escolasDoAtor.AnyAsync(cancellationToken))
-            return false;
-        return await context.VinculosEscolares.AnyAsync(v => v.UsuarioId == erro.AutorId && v.Ativo && v.Escola.Ativa && escolasDoAtor.Contains(v.EscolaId), cancellationToken)
-            || await context.PublicacoesErrosCatalogo.AnyAsync(p => p.ErroCatalogoId == erro.Id && p.ChaveVigente != null && p.EscolaId.HasValue && escolasDoAtor.Contains(p.EscolaId.Value), cancellationToken);
-    }
 
     private static ErroPublicadoResponse Mapear(ErroCatalogo erro) => new(
         erro.Id, erro.Codigo, erro.Nome, erro.Descricao, erro.ExemploEsperado, erro.ExemploResposta,

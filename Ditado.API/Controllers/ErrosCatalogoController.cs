@@ -104,15 +104,36 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
         return Ok(await marketplace.ListarAsync(usuarioId, tipo, estado, cancellationToken));
     }
 
+    /// <summary>Altera a visibilidade vigente de um erro do catálogo.</summary>
+    /// <remarks>
+    /// Requer JWT do professor autor com vínculo ativo, de administrador da escola da autoria
+    /// ou da publicação vigente, ou de Administrador Geral. Os alvos escolares exigem acesso
+    /// ao destino. Para tornar o erro público, envie {"nivel":1,"turmaIds":[]}.
+    /// </remarks>
+    /// <param name="id">ID do erro de catálogo.</param>
+    /// <param name="request">Novo nível de visibilidade e seus alvos.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <response code="204">Visibilidade alterada com o histórico preservado.</response>
+    /// <response code="400">Escopo de destino inválido, erro arquivado ou conflito ao publicar.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel sem autorização para acessar a rota.</response>
+    /// <response code="404">Erro inexistente ou fora do escopo de administração do ator.</response>
     [HttpPost("{id:int}/visibilidade")]
-    public async Task<ActionResult> AlterarVisibilidade(int id, [FromBody] AlterarVisibilidadeRequest request)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> AlterarVisibilidade(int id, [FromBody] AlterarVisibilidadeRequest request, CancellationToken cancellationToken)
     {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var atorId) || atorId <= 0)
+            return Unauthorized();
         try
         {
-            var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await visibilidade.PublicarErroCatalogoAsync(id, request.Nivel, request.EscolaId, request.TurmaIds, atorId);
-            return NoContent();
+            var publicado = await visibilidade.PublicarErroCatalogoAsync(id, request.Nivel, request.EscolaId, request.TurmaIds, atorId, cancellationToken);
+            return publicado is null ? NotFound() : NoContent();
         }
+        catch (ValidationException ex) { return BadRequest(new { mensagem = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
     }
 

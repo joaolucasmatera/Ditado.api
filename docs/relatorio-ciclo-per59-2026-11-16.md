@@ -21,3 +21,15 @@ O backend da branch `codex/per-59-publicacao-catalogo`, derivada de `development
 O SDK já instalado em `%USERPROFILE%\.dotnet9` foi vinculado a `%LOCALAPPDATA%\dotnet-sdk-9`, caminho que o script oficial procura. Os testes usaram runtime .NET 9.0.22, TestServer e EF InMemory.
 
 O Docker Engine local e as portas 5031 e 5173 estavam indisponíveis. A persistência no MySQL e o fluxo no navegador aguardam validação no ambiente local. Nenhuma operação foi feita no MySQL compartilhado. A validação independente de QA segue o gate de coordenação.
+
+## Revisão de isolamento da alteração de visibilidade
+
+A coordenação encontrou um bloqueio para o QA em `POST /api/ErrosCatalogo/{id}/visibilidade`. A rota anterior validava o ator e o destino, mas permitia republicar um erro institucional de outra escola como público. Em TestServer, na versão `5a9ea61`, os três casos de negativa esperavam 404 e recebiam 204. Os três casos autorizados já passavam.
+
+`VisibilidadeService` usa a mesma regra de administração da edição existente para autorizar a republicação pelo autor com vínculo ativo, pelo Administrador da Escola da autoria ou da publicação vigente e pelo Administrador Geral. A edição continua sujeita às suas próprias regras de imutabilidade. A rota de visibilidade verifica também o destino e encerra a publicação anterior somente após as validações. `ErrosCatalogoController` documenta 404 para registro inexistente ou fora do escopo administrativo.
+
+- Build oficial com SDK 9.0.320 concluído com 0 erros e 2 avisos preexistentes.
+- Os 72 testes pertinentes passaram. A alteração entre escolas e por professor sem autoria retorna 404, preserva a versão vigente e mantém o detalhe oculto ao ator externo. Autor e administradores autorizados recebem 204 e criam uma nova versão com o histórico anterior preservado. O destino escolar também foi validado e o Swagger gerado foi conferido.
+- A suíte completa teve 251 aprovados de 272. As 21 falhas são as mesmas da compilação anterior.
+
+Validação desta revisão realizada em TestServer e EF InMemory. A validação relacional com MySQL continua pendente e o QA aguarda a revisão do novo gate.

@@ -114,8 +114,109 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Equal(antes, await ContarRegistrosAsync());
     }
 
+    [Theory]
+    [InlineData(TipoUsuario.Professor, false)]
+    [InlineData(TipoUsuario.Professor, true)]
+    [InlineData(TipoUsuario.Administrador, false)]
+    public async Task AlterarVisibilidade_ForaDaAutoriaOuEscolaPreservaPublicacao(TipoUsuario tipo, bool mesmaEscola)
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        var escolaId = await GarantirEscolaEVinculoAsync(autorId);
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome = "Uso institucional", descricao = "Conteúdo da escola" }));
+
+        var atorId = await AutenticarAsync(tipo, administradorGeral: false);
+        var papel = tipo == TipoUsuario.Professor ? PapelEscolar.Professor : PapelEscolar.Administrador;
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        if (mesmaEscola)
+        {
+            await GarantirEscolaEVinculoAsync(atorId, papel);
+        }
+        else
+        {
+            var escola = new Escola { Nome = "Escola externa", Codigo = Guid.NewGuid().ToString("N") };
+            db.VinculosEscolares.Add(new VinculoEscolar { UsuarioId = atorId, Escola = escola, Papel = papel });
+            await db.SaveChangesAsync();
+        }
+
+        var url = $"/api/ErrosCatalogo/{criado.Id}";
+        var leituraEsperada = mesmaEscola ? HttpStatusCode.OK : HttpStatusCode.NotFound;
+        Assert.Equal(leituraEsperada, (await GetAsyncRaw(url)).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await PostAsyncRaw($"{url}/visibilidade", new { nivel = 1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NotFound, (await PostAsyncRaw("/api/ErrosCatalogo/2147483647/visibilidade", new { nivel = 1 })).StatusCode);
+        Assert.Equal(leituraEsperada, (await GetAsyncRaw(url)).StatusCode);
+
+        var vigente = await db.PublicacoesErrosCatalogo.AsNoTracking().SingleAsync(p => p.ErroCatalogoId == criado.Id);
+        Assert.Equal(NivelVisibilidade.Instituicao, vigente.Nivel);
+        Assert.Equal(escolaId, vigente.EscolaId);
+        Assert.Equal(1, vigente.Versao);
+        Assert.Equal(1, vigente.ChaveVigente);
+        Assert.Null(vigente.EncerradaEm);
+    }
+
+    [Theory]
+    [InlineData(TipoUsuario.Professor, false)]
+    [InlineData(TipoUsuario.Administrador, false)]
+    [InlineData(TipoUsuario.Administrador, true)]
+    public async Task AlterarVisibilidade_AutorOuAdminAutorizadoVersionaPublicacao(TipoUsuario tipo, bool administradorGeral)
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome = "Uso institucional", descricao = "Conteúdo da escola" }));
+
+        var atorId = autorId;
+        if (tipo == TipoUsuario.Administrador)
+        {
+            atorId = await AutenticarAsync(tipo, administradorGeral);
+            if (!administradorGeral)
+                await GarantirEscolaEVinculoAsync(atorId, PapelEscolar.Administrador);
+        }
+
+        var url = $"/api/ErrosCatalogo/{criado.Id}";
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostAsyncRaw($"{url}/visibilidade", new { nivel = 99 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"{url}/visibilidade", new { nivel = 1 })).StatusCode);
+        var recibo = Assert.IsType<ErroPublicadoResponse>(await Client.GetFromJsonAsync<ErroPublicadoResponse>(url));
+        Assert.Equal(nameof(NivelVisibilidade.PublicoGeral), recibo.NivelVisibilidade);
+        Assert.Equal(autorId, recibo.AutorId);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var publicacoes = await db.PublicacoesErrosCatalogo.AsNoTracking()
+            .Where(p => p.ErroCatalogoId == criado.Id).OrderBy(p => p.Versao).ToListAsync();
+        Assert.Equal(2, publicacoes.Count);
+        Assert.Null(publicacoes[0].ChaveVigente);
+        Assert.NotNull(publicacoes[0].EncerradaEm);
+        Assert.Equal(atorId, publicacoes[0].EncerradaPorId);
+        Assert.Equal(2, publicacoes[1].Versao);
+        Assert.Equal(1, publicacoes[1].ChaveVigente);
+        Assert.Null(publicacoes[1].EscolaId);
+    }
+
     [Fact]
-    public async Task Swagger_DocumentaPublicacaoInicialEAutorizacao()
+    public async Task AlterarVisibilidade_AutorNaoRepublicaParaEscolaSemVinculo()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome = "Uso institucional", descricao = "Conteúdo da escola" }));
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var destino = new Escola { Nome = "Outro destino", Codigo = Guid.NewGuid().ToString("N") };
+        db.Escolas.Add(destino);
+        await db.SaveChangesAsync();
+
+        var resposta = await PostAsyncRaw($"/api/ErrosCatalogo/{criado.Id}/visibilidade", new { nivel = 2, escolaId = destino.Id });
+
+        Assert.Equal(HttpStatusCode.BadRequest, resposta.StatusCode);
+        var vigente = await db.PublicacoesErrosCatalogo.AsNoTracking().SingleAsync(p => p.ErroCatalogoId == criado.Id);
+        Assert.Equal(1, vigente.ChaveVigente);
+        Assert.NotEqual(destino.Id, vigente.EscolaId);
+    }
+
+    [Fact]
+    public async Task Swagger_DocumentaPublicacaoEAlteracaoDeVisibilidade()
     {
         var documento = await Client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json");
         var post = documento.GetProperty("paths").GetProperty("/api/ErrosCatalogo").GetProperty("post");
@@ -126,6 +227,12 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var corpo = post.GetProperty("requestBody").GetProperty("content").GetProperty("application/json");
         Assert.Equal("#/components/schemas/PublicarErroRequest", corpo.GetProperty("schema").GetProperty("$ref").GetString());
         Assert.Contains(documento.GetProperty("security").EnumerateArray(), item => item.TryGetProperty("Bearer", out _));
+
+        var alterar = documento.GetProperty("paths").GetProperty("/api/ErrosCatalogo/{id}/visibilidade").GetProperty("post");
+        Assert.Equal("Altera a visibilidade vigente de um erro do catálogo.", alterar.GetProperty("summary").GetString());
+        var respostasAlterar = alterar.GetProperty("responses");
+        foreach (var status in new[] { "204", "400", "401", "403", "404" })
+            Assert.True(respostasAlterar.TryGetProperty(status, out _), $"Resposta {status} ausente no Swagger.");
     }
 
     [Theory]
@@ -308,13 +415,14 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         return (await db.ErrosCatalogo.CountAsync(), await db.PublicacoesErrosCatalogo.CountAsync());
     }
 
-    private async Task<int> AutenticarAsync(TipoUsuario tipo)
+    private async Task<int> AutenticarAsync(TipoUsuario tipo, bool administradorGeral = true)
     {
         AdicionarTokenAutorizacao(await ObterTokenAdminAsync());
-        if (tipo == TipoUsuario.Administrador)
+        if (tipo == TipoUsuario.Administrador && administradorGeral)
         {
             using var scope = factory.Services.CreateScope();
-            return await scope.ServiceProvider.GetRequiredService<DitadoDbContext>().Usuarios.Where(u => u.Tipo == tipo).Select(u => u.Id).FirstAsync();
+            return await scope.ServiceProvider.GetRequiredService<DitadoDbContext>().Usuarios
+                .Where(u => u.Tipo == tipo && u.AdministradorGeral).Select(u => u.Id).FirstAsync();
         }
         var login = $"marketplace-{Guid.NewGuid():N}@teste.local";
         var usuario = await PostAsync<UsuarioResponse>("/api/usuarios", new CriarUsuarioRequest
