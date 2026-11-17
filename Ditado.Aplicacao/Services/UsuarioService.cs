@@ -161,11 +161,14 @@ public class UsuarioService
         var turma = await _context.Turmas.Include(t => t.Alunos).Include(t => t.Escola).SingleOrDefaultAsync(t => t.Id == request.TurmaId && t.Ativo);
         if (turma?.Escola is not { Ativa: true } || turma.EscolaId is not int escolaId)
             throw new InvalidOperationException("Turma deve pertencer a uma escola ativa.");
-        if (ator.Tipo == TipoUsuario.Professor && turma.ProfessorResponsavelId != atorId)
-            throw new UnauthorizedAccessException("Professor não autorizado para esta turma.");
+        var vinculo = await _context.VinculosEscolares.SingleOrDefaultAsync(v =>
+            v.UsuarioId == atorId && v.EscolaId == escolaId && v.Ativo);
         if (!(ator.Tipo == TipoUsuario.Administrador && ator.AdministradorGeral) &&
-            !await _context.VinculosEscolares.AnyAsync(v => v.UsuarioId == atorId && v.EscolaId == turma.EscolaId && v.Ativo))
+            vinculo is null)
             throw new UnauthorizedAccessException("O usuário não possui vínculo ativo com a escola da turma.");
+        if (ator.Tipo == TipoUsuario.Professor && turma.ProfessorResponsavelId != atorId &&
+            vinculo?.Papel != PapelEscolar.Administrador)
+            throw new UnauthorizedAccessException("Professor não autorizado para esta turma.");
         if (await _context.Usuarios.AnyAsync(u => u.Tipo == TipoUsuario.Aluno && u.NumeroChamada == request.NumeroChamada && u.TurmasComoAluno.Any(t => t.Id == request.TurmaId)))
             throw new InvalidOperationException("Já existe aluno com este número de chamada na turma.");
         var codigo = FormattableString.Invariant($"E{escolaId}-T{turma.Id}-N{request.NumeroChamada:D3}");

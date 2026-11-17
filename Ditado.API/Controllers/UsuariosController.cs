@@ -355,7 +355,8 @@ public class UsuariosController : ControllerBase
 	/// <remarks>
 	/// Gera código com IDs estáveis da escola e turma e o número da chamada, como <c>E12-T34-N003</c>,
 	/// e vínculo escolar ativo. Códigos já emitidos continuam válidos. Requer professor responsável com
-	/// vínculo ativo, administrador da escola ou Administrador Geral. Concede participação nas
+	/// vínculo ativo, administrador com vínculo ativo na escola da turma (inclusive conta de tipo Professor)
+	/// ou Administrador Geral. Concede participação nas
 	/// aplicações ativas da turma, inclusive para ingresso posterior à atribuição.
 	/// O PIN será criado pelo aluno no primeiro acesso.
 	/// </remarks>

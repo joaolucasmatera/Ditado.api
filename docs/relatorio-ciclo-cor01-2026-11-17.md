@@ -62,3 +62,13 @@ O teste HTTP cria dois alunos com chamadas 1 e 999, em escola e turma com nomes 
 Os builds da API e do frontend passaram. Foram aprovados 46 testes pertinentes em TestServer/EF InMemory. A suíte completa teve 264 aprovações de 285, com as mesmas 21 falhas da base `582e9e2`.
 
 No MySQL 8.0.21 isolado, o E2E confirmou HTTP 200 para os dois cadastros de chamadas 1 e 999 na mesma escola/turma com nomes longos e códigos distintos. Ambos concluíram primeiro PIN, login e submissão com os IDs corretos de usuário e de classificação. O mesmo teste voltou a conferir a edição e o bloqueio da seleção após a primeira resposta. Nenhum código existente foi reescrito.
+
+## Autorização do administrador escolar no cadastro manual
+
+A revisão da coordenação identificou uma recusa indevida: o cadastro público cria o administrador escolar como `Usuario.Tipo=Professor` e `VinculoEscolar.Papel=Administrador`, mas o cadastro manual recusava qualquer professor que não fosse responsável pela turma antes de consultar esse papel. O contrato já permite ao Administrador da Escola cadastrar alunos em sua escola; não há mudança de escopo. Fontes: `Ditado/docs/ESPECIFICACAO_PG2.md`, seção 11.1, `docs/REFERENCIAL_PROJETO.md` e `docs/epicos/multi-tenant-mt02.md`.
+
+A regressão HTTP reproduziu a falha em `7355caf`: o administrador com vínculo ativo na escola da turma recebeu 403 em vez de 200. Os três casos de recusa passaram. `CadastrarAlunoManualAsync` agora consulta o vínculo ativo na escola da turma e aceita seu papel de Administrador mesmo quando o tipo da conta é Professor. O professor comum continua restrito à própria turma e ao vínculo ativo; a capability de Administrador Geral conserva o acesso existente. O Swagger explicita essa combinação de tipo e papel.
+
+Os quatro casos partem do cadastro público de professor com criação de escola, confirmando o tipo Professor e o papel inicial Administrador. O caso permitido verifica também o vínculo escolar e a inclusão do aluno na turma. Professor comum não responsável, administrador de outra escola e administrador com vínculo inativo devem receber 403 sem criar aluno. A verificação do Swagger consulta o documento gerado pela API recompilada.
+
+O build oficial da API passou com zero erros e os dois avisos já existentes. Os 50 testes pertinentes de correção, cadastro, contexto escolar, importação e turmas passaram, incluindo os quatro casos novos e o Swagger gerado. Esta revisão foi validada por HTTP em TestServer/EF InMemory, com compilação em saída isolada. A suíte completa e o MySQL não foram repetidos nesta revisão; a validação independente segue após o gate da coordenação. A API do QA em 5035 não foi reiniciada e as alterações paralelas da documentação viva foram preservadas.

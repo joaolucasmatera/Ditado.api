@@ -170,6 +170,49 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         Assert.Equal(antes, await db.Usuarios.CountAsync());
     }
 
+    [Theory]
+    [InlineData(PapelEscolar.Administrador, true, true, HttpStatusCode.OK)]
+    [InlineData(PapelEscolar.Professor, true, true, HttpStatusCode.Forbidden)]
+    [InlineData(PapelEscolar.Administrador, false, true, HttpStatusCode.Forbidden)]
+    [InlineData(PapelEscolar.Administrador, true, false, HttpStatusCode.Forbidden)]
+    public async Task CadastroManualEmTurmaDeOutroProfessorRespeitaPapelEEscola(
+        PapelEscolar papel, bool mesmaEscola, bool vinculoAtivo, HttpStatusCode esperado)
+    {
+        var responsavel = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var login = $"admin-escolar-{Guid.NewGuid():N}@teste.local";
+        RemoverTokenAutorizacao();
+        var ator = Assert.IsType<UsuarioResponse>(await PostAsync<UsuarioResponse>("/api/Usuarios/cadastro-professor",
+            new { nome = "Administrador escolar", login, senha = "senha123", opcaoEscola = "CriarNova", nomeNovaEscola = "Escola do administrador" }));
+        Assert.Equal(nameof(TipoUsuario.Professor), ator.Tipo);
+        var sessao = Assert.IsType<LoginResponse>(await PostAsync<LoginResponse>("/api/Usuarios/login",
+            new { login, senha = "senha123" }));
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var vinculo = await db.VinculosEscolares.SingleAsync(v => v.UsuarioId == ator.Id);
+        Assert.Equal(PapelEscolar.Administrador, vinculo.Papel);
+        Assert.True(vinculo.Ativo);
+        var escolaId = mesmaEscola ? vinculo.EscolaId : await GarantirEscolaEVinculoAsync(responsavel.Id);
+        if (mesmaEscola)
+            db.VinculosEscolares.Add(new VinculoEscolar { UsuarioId = responsavel.Id, EscolaId = escolaId, Papel = PapelEscolar.Professor });
+        vinculo.Papel = papel;
+        vinculo.Ativo = vinculoAtivo;
+        var turma = new Turma { Nome = "Turma de outro professor", EscolaId = escolaId, ProfessorResponsavelId = responsavel.Id };
+        db.Turmas.Add(turma);
+        await db.SaveChangesAsync();
+        var antes = await db.Usuarios.CountAsync();
+        AdicionarTokenAutorizacao(sessao.Token);
+        var response = await PostAsyncRaw("/api/Usuarios/alunos-manual",
+            new { nome = "Aluno cadastrado pelo administrador", numeroChamada = 1, turmaId = turma.Id });
+        Assert.Equal(esperado, response.StatusCode);
+        Assert.Equal(antes + (esperado == HttpStatusCode.OK ? 1 : 0), await db.Usuarios.CountAsync());
+        if (esperado == HttpStatusCode.OK)
+        {
+            var aluno = Assert.IsType<UsuarioResponse>(await response.Content.ReadFromJsonAsync<UsuarioResponse>());
+            Assert.True(await db.VinculosEscolares.AnyAsync(v => v.UsuarioId == aluno.Id && v.EscolaId == escolaId && v.Ativo && v.Papel == PapelEscolar.Aluno));
+            Assert.True(await db.Turmas.AnyAsync(t => t.Id == turma.Id && t.Alunos.Any(a => a.Id == aluno.Id)));
+        }
+    }
+
     [Fact]
     public async Task AlunoRecebeSomenteClassificacoesSelecionadasEPreservaNota()
     {
@@ -442,6 +485,7 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         Assert.Contains("legados sem seleção", submissao.GetProperty("description").GetString());
         var cadastro = swagger.GetProperty("paths").GetProperty("/api/Usuarios/alunos-manual").GetProperty("post");
         Assert.Contains("E12-T34-N003", cadastro.GetProperty("description").GetString());
+        Assert.Contains("inclusive conta de tipo Professor", cadastro.GetProperty("description").GetString());
     }
 
     private static object Pedido(int[] ids) => new
