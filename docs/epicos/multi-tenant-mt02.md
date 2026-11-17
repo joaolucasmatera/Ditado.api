@@ -40,6 +40,7 @@
 - No cadastro como aluno, o aluno informa somente sua matrícula ou seu código de cadastro na primeira tela. Se houver pré-cadastro, o sistema encaminha para a segunda tela já existente de criação do PIN; somente depois de criar o próprio PIN o aluno segue para a plataforma. Se não houver, o sistema informa: **Você ainda não foi pré-cadastrado na plataforma. Fale com seu professor ou administrador da sua escola.**
 - O código de cadastro serve para ativação inicial; depois da ativação, o acesso exige o PIN do aluno.
 - O código de cadastro seguirá a composição simples: escola + turma + número da chamada. A matrícula, quando existir, também pode ser usada diretamente pelo aluno para iniciar a ativação.
+- Na emissão pelo cadastro manual, a implementação usa os IDs estáveis da escola e da turma e a chamada completa, como `E12-T34-N003`. O formato cabe em 32 caracteres e distingue escolas e turmas homônimas. Os códigos já emitidos continuam válidos para primeiro acesso e login.
 
 ### Critérios do convite
 

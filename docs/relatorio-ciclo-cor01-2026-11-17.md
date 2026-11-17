@@ -50,3 +50,15 @@ Os builds da API e do frontend passaram. O recorte de 45 testes de cadastro, con
 A regressão no Chrome passou com a API recompilada em 5041, frontend em 5181 e MySQL 8.0.21 isolado da tarefa. A criação do aluno após a atribuição, o primeiro PIN, a submissão e o resultado ocorreram pelos endpoints reais. A edição pela tela carregou título, descrição, categorias, texto reconstruído, áudio e seleção. O salvamento manteve texto, áudio e categoria e alterou os metadados e a seleção antes da resposta. Após a submissão, a seleção ficou desabilitada na tela, e salvar metadados manteve as referências anteriores. O Swagger gerado documenta o vínculo ativo e a concessão de participação pelo cadastro.
 
 Para executar a regressão de navegador, definir `E2E_API_URL` para a raiz da API isolada, incluindo `/api`, e `E2E_BASE_URL` para o frontend correspondente. No checkout frontend, executar `node tests/e2e/cor01-fluxos.e2e.js`. O teste usa o Playwright instalado e o Chrome em `%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe`, com substituição por `E2E_CHROME_PATH` quando necessário.
+
+## Correção de colisão no código de entrada
+
+O reteste do QA identificou que o código composto pelos nomes completos da escola e da turma era cortado em 32 caracteres e perdia o número da chamada. Duas chamadas diferentes da mesma turma geravam o mesmo código. A fixture curta do primeiro ciclo não cobria essa condição. A regressão com nomes longos reproduziu a igualdade dos códigos em `582e9e2`.
+
+`CadastrarAlunoManualAsync` passa a emitir códigos com os IDs persistidos da escola e da turma e a chamada completa, no formato `E12-T34-N003`. Esse formato cabe no limite existente e mantém a composição escola–turma–chamada. A geração é compartilhada pelo cadastro manual, lote e confirmação de importação. O cadastro de novos alunos mantém os códigos anteriormente emitidos. Swagger e a ajuda da tela de login registram o novo exemplo. [Contrato de acesso do aluno](epicos/multi-tenant-mt02.md)
+
+O teste HTTP cria dois alunos com chamadas 1 e 999, em escola e turma com nomes longos, e verifica códigos distintos, primeiro PIN, login na conta correspondente e submissão de ambos. Uma conta com código no formato anterior também configura o PIN e faz login. A regressão de navegador foi ampliada com o mesmo caso no MySQL isolado.
+
+Os builds da API e do frontend passaram. Foram aprovados 46 testes pertinentes em TestServer/EF InMemory. A suíte completa teve 264 aprovações de 285, com as mesmas 21 falhas da base `582e9e2`.
+
+No MySQL 8.0.21 isolado, o E2E confirmou HTTP 200 para os dois cadastros de chamadas 1 e 999 na mesma escola/turma com nomes longos e códigos distintos. Ambos concluíram primeiro PIN, login e submissão com os IDs corretos de usuário e de classificação. O mesmo teste voltou a conferir a edição e o bloqueio da seleção após a primeira resposta. Nenhum código existente foi reescrito.

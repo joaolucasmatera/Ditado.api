@@ -168,9 +168,7 @@ public class UsuarioService
             throw new UnauthorizedAccessException("O usuário não possui vínculo ativo com a escola da turma.");
         if (await _context.Usuarios.AnyAsync(u => u.Tipo == TipoUsuario.Aluno && u.NumeroChamada == request.NumeroChamada && u.TurmasComoAluno.Any(t => t.Id == request.TurmaId)))
             throw new InvalidOperationException("Já existe aluno com este número de chamada na turma.");
-        var escolaNome = turma.Escola?.Nome ?? $"Escola{turma.EscolaId ?? 0}";
-        var codigo = $"{NormalizarCodigo(escolaNome)}{NormalizarCodigo(turma.Nome)}{request.NumeroChamada:D3}";
-        if (codigo.Length > 32) codigo = codigo[..32];
+        var codigo = FormattableString.Invariant($"E{escolaId}-T{turma.Id}-N{request.NumeroChamada:D3}");
         var aluno = new Usuario { Nome = request.Nome.Trim(), Login = $"aluno-{Guid.NewGuid():N}@pendente.ditado", Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula.Trim(), NumeroChamada = request.NumeroChamada, CodigoCadastro = codigo, SenhaHash = string.Empty, PinConfigurado = false, Tipo = TipoUsuario.Aluno, Ativo = true, DataCriacao = DateTime.UtcNow };
         turma.Alunos.Add(aluno);
         aluno.VinculosEscolares.Add(new VinculoEscolar { EscolaId = escolaId, Papel = PapelEscolar.Aluno, Ativo = true });
@@ -617,8 +615,6 @@ public class UsuarioService
         };
     }
 
-    private static string NormalizarCodigo(string valor)
-        => new string(valor.Where(char.IsLetterOrDigit).ToArray());
 }
 
 public sealed class ContextoEscolarResponse

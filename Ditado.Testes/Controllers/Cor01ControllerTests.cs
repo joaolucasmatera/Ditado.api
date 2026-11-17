@@ -17,6 +17,67 @@ namespace Ditado.Testes.Controllers;
 
 public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIntegracaoBase(factory)
 {
+    [Fact]
+    public async Task CadastroComNomesLongosGeraCodigosDistintosEPermiteAcessoDosDoisAlunos()
+    {
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var legado = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        var escolaId = await GarantirEscolaEVinculoAsync(professor.Id);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var escola = await db.Escolas.SingleAsync(e => e.Id == escolaId);
+        escola.Nome = "Escola Municipal de Ensino Fundamental com Nome Extenso para Regressão";
+        var alunoLegado = await db.Usuarios.SingleAsync(u => u.Id == legado.Id);
+        alunoLegado.CodigoCadastro = "EscolaAntigaTurmaAntiga001";
+        await db.SaveChangesAsync();
+        var regraId = Assert.Single(await GarantirRegrasPublicasAsync(TipoErro.Acentuacao));
+        AdicionarTokenAutorizacao(professor.Token);
+        var turma = Assert.IsType<Ditado.Aplicacao.DTOs.Turmas.TurmaResponse>(
+            await PostAsync<Ditado.Aplicacao.DTOs.Turmas.TurmaResponse>("/api/Turmas",
+                new { nome = "Turma do Ensino Fundamental com Nome Extenso para Regressão", serie = 3, anoLetivo = 2026, escolaId, professorResponsavelId = professor.Id }));
+        var ditado = Assert.IsType<DitadoResponse>(await PostAsync<DitadoResponse>("/api/Ditados", Pedido([regraId])));
+        var url = $"/api/Ditados/{ditado.Id}";
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"{url}/visibilidade", new { nivel = 1 })).StatusCode);
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"/api/Turmas/{turma.Id}/ditados",
+            new { ditadoId = ditado.Id, dataLimite = DateTime.UtcNow.AddDays(3) })).StatusCode);
+        var alunos = new List<UsuarioResponse>();
+        foreach (var chamada in new[] { 1, 999 })
+        {
+            var response = await PostAsyncRaw("/api/Usuarios/alunos-manual", new
+            {
+                nome = $"Aluno da chamada {chamada}", numeroChamada = chamada, turmaId = turma.Id
+            });
+            Assert.Equal(HttpStatusCode.OK, response.StatusCode);
+            alunos.Add(Assert.IsType<UsuarioResponse>(await response.Content.ReadFromJsonAsync<UsuarioResponse>()));
+        }
+        Assert.NotEqual(alunos[0].CodigoCadastro, alunos[1].CodigoCadastro);
+        Assert.All(alunos, aluno => Assert.InRange(aluno.CodigoCadastro!.Length, 1, 32));
+        Assert.Equal($"E{escolaId}-T{turma.Id}-N001", alunos[0].CodigoCadastro);
+        Assert.Equal($"E{escolaId}-T{turma.Id}-N999", alunos[1].CodigoCadastro);
+        Assert.Equal("EscolaAntigaTurmaAntiga001", await db.Usuarios.AsNoTracking()
+            .Where(u => u.Id == legado.Id).Select(u => u.CodigoCadastro).SingleAsync());
+        RemoverTokenAutorizacao();
+        var acessoLegado = new { matriculaOuCodigo = "EscolaAntigaTurmaAntiga001", pin = "3579" };
+        Assert.Equal(HttpStatusCode.OK, (await PostAsyncRaw("/api/Usuarios/primeiro-acesso-aluno", acessoLegado)).StatusCode);
+        var loginLegado = Assert.IsType<LoginResponse>(await PostAsync<LoginResponse>("/api/Usuarios/login-aluno", acessoLegado));
+        Assert.Equal(legado.Id, loginLegado.Usuario.Id);
+
+        foreach (var aluno in alunos)
+        {
+            RemoverTokenAutorizacao();
+            var acesso = new { matriculaOuCodigo = aluno.CodigoCadastro, pin = "1357" };
+            Assert.Equal(HttpStatusCode.OK, (await PostAsyncRaw("/api/Usuarios/primeiro-acesso-aluno", acesso)).StatusCode);
+            var login = Assert.IsType<LoginResponse>(await PostAsync<LoginResponse>("/api/Usuarios/login-aluno", acesso));
+            Assert.Equal(aluno.Id, login.Usuario.Id);
+            AdicionarTokenAutorizacao(login.Token);
+            var realizar = Assert.IsType<DitadoParaRealizarResponse>(await GetAsync<DitadoParaRealizarResponse>($"{url}/realizar"));
+            var segmentoId = realizar.Segmentos.First(s => s.SegmentoId.HasValue).SegmentoId!.Value;
+            var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter",
+                new SubmeterRespostaRequest { Respostas = [new() { SegmentoId = segmentoId, Resposta = "cafe" }] }));
+            Assert.Equal(regraId, Assert.Single(Assert.Single(resultado.Detalhes).Classificacoes).ErroCatalogoId);
+        }
+    }
+
     [Theory]
     [InlineData(false)]
     [InlineData(true)]
@@ -379,6 +440,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         Assert.True(schemas.GetProperty("DetalheRespostaDto").GetProperty("properties").TryGetProperty("classificacoes", out _));
         var submissao = swagger.GetProperty("paths").GetProperty("/api/Ditados/{id}/submeter").GetProperty("post");
         Assert.Contains("legados sem seleção", submissao.GetProperty("description").GetString());
+        var cadastro = swagger.GetProperty("paths").GetProperty("/api/Usuarios/alunos-manual").GetProperty("post");
+        Assert.Contains("E12-T34-N003", cadastro.GetProperty("description").GetString());
     }
 
     private static object Pedido(int[] ids) => new

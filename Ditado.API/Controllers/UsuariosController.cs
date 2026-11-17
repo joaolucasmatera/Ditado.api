@@ -353,7 +353,8 @@ public class UsuariosController : ControllerBase
 
 	/// <summary>Cadastra manualmente um aluno em uma turma.</summary>
 	/// <remarks>
-	/// Gera código escola-turma-chamada e vínculo escolar ativo. Requer professor responsável com
+	/// Gera código com IDs estáveis da escola e turma e o número da chamada, como <c>E12-T34-N003</c>,
+	/// e vínculo escolar ativo. Códigos já emitidos continuam válidos. Requer professor responsável com
 	/// vínculo ativo, administrador da escola ou Administrador Geral. Concede participação nas
 	/// aplicações ativas da turma, inclusive para ingresso posterior à atribuição.
 	/// O PIN será criado pelo aluno no primeiro acesso.
