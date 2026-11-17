@@ -43,7 +43,7 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 **Frontend:** telas de resultado devem exibir correção, zero ou mais nomes de erros identificados e recorrência. Vários tipos podem ser apresentados para a mesma resposta quando regras distintas se aplicarem. O feedback opcional do aluno deve ter acionamento explícito e estado de falha sem ocultar correção/nota tradicionais.
 
-**API/aplicação:** comparar resposta e esperado e calcular acerto/nota por código. Primeiro, aplicar regras de código dos erros selecionados no ditado. Retornar todos os nomes de erro cujas regras distintas corresponderem à ocorrência; não forçar um tipo único nem escolher um tipo principal. Se nenhuma regra corresponder com confiança, registrar como não classificada/revisável. O fallback LLM fica fora da COR-01 e pode ser tratado em história posterior. O LLM também pode gerar feedback pedagógico ao aluno/professor somente quando solicitado; não substitui o texto esperado nem altera a nota objetiva.
+**API/aplicação:** comparar resposta e esperado e calcular acerto/nota por código. Aplicar as regras programadas vinculadas aos erros selecionados no ditado e retornar todos os nomes que corresponderem à ocorrência. Na COR-01, quando nenhuma regra selecionada corresponder, registrar como não classificada/revisável. Na etapa posterior, o LLM analisa em segundo plano as definições selecionadas sem executor, inclusive quando outra regra já classificou a resposta. A classificação automatizada é distinta do feedback pedagógico, que continua sob demanda. O gabarito e a nota objetiva continuam calculados por código.
 
 **Domínio/MySQL:** persistir resposta, esperado, acerto, zero ou mais nomes/referências de erros identificados e método/estado da classificação. Uma resposta pode ter vários tipos de erro, sem categoria separada ou tipo principal. Sem correspondência confiável, persistir a ocorrência como não classificada/revisável. Preservar histórico e, para futuras identificações feitas pelo LLM, metadados mínimos de modelo, confiança/justificativa estruturada e versão das instruções quando necessário para auditoria.
 
@@ -73,7 +73,7 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 ## 4. Dependências
 
-1. O catálogo e a associação de erros ao ditado fornecem regras executáveis ao código e descrições/exemplos ao classificador LLM de fallback.
+1. O catálogo e a associação de erros ao ditado fornecem regras executáveis ao código e, na etapa posterior, definições sem executor para a análise assíncrona por LLM.
 2. A classificação por código/LLM e o cálculo de recorrência fornecem dados estruturados para os dois feedbacks e para distribuição por tipo nos relatórios.
 3. O feedback do professor reutiliza os mesmos agregados do dashboard, mas é geração LLM sob demanda.
 4. O dashboard pode começar com dados tradicionais existentes, porém os gráficos por classificação e erro cadastrado dependem da persistência definida para a correção por código.
@@ -94,7 +94,7 @@ Recorrência pode ser calculada a partir das respostas persistidas, evitando con
 
 1. **Preparar a base e o plano documental:** fechar os nomes e descrições iniciais dos erros e suas regras de identificação quando aplicáveis; levantar exemplos rotulados; revisar arquitetura, modelo ER e dependências globais; registrar pendências sem presumir respostas.
 2. **Detalhar o épico do Catálogo de erros antes de implementá-lo:** documentar permissões, arquivamento, seleção por ditado, anotações, JSON, regras executáveis, descrições para análise LLM e backup/restauração. Implementar o Catálogo de erros e suas regras de acesso.
-3. **Detalhar o épico de classificação antes de implementá-lo:** diagramar comparação objetiva, classificação por regras de código e fallback LLM para casos sem regra aplicável, além de resposta não classificada/revisável. Implementar com acerto e nota sempre calculados pelo código, e persistir método/estado da classificação e recorrência.
+3. **Detalhar o épico de classificação antes de implementá-lo:** entregar primeiro a COR-01 com comparação objetiva e regras selecionadas. Planejar análise assíncrona por LLM para as definições selecionadas sem executor e revisão de resultados inconclusivos. Registrar método, estado e recorrência.
 4. **Detalhar e implementar feedback do aluno:** geração LLM somente sob solicitação, retenção configurável e falha do provedor sem perda da correção tradicional.
 5. **Detalhar e implementar feedback do professor:** os três escopos sob solicitação (geral da turma, análise individual de cada aluno da turma, ou aluno específico), com autorização e tratamento de falhas/lotes.
 6. **Detalhar e implementar relatórios e dashboard:** consultas agregadas, métricas e filtros; começar por estatísticas descritivas e acrescentar evolução/comparações conforme o histórico amadureça; exportar PDF no navegador com os filtros e gráficos visíveis.
@@ -104,7 +104,7 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 ## 7. Decisões técnicas ainda abertas
 
 - Provedor/modelo LLM e estratégia de configuração de credenciais. Critérios: custo prioritário, latência secundária, resposta estruturada, disponibilidade e tratamento de dados de menores.
-- Momento da classificação LLM de fallback: chamada síncrona durante a submissão ou processamento posterior. Definir também limiar de confiança, limites de custo/volume e comportamento quando a análise não for conclusiva.
+- Para a análise posterior por LLM, definir critérios de aceitação em amostra rotulada, limites de custo, tempo e volume e dados autorizados para envio externo.
 - Correspondência entre os resultados do classificador técnico existente (`TipoErro`) e os nomes de erros cadastrados no catálogo, quando necessária para integrar os dados históricos. Essa correspondência não cria categorias adicionais; decisões sobre regras de identificação e uso de LLM devem ser tratadas separadamente.
 - Semântica da ocorrência: contar respostas erradas por palavra submetidas em cada sessão; cada envio iniciado pelo aluno é uma ocorrência, sem deduplicação de reenvios na interface, que bloqueia novo acionamento enquanto aguarda resposta.
 - Contrato e versionamento do JSON do Catálogo de erros, incluindo validações e resposta de importação; papéis e rejeição de códigos duplicados estão definidos.
@@ -127,7 +127,7 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 ## 9. Critérios de aceite transversais
 
 - Todas as telas novas devem funcionar em navegadores de computador e celular, com layout responsivo e controles utilizáveis nos dois formatos.
-- Acerto e nota são calculados por código e não dependem de disponibilidade de LLM; se o LLM de fallback estiver indisponível, a resposta continua corrigida e fica sem tipo específico até eventual revisão.
+- Acerto e nota são calculados por código. Se os LLMs primário e de contingência estiverem indisponíveis, a resposta permanece corrigida, as classificações por regra são preservadas e os candidatos sem resultado automático seguem revisáveis.
 - Professor só altera/exclui erros próprios; administrador pode administrar todos; arquivamento preserva referências antigas.
 - Recorrência é identificável por aluno e turma, para tipo e erro cadastrado, a partir de três ocorrências no histórico definido.
 - Nenhum feedback é gerado sem solicitação explícita do aluno ou professor.
@@ -169,7 +169,7 @@ Evolução temporal, comparação entre turmas e efeitos de intervenções ficam
 
 1. Documentar a arquitetura e o modelo de dados PG2; fechar o vocabulário em português brasileiro e preparar exemplos rotulados por série.
 2. Documentar e depois implementar o Catálogo de erros, permissões, arquivamento, seleção por ditado, anotações ligadas aos erros, regras executáveis e importação JSON; incluir a estratégia de backup/restauração.
-3. No conjunto rotulado, comparar candidatos de LLM e registrar provedor/configuração escolhidos. O LLM é fallback de classificação quando nenhuma regra de código aplicável identificar o tipo; pode analisar descrições de erro do Catálogo de erros sem regra executável.
+3. Planejar comparação de dois modelos na mesma amostra rotulada e registrar a configuração. Na operação futura, o LLM primário analisa as definições selecionadas sem executor em segundo plano e o de contingência assume em caso de falha. Uma saída válida sem correspondência encerra a análise sem classificação por LLM.
 4. Documentar e implementar a classificação: o código mantém comparação objetiva e cálculo da nota; persistir método/estado e deixar sem classificação específica quando não houver resultado confiável. Resolver ou aceitar explicitamente antes do desenvolvimento se o fallback ocorrer de forma síncrona ou assíncrona.
 5. Documentar e implementar feedback LLM do aluno e do professor somente sob demanda, com retenção global configurável de 60 dias por padrão.
 6. Documentar e entregar dashboard descritivo primeiro; acrescentar tendências/comparações conforme o histórico amadureça e exportar PDF no navegador conforme filtros e gráficos. Cada épico deve ter seus diagramas e documentação revisados antes do início da implementação, conforme a seção 10.5.
@@ -200,7 +200,7 @@ Antes de iniciar a implementação de cada épico, reservar uma etapa curta de d
 | Épico | Diagramas e documentação específicos |
 |---|---|
 | Catálogo de erros | Fluxo de publicação/edição/arquivamento por papel e autoria; modelo ER com observação e série/ano no próprio erro, associação ao ditado; formato JSON e validações para importação em lote; fluxo de backup e restauração. |
-| Correção por código e fallback LLM | Sequência da submissão com botão bloqueado durante carregamento, comparação objetiva, regras de código, fallback LLM para casos não resolvidos, resposta não classificada, persistência do método e recorrência por aluno/turma. |
+| Correção objetiva e classificação híbrida | Submissão e comparação objetiva, regras selecionadas, persistência e recorrência. Planejar análise assíncrona das definições sem executor, contingência em falha do primário e revisão humana. |
 | Feedback personalizado do aluno | Fluxo sob demanda do botão até resposta armazenada/exibida, autorização, reutilização/regeneração e falha; contrato do endpoint e ciclo de retenção. |
 | Feedback personalizado do professor | Diagramas dos três escopos (geral da turma, análises individuais de toda a turma, aluno específico), autorização por turma, processamento em lote e resultados parciais/falhas; contrato de persistência e retenção. |
 | Relatórios e dashboard | Fluxo de filtros para consultas agregadas e exportação PDF no navegador; definição de denominadores e métricas; mapa entre filtros, endpoints, gráficos e dados de origem. |
@@ -266,7 +266,7 @@ O enum que agrupava omissão/acréscimo/substituição e outros IDs legados perm
 }
 ```
 
-O objeto conceitual guarda o nome do erro como seu tipo; não há categoria separada nem campos de dica de professor ou observação de IA. Nesta entrega, as regras de código cobrem os padrões delimitados acima, com Omissão, Acréscimo e Substituição como tipos separados. Transcrição da fala e Hipercorreção permanecem adiadas na inferência automática; não são classificadas por essas heurísticas. Uma regra em linguagem natural sem correspondência executável não classifica a resposta; ela permanece sem classificação para revisão. Não há fallback de LLM.
+O objeto conceitual guarda o nome do erro como seu tipo. Na COR-01 as regras de código cobrem os padrões delimitados acima, com Omissão, Acréscimo e Substituição como tipos separados. Transcrição da fala, Hipercorreção e demais definições sem executor ficam disponíveis como candidatos da etapa posterior, descrita no [contrato da PER-22](../../docs/epicos/cor-01-classificacao-hibrida.md).
 
 O comparador objetivo e a nota pertencem ao código. Neste fluxo, a classificação não recebe contexto frasal: concordância/flexão só é identificada quando o próprio par de palavras corresponde a uma regra delimitada acima; sem correspondência, fica sem classificação. A classificação não altera a decisão objetiva nem substitui a resposta esperada.
 

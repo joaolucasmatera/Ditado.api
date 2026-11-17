@@ -24,6 +24,7 @@ Consulte este índice antes de abrir novas histórias, revisar contratos ou resp
 - [`docs/epicos/multi-tenant-mt03.md`](epicos/multi-tenant-mt03.md): contexto escolar, autorização e revogação do MT-03.
 - [`docs/epicos/multi-tenant-mt04.md`](epicos/multi-tenant-mt04.md): persistência, isolamento e histórico do MT-04.
 - [`docs/epicos/marketplace-cat02.md`](epicos/marketplace-cat02.md): contrato legado da publicação no **Catálogo de erros** (CAT-02); o nome do arquivo permanece por compatibilidade.
+- [`docs/epicos/cor-01-classificacao-hibrida.md`](epicos/cor-01-classificacao-hibrida.md) registra a primeira entrega da PER-22 e as decisões da PER-18 para a etapa posterior de pesquisa.
 - [`docs/diagramas/catalogo-er.md`](diagramas/catalogo-er.md): modelo ER do catálogo.
 - [`docs/relatorio-ciclo-cat02-2026-11-06.md`](relatorio-ciclo-cat02-2026-11-06.md): relatório do ciclo CAT-02.
 - [`docs/relatorio-ciclo-cat09-2026-11-06.md`](relatorio-ciclo-cat09-2026-11-06.md): relatório do refinamento CAT-09.
