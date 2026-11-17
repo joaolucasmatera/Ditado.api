@@ -24,39 +24,38 @@ public class DitadoService
 	{
 		var segmentos = ParsearTextoComLacunas(request.TextoComMarcacoes);
 		var audioDados = ExtrairAudioDeBase64(request.AudioBase64);
+		if (request.ErroCatalogoIds is not { Count: > 0 })
+			throw new InvalidOperationException("Selecione pelo menos um erro do catálogo.");
+		var (escolaId, professorId) = await ResolverContextoSelecaoAsync(autorId, null);
+		var errosSelecionados = await ObterNovosErrosAsync(request.ErroCatalogoIds, escolaId, professorId);
+		var agora = DateTime.UtcNow;
 
 		var ditado = new Dominio.Entidades.Ditado
 		{
 			Titulo = request.Titulo,
 			Descricao = request.Descricao,
 			AudioLeitura = audioDados,
-			DataCriacao = DateTime.UtcNow,
+			DataCriacao = agora,
 			Ativo = true,
 			AutorId = autorId,
-			Segmentos = segmentos
+			Segmentos = segmentos,
+			EscolaSelecaoErrosId = escolaId
 		};
 
-		_context.Ditados.Add(ditado);
-		await _context.SaveChangesAsync();
-
-		// ADICIONAR: Associar categorias ao ditado
 		if (request.CategoriaIds != null && request.CategoriaIds.Any())
 		{
 			await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
-
 			foreach (var categoriaId in request.CategoriaIds.Distinct())
-			{
-				_context.DitadoCategorias.Add(new DitadoCategoria
-				{
-					DitadoId = ditado.Id,
-					CategoriaId = categoriaId,
-					DataAssociacao = DateTime.UtcNow
-				});
-			}
-
-			await _context.SaveChangesAsync();
+				ditado.DitadoCategorias.Add(new DitadoCategoria { CategoriaId = categoriaId, DataAssociacao = agora });
 		}
 
+		foreach (var erro in errosSelecionados)
+		{
+			erro.UtilizadoEm ??= agora;
+			ditado.ErrosCatalogoSelecionados.Add(new DitadoErroCatalogo { ErroCatalogo = erro });
+		}
+		_context.Ditados.Add(ditado);
+		await _context.SaveChangesAsync();
 		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
@@ -107,11 +106,13 @@ public class DitadoService
 			.Include(d => d.Autor)
 			.Include(d => d.DitadoCategorias)
 				.ThenInclude(dc => dc.Categoria)
+			.Include(d => d.ErrosCatalogoSelecionados).ThenInclude(e => e.ErroCatalogo)
 			.FirstOrDefaultAsync(d => d.Id == id && d.Ativo && (usuarioId == null || administradorGlobal || d.AutorId == usuarioId || d.Publicacoes.Any(p => p.ChaveVigente != null && (p.Nivel == NivelVisibilidade.PublicoGeral || (p.Nivel == NivelVisibilidade.Instituicao && p.EscolaId != null && _context.VinculosEscolares.Any(v => v.UsuarioId == usuarioId && v.EscolaId == p.EscolaId && v.Ativo)) || (p.Nivel == NivelVisibilidade.Turmas && p.TurmasAlvo.Any(t => t.Turma.ProfessorResponsavelId == usuarioId || t.Turma.Alunos.Any(a => a.Id == usuarioId)))))));
 
 		if (ditado == null)
 			return null;
 
+		var podeVerSelecao = !usuarioId.HasValue || await PodeAdministrarDitadoAsync(ditado, usuarioId.Value, tipoUsuario);
 		return new DitadoCompletoDto
 		{
 			Id = ditado.Id,
@@ -120,6 +121,8 @@ public class DitadoService
 			DataCriacao = ditado.DataCriacao,
 			AutorId = ditado.AutorId,
 			AutorNome = ditado.Autor?.Nome,
+			ErrosCatalogo = podeVerSelecao ? MapearSelecao(ditado) : [],
+			PossuiRespostas = podeVerSelecao && await _context.RespostaDitados.AnyAsync(r => r.DitadoId == id),
 			Categorias = ditado.DitadoCategorias
 				.Select(associacao => new CategoriaSimplificadaDto
 				{
@@ -143,18 +146,43 @@ public class DitadoService
 
 	public async Task<ResultadoDitadoResponse?> SubmeterRespostaAsync(int ditadoId, SubmeterRespostaRequest request, int alunoId)
 	{
+		await using var transacao = await SelecaoErrosCatalogo.BloquearDitadoAsync(_context, ditadoId);
 		var ditado = await _context.Ditados
 			.Include(d => d.Segmentos)
+			.Include(d => d.ErrosCatalogoSelecionados).ThenInclude(e => e.ErroCatalogo)
 			.FirstOrDefaultAsync(d => d.Id == ditadoId && d.Ativo);
 
 		if (ditado == null)
 			return null;
 
+		var usaCatalogo = ditado.ErrosCatalogoSelecionados.Count > 0;
 		var aplicacao = await _context.AplicacoesDitados
 			.Where(a => a.DitadoId == ditadoId && a.Ativa && a.Participacoes.Any(p => p.AlunoId == alunoId && !p.RevogadaEm.HasValue))
+			.Where(a => !usaCatalogo || (a.Escola.Ativa && a.Turma.Ativo && a.Turma.EscolaId == a.EscolaId &&
+				a.Turma.Alunos.Any(u => u.Id == alunoId && u.Ativo) &&
+				_context.VinculosEscolares.Any(v => v.UsuarioId == alunoId && v.EscolaId == a.EscolaId && v.Ativo)))
+			.Include(a => a.ErrosSelecionados).ThenInclude(e => e.ErroCatalogo)
 			.OrderByDescending(a => a.DataAtribuicao)
 			.FirstOrDefaultAsync();
 
+		if (usaCatalogo && aplicacao == null)
+		{
+			var ator = await _context.Usuarios.SingleOrDefaultAsync(u => u.Id == alunoId && u.Ativo);
+			if (ator == null || (ator.Tipo == TipoUsuario.Aluno
+				? !await _context.TurmaDitados.AnyAsync(t => t.DitadoId == ditadoId && t.Turma.Ativo &&
+					t.Turma.Alunos.Any(a => a.Id == alunoId) && (t.Turma.EscolaId == null ||
+						_context.VinculosEscolares.Any(v => v.UsuarioId == alunoId && v.EscolaId == t.Turma.EscolaId && v.Ativo && v.Escola.Ativa)))
+				: !await PodeAdministrarDitadoAsync(ditado, alunoId, ator.Tipo)))
+				return null;
+		}
+
+		var definicoes = aplicacao == null
+			? ditado.ErrosCatalogoSelecionados.Select(e => e.ErroCatalogo)
+			: aplicacao.ErrosSelecionados.Select(e => e.ErroCatalogo);
+		var regrasSelecionadas = usaCatalogo
+			? definicoes.Where(e => e.RegraClassificacao.HasValue).ToDictionary(e => e.RegraClassificacao!.Value)
+			: new Dictionary<TipoErro, ErroCatalogo>();
+		var regras = usaCatalogo ? regrasSelecionadas.Keys.ToHashSet() : null;
 		var respostaDitado = new RespostaDitado
 		{
 			DitadoId = ditadoId,
@@ -178,7 +206,8 @@ public class DitadoService
 			var correto = NormalizarTextoParaComparacao(resposta.Resposta) == NormalizarTextoParaComparacao(segmento.Conteudo);
 			if (correto) acertos++;
 
-			var tiposErro = correto ? Array.Empty<TipoErro>() : IdentificarTiposErro(resposta.Resposta, segmento.Conteudo);
+			var tiposErro = correto ? Array.Empty<TipoErro>() :
+				ClassificadorTiposErro.IdentificarTiposErro(resposta.Resposta, segmento.Conteudo, regras);
 
 			var respostaSegmento = new RespostaSegmento
 			{
@@ -189,7 +218,11 @@ public class DitadoService
 				EstadoClassificacao = correto ? EstadoClassificacao.NaoSeAplica :
 					(tiposErro.Count > 0 ? EstadoClassificacao.Classificado : EstadoClassificacao.NaoClassificado),
 				MetodoClassificacao = tiposErro.Count > 0 ? MetodoClassificacao.Codigo : null,
-				TiposErro = tiposErro.Select(tipo => new RespostaSegmentoTipoErro { TipoErro = tipo }).ToList()
+				TiposErro = tiposErro.Select(tipo => new RespostaSegmentoTipoErro
+				{
+					TipoErro = tipo,
+					ErroCatalogoId = regrasSelecionadas.GetValueOrDefault(tipo)?.Id
+				}).ToList()
 			};
 
 			respostaDitado.RespostasSegmentos.Add(respostaSegmento);
@@ -200,10 +233,14 @@ public class DitadoService
 				RespostaFornecida = resposta.Resposta,
 				RespostaEsperada = segmento.Conteudo,
 				Correto = correto,
-				EstadoClassificacao = (correto ? EstadoClassificacao.NaoSeAplica :
-					(tiposErro.Count > 0 ? EstadoClassificacao.Classificado : EstadoClassificacao.NaoClassificado)).ToString(),
-				MetodoClassificacao = tiposErro.Count > 0 ? MetodoClassificacao.Codigo.ToString() : null,
-				TiposErro = tiposErro.Select(tipo => tipo.ObterDescricao()).ToList()
+				EstadoClassificacao = respostaSegmento.EstadoClassificacao.ToString(),
+				MetodoClassificacao = respostaSegmento.MetodoClassificacao?.ToString(),
+				TiposErro = tiposErro.Select(tipo => tipo.ObterDescricao()).ToList(),
+				Classificacoes = tiposErro.Where(regrasSelecionadas.ContainsKey).Select(tipo =>
+				{
+					var erro = regrasSelecionadas[tipo];
+					return new ClassificacaoCatalogoDto(erro.Id, erro.Codigo, erro.Nome, (int)tipo);
+				}).ToList()
 			});
 		}
 
@@ -211,6 +248,8 @@ public class DitadoService
 
 		_context.RespostaDitados.Add(respostaDitado);
 		await _context.SaveChangesAsync();
+		if (transacao != null)
+			await transacao.CommitAsync();
 
 		return new ResultadoDitadoResponse
 		{
@@ -262,6 +301,7 @@ public class DitadoService
 			.ThenInclude(dc => dc.Categoria)
 			.Include(d => d.Autor)
 			.Include(d => d.Publicacoes)
+			.Include(d => d.ErrosCatalogoSelecionados).ThenInclude(e => e.ErroCatalogo)
 			.FirstOrDefaultAsync(d => d.Id == ditadoId);
 
 		if (ditado == null)
@@ -275,6 +315,7 @@ public class DitadoService
 			DataCriacao = ditado.DataCriacao,
 			AutorId = ditado.AutorId,
 			AutorNome = ditado.Autor?.Nome,
+			ErrosCatalogo = MapearSelecao(ditado),
 			NivelVisibilidade = ditado.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault(),
 			Categorias = ditado.DitadoCategorias
 				.Select(dc => new CategoriaSimplificadaDto
@@ -321,8 +362,12 @@ public class DitadoService
 
 	public async Task<DitadoResponse?> AtualizarDitadoAsync(int id, AtualizarDitadoRequest request, int? usuarioId = null, TipoUsuario? tipoUsuario = null)
 	{
+		await using var transacao = request.ErroCatalogoIds != null
+			? await SelecaoErrosCatalogo.BloquearDitadoAsync(_context, id)
+			: null;
 		var ditado = await _context.Ditados
 			.Include(d => d.DitadoCategorias)
+			.Include(d => d.ErrosCatalogoSelecionados)
 			.FirstOrDefaultAsync(d => d.Id == id);
 
 		if (ditado == null)
@@ -330,7 +375,11 @@ public class DitadoService
 		if (usuarioId.HasValue && !await PodeAdministrarDitadoAsync(ditado, usuarioId.Value, tipoUsuario))
 			throw new InvalidOperationException("Usuário sem escopo para este ditado.");
 
-		// Atualizar t�tulo se fornecido
+		if (request.CategoriaIds is { Count: > 0 })
+			await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
+		if (request.ErroCatalogoIds != null)
+			await AtualizarSelecaoAsync(ditado, request.ErroCatalogoIds, usuarioId ?? ditado.AutorId ?? 0);
+
 		if (!string.IsNullOrWhiteSpace(request.Titulo))
 			ditado.Titulo = request.Titulo;
 
@@ -345,10 +394,6 @@ public class DitadoService
 		// Atualizar categorias se fornecido (permite 0 categorias)
 		if (request.CategoriaIds != null)
 		{
-			// Validar categorias se houver alguma
-			if (request.CategoriaIds.Any())
-				await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
-
 			// Remover associa��es antigas
 			_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
 
@@ -365,12 +410,100 @@ public class DitadoService
 		}
 
 		await _context.SaveChangesAsync();
+		if (transacao != null)
+			await transacao.CommitAsync();
 
 		return await ObterDitadoComCategoriasAsync(ditado.Id);
 	}
 
+	private async Task AtualizarSelecaoAsync(Dominio.Entidades.Ditado ditado, List<int> erroIds, int atorId)
+	{
+		if (await _context.RespostaDitados.AnyAsync(r => r.DitadoId == ditado.Id))
+			throw new InvalidOperationException("Não é possível alterar a seleção depois da primeira resposta.");
+		if (erroIds.Count == 0)
+			throw new InvalidOperationException("Selecione pelo menos um erro do catálogo.");
+
+		var atorDoDitado = ditado.AutorId;
+		var escolaOrigem = ditado.EscolaSelecaoErrosId ?? await _context.PublicacoesDitados
+			.Where(p => p.DitadoId == ditado.Id && p.ChaveVigente != null)
+			.Select(p => p.EscolaId).FirstOrDefaultAsync()
+			?? await _context.VinculosEscolares.Where(v => v.UsuarioId == atorDoDitado && v.Ativo && v.Escola.Ativa)
+				.Select(v => (int?)v.EscolaId).FirstOrDefaultAsync();
+		var (escolaId, professorId) = await ResolverContextoSelecaoAsync(atorId, escolaOrigem);
+		var ids = erroIds.ToHashSet();
+		var adicionados = ids.Except(ditado.ErrosCatalogoSelecionados.Select(e => e.ErroCatalogoId)).ToArray();
+		var novos = await ObterNovosErrosAsync(adicionados, escolaId, professorId);
+
+		var aplicacoes = await _context.AplicacoesDitados.Where(a => a.DitadoId == ditado.Id && a.Ativa)
+			.Include(a => a.ErrosSelecionados).ToListAsync();
+		var turmasLegadas = await _context.TurmaDitados.Where(t => t.DitadoId == ditado.Id)
+			.Select(t => new { t.TurmaId, t.Turma.EscolaId }).ToListAsync();
+		foreach (var aplicacao in aplicacoes)
+			await SelecaoErrosCatalogo.ValidarDestinoAsync(_context, aplicacao.EscolaId, aplicacao.TurmaId, adicionados);
+		foreach (var turma in turmasLegadas)
+			await SelecaoErrosCatalogo.ValidarDestinoAsync(_context, turma.EscolaId, turma.TurmaId, adicionados);
+
+		ditado.EscolaSelecaoErrosId = escolaId;
+		foreach (var anterior in ditado.ErrosCatalogoSelecionados.Where(e => !ids.Contains(e.ErroCatalogoId)).ToArray())
+		{
+			ditado.ErrosCatalogoSelecionados.Remove(anterior);
+			_context.DitadosErrosCatalogo.Remove(anterior);
+		}
+		foreach (var erro in novos)
+		{
+			erro.UtilizadoEm ??= DateTime.UtcNow;
+			ditado.ErrosCatalogoSelecionados.Add(new DitadoErroCatalogo { ErroCatalogo = erro });
+		}
+		foreach (var aplicacao in aplicacoes)
+		{
+			_context.AplicacoesErrosCatalogo.RemoveRange(aplicacao.ErrosSelecionados.Where(e => !ids.Contains(e.ErroCatalogoId)).ToArray());
+			foreach (var erro in novos)
+				aplicacao.ErrosSelecionados.Add(SelecaoErrosCatalogo.RegistrarAplicacao(erro));
+		}
+	}
+
+	private async Task<(int? EscolaId, int? ProfessorId)> ResolverContextoSelecaoAsync(int atorId, int? escolaId)
+	{
+		var ator = await _context.Usuarios.SingleOrDefaultAsync(u => u.Id == atorId && u.Ativo);
+		if (ator == null || ator.Tipo is not (TipoUsuario.Administrador or TipoUsuario.Professor))
+			throw new UnauthorizedAccessException("Perfil sem permissão para selecionar erros.");
+
+		var escolas = _context.VinculosEscolares.Where(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa);
+		escolaId ??= await escolas.Select(v => (int?)v.EscolaId).FirstOrDefaultAsync();
+		if (!(ator.Tipo == TipoUsuario.Administrador && ator.AdministradorGeral) &&
+			(!escolaId.HasValue || !await escolas.AnyAsync(v => v.EscolaId == escolaId)))
+			throw new UnauthorizedAccessException("É necessário vínculo ativo na escola da seleção.");
+
+		return (escolaId, ator.Tipo == TipoUsuario.Professor ? atorId : null);
+	}
+
+	private async Task<List<ErroCatalogo>> ObterNovosErrosAsync(IReadOnlyCollection<int> erroIds, int? escolaId, int? professorId)
+	{
+		if (erroIds.Count == 0)
+			return [];
+		var ids = erroIds.Distinct().ToArray();
+		var erros = await SelecaoErrosCatalogo.Disponiveis(_context, escolaId, professorId: professorId)
+			.Where(e => ids.Contains(e.Id)).ToListAsync();
+		if (erros.Count != ids.Length)
+			throw new InvalidOperationException("A seleção contém erros inexistentes, arquivados ou fora do escopo.");
+		return erros;
+	}
+
+	private static List<ErroSelecionadoDto> MapearSelecao(Dominio.Entidades.Ditado ditado) => ditado.ErrosCatalogoSelecionados
+		.Select(e => e.ErroCatalogo).OrderBy(e => e.Id)
+		.Select(e => new ErroSelecionadoDto(e.Id, e.Codigo, e.Nome, e.Ativo, e.RegraClassificacao.HasValue)).ToList();
+
 	private async Task<bool> PodeAdministrarDitadoAsync(Dominio.Entidades.Ditado ditado, int usuarioId, TipoUsuario? tipoUsuario)
 	{
+		if (ditado.EscolaSelecaoErrosId.HasValue)
+		{
+			if (tipoUsuario == TipoUsuario.Administrador &&
+				await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral))
+				return true;
+			return (ditado.AutorId == usuarioId || tipoUsuario == TipoUsuario.Administrador) &&
+				await _context.VinculosEscolares.AnyAsync(v => v.UsuarioId == usuarioId &&
+					v.EscolaId == ditado.EscolaSelecaoErrosId && v.Ativo && v.Escola.Ativa && v.Usuario.Ativo);
+		}
 		if (ditado.AutorId == usuarioId) return true;
 		if (tipoUsuario != TipoUsuario.Administrador) return false;
 		if (await _context.Usuarios.AnyAsync(u => u.Id == usuarioId && u.Ativo && u.AdministradorGeral)) return true;
@@ -526,11 +659,6 @@ public class DitadoService
 	{
 		// Capitalization is part of objective grading; only outer whitespace is ignored.
 		return texto.Trim();
-	}
-
-	private IReadOnlyList<TipoErro> IdentificarTiposErro(string resposta, string esperado)
-	{
-		return ClassificadorTiposErro.IdentificarTiposErro(resposta, esperado);
 	}
 
 }

@@ -1,3 +1,5 @@
+using Ditado.Dominio.Enums;
+
 namespace Ditado.Dominio.Entidades;
 
 public class ErroCatalogo
@@ -17,5 +19,7 @@ public class ErroCatalogo
     public int? ArquivadoPorId { get; set; }
     public DateTime DataCriacao { get; set; }
     public DateTime DataAlteracao { get; set; }
+    public TipoErro? RegraClassificacao { get; set; }
+    public DateTime? UtilizadoEm { get; set; }
     public ICollection<PublicacaoErroCatalogo> Publicacoes { get; set; } = new List<PublicacaoErroCatalogo>();
 }

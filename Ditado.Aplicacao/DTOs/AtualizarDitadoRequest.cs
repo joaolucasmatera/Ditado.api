@@ -6,4 +6,5 @@ public class AtualizarDitadoRequest
     public string? Descricao { get; set; }
     public bool? Ativo { get; set; }
     public List<int>? CategoriaIds { get; set; }
+    public List<int>? ErroCatalogoIds { get; set; }
 }

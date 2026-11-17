@@ -1,5 +1,7 @@
 # CAT-09 — Contrato do Catálogo de erros para revisão
 
+> A implementação da seleção e da classificação por código segue as decisões registradas na [COR-01 e no planejamento da PER-18](cor-01-classificacao-hibrida.md).
+
 Estado: **proposta em revisão**, 6 nov 2026, FULLSTACK 01. PER-14 In Progress.
 **Atualização de execução:** CAT-02 foi aprovada pelo usuário após o formulário revisado (“Ok, gostei”). Seu contrato vigente está em [marketplace-cat02.md](marketplace-cat02.md), incluindo exemplo estruturado opcional; prevalece sobre o rascunho CAT02-P1 abaixo. CAT-09 global continua In Progress. Código da única fatia CAT-02 está em implementação, sem antecipar demais histórias.
 Versão documental: **CAT09-r3**, identificada por esta seção e pelo [relatório do ciclo](../relatorio-ciclo-cat09-2026-11-06.md); revisão local sem commit novo. CAT02-P1 abaixo aguarda aprovação humana.

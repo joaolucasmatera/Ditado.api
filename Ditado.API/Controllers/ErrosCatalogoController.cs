@@ -79,8 +79,17 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
         catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
     }
 
+    /// <summary>Obtém o erro ativo e indica se a definição possui regra programada.</summary>
+    /// <param name="id">ID do erro de catálogo.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <response code="200">Definição visível, com o indicador temRegraExecutavel.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel sem acesso ao detalhe.</response>
+    /// <response code="404">Erro inexistente, inativo ou fora do escopo.</response>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ErroPublicadoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ErroPublicadoResponse>> ObterRecibo(int id, CancellationToken cancellationToken)
     {
@@ -93,7 +102,7 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// <summary>Lista erros do catálogo no escopo do usuário autenticado.</summary>
     /// <param name="estado">Estado da lista: <c>ativo</c> ou <c>arquivado</c>.</param>
     /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
-    /// <response code="200">Erros visíveis no escopo atual, incluindo autoria e nível de privacidade.</response>
+    /// <response code="200">Erros visíveis com autoria, privacidade e indicação de regra programada.</response>
     /// <response code="401">Não autenticado.</response>
     [HttpGet]
     [Authorize(Roles = "Administrador,Professor,Aluno")]

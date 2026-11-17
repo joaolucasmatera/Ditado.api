@@ -16,6 +16,8 @@ public class Ditado
     // Autor do ditado (Professor ou Admin que criou)
     public int? AutorId { get; set; }
     public Usuario? Autor { get; set; }
+    public int? EscolaSelecaoErrosId { get; set; }
+    public ICollection<DitadoErroCatalogo> ErrosCatalogoSelecionados { get; set; } = new List<DitadoErroCatalogo>();
     
     public ICollection<DitadoSegmento> Segmentos { get; set; } = new List<DitadoSegmento>();
     public ICollection<RespostaDitado> Respostas { get; set; } = new List<RespostaDitado>();

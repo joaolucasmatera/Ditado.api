@@ -48,6 +48,27 @@ public abstract class TesteIntegracaoBase : IClassFixture<CustomWebApplicationFa
         return escola.Id;
     }
 
+    protected async Task<List<int>> GarantirRegrasPublicasAsync(params TipoErro[] regras)
+    {
+        using var scope = _factory.Services.CreateScope();
+        var context = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var autorId = await context.Usuarios.Where(u => u.AdministradorGeral).Select(u => u.Id).FirstAsync();
+        var itens = new List<ErroCatalogo>();
+        foreach (var regra in regras)
+        {
+            var erro = await context.ErrosCatalogo.SingleOrDefaultAsync(e => e.RegraClassificacao == regra);
+            if (erro == null)
+            {
+                erro = new ErroCatalogo { Codigo = $"TESTE-{regra}", Nome = $"Regra {regra}", AutorId = autorId, RegraClassificacao = regra };
+                erro.Publicacoes.Add(new PublicacaoErroCatalogo { Nivel = NivelVisibilidade.PublicoGeral, ChaveVigente = 1, Versao = 1, CriadaPorId = autorId });
+                context.ErrosCatalogo.Add(erro);
+            }
+            itens.Add(erro);
+        }
+        await context.SaveChangesAsync();
+        return itens.Select(e => e.Id).ToList();
+    }
+
     /// <summary>
     /// Obt�m token do admin tempor�rio (criado no seed da factory)
     /// </summary>

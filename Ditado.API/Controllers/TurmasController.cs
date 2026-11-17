@@ -402,6 +402,7 @@ public class TurmasController : ControllerBase
 	/// </summary>
 	/// <remarks>
 	/// Apenas Professores e Administradores podem atribuir ditados.
+	/// Os erros selecionados precisam estar disponíveis para a escola e a turma de destino.
 	/// 
 	/// **Exemplo de requisi��o:**
 	/// 

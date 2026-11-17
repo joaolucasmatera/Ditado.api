@@ -6,5 +6,5 @@ public record ErroPublicadoResponse(
     string? SerieAno, int AutorId, bool Ativo, DateTime DataCriacao, DateTime DataAlteracao,
     string? AutorNome = null, string? NivelVisibilidade = null)
 {
-    public bool TemRegraExecutavel => false;
+    public bool TemRegraExecutavel { get; init; }
 }

@@ -11,6 +11,8 @@ public class RespostaSegmentoTipoErroConfiguration : IEntityTypeConfiguration<Re
         builder.ToTable("RespostaSegmentoTiposErro");
         builder.HasKey(x => new { x.RespostaSegmentoId, x.TipoErro });
         builder.Property(x => x.TipoErro).HasConversion<int>();
+        builder.HasOne(x => x.ErroCatalogo).WithMany().HasForeignKey(x => x.ErroCatalogoId)
+            .OnDelete(DeleteBehavior.Restrict);
 
         builder.HasOne(x => x.RespostaSegmento)
             .WithMany(x => x.TiposErro)

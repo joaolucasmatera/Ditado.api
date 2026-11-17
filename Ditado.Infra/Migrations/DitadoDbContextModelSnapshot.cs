@@ -189,6 +189,9 @@ namespace Ditado.Infra.Migrations
                         .HasMaxLength(1000)
                         .HasColumnType("varchar(1000)");
 
+                    b.Property<int?>("EscolaSelecaoErrosId")
+                        .HasColumnType("int");
+
                     b.Property<string>("Titulo")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -197,6 +200,8 @@ namespace Ditado.Infra.Migrations
                     b.HasKey("Id");
 
                     b.HasIndex("AutorId");
+
+                    b.HasIndex("EscolaSelecaoErrosId");
 
                     b.ToTable("Ditados", (string)null);
                 });
@@ -217,6 +222,21 @@ namespace Ditado.Infra.Migrations
                     b.HasIndex("CategoriaId");
 
                     b.ToTable("DitadoCategorias", (string)null);
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.DitadoErroCatalogo", b =>
+                {
+                    b.Property<int>("DitadoId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("ErroCatalogoId")
+                        .HasColumnType("int");
+
+                    b.HasKey("DitadoId", "ErroCatalogoId");
+
+                    b.HasIndex("ErroCatalogoId");
+
+                    b.ToTable("DitadosErrosCatalogo", (string)null);
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.DitadoSegmento", b =>
@@ -302,15 +322,25 @@ namespace Ditado.Infra.Migrations
                         .HasMaxLength(10000)
                         .HasColumnType("text");
 
+                    b.Property<int?>("RegraClassificacao")
+                        .HasColumnType("int");
+
                     b.Property<string>("SerieAno")
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
+
+                    b.Property<DateTime?>("UtilizadoEm")
+                        .IsConcurrencyToken()
+                        .HasColumnType("datetime(6)");
 
                     b.HasKey("Id");
 
                     b.HasIndex("AutorId");
 
                     b.HasIndex("Codigo")
+                        .IsUnique();
+
+                    b.HasIndex("RegraClassificacao")
                         .IsUnique();
 
                     b.ToTable("ErrosCatalogo", (string)null);
@@ -621,7 +651,12 @@ namespace Ditado.Infra.Migrations
                     b.Property<int>("TipoErro")
                         .HasColumnType("int");
 
+                    b.Property<int?>("ErroCatalogoId")
+                        .HasColumnType("int");
+
                     b.HasKey("RespostaSegmentoId", "TipoErro");
+
+                    b.HasIndex("ErroCatalogoId");
 
                     b.ToTable("RespostaSegmentoTiposErro", (string)null);
                 });
@@ -739,6 +774,10 @@ namespace Ditado.Infra.Migrations
                     b.Property<bool>("Ativo")
                         .HasColumnType("tinyint(1)");
 
+                    b.Property<string>("CodigoCadastro")
+                        .HasMaxLength(32)
+                        .HasColumnType("varchar(32)");
+
                     b.Property<DateTime>("DataCriacao")
                         .HasColumnType("datetime(6)");
 
@@ -759,6 +798,14 @@ namespace Ditado.Infra.Migrations
                         .HasMaxLength(200)
                         .HasColumnType("varchar(200)");
 
+                    b.Property<int?>("NumeroChamada")
+                        .HasColumnType("int");
+
+                    b.Property<bool>("PinConfigurado")
+                        .ValueGeneratedOnAdd()
+                        .HasColumnType("tinyint(1)")
+                        .HasDefaultValue(false);
+
                     b.Property<string>("SenhaHash")
                         .IsRequired()
                         .HasMaxLength(500)
@@ -768,6 +815,9 @@ namespace Ditado.Infra.Migrations
                         .HasColumnType("int");
 
                     b.HasKey("Id");
+
+                    b.HasIndex("CodigoCadastro")
+                        .IsUnique();
 
                     b.HasIndex("Login")
                         .IsUnique();
@@ -879,6 +929,11 @@ namespace Ditado.Infra.Migrations
                         .HasForeignKey("AutorId")
                         .OnDelete(DeleteBehavior.SetNull);
 
+                    b.HasOne("Ditado.Dominio.Entidades.Escola", null)
+                        .WithMany()
+                        .HasForeignKey("EscolaSelecaoErrosId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.Navigation("Autor");
                 });
 
@@ -899,6 +954,25 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("Categoria");
 
                     b.Navigation("Ditado");
+                });
+
+            modelBuilder.Entity("Ditado.Dominio.Entidades.DitadoErroCatalogo", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.Ditado", "Ditado")
+                        .WithMany("ErrosCatalogoSelecionados")
+                        .HasForeignKey("DitadoId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+
+                    b.HasOne("Ditado.Dominio.Entidades.ErroCatalogo", "ErroCatalogo")
+                        .WithMany()
+                        .HasForeignKey("ErroCatalogoId")
+                        .OnDelete(DeleteBehavior.Restrict)
+                        .IsRequired();
+
+                    b.Navigation("Ditado");
+
+                    b.Navigation("ErroCatalogo");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.DitadoSegmento", b =>
@@ -1082,11 +1156,18 @@ namespace Ditado.Infra.Migrations
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.RespostaSegmentoTipoErro", b =>
                 {
+                    b.HasOne("Ditado.Dominio.Entidades.ErroCatalogo", "ErroCatalogo")
+                        .WithMany()
+                        .HasForeignKey("ErroCatalogoId")
+                        .OnDelete(DeleteBehavior.Restrict);
+
                     b.HasOne("Ditado.Dominio.Entidades.RespostaSegmento", "RespostaSegmento")
                         .WithMany("TiposErro")
                         .HasForeignKey("RespostaSegmentoId")
                         .OnDelete(DeleteBehavior.Cascade)
                         .IsRequired();
+
+                    b.Navigation("ErroCatalogo");
 
                     b.Navigation("RespostaSegmento");
                 });
@@ -1190,6 +1271,8 @@ namespace Ditado.Infra.Migrations
             modelBuilder.Entity("Ditado.Dominio.Entidades.Ditado", b =>
                 {
                     b.Navigation("DitadoCategorias");
+
+                    b.Navigation("ErrosCatalogoSelecionados");
 
                     b.Navigation("Publicacoes");
 

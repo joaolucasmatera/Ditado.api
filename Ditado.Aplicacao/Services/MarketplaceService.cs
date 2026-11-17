@@ -67,7 +67,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
             throw new UnauthorizedAccessException("Ator sem permissão para editar este erro no escopo atual.");
         if (!erro.Ativo || erro.ArquivadoEm.HasValue)
             throw new InvalidOperationException("Erros arquivados não podem ser editados.");
-        if (await context.AplicacoesErrosCatalogo.AnyAsync(a => a.ErroCatalogoId == erroId, cancellationToken))
+        if (erro.UtilizadoEm.HasValue || await context.AplicacoesErrosCatalogo.AnyAsync(a => a.ErroCatalogoId == erroId, cancellationToken))
             throw new InvalidOperationException("Este erro já foi utilizado em um ditado e não pode mais ser editado.");
 
         Validator.ValidateObject(request, new ValidationContext(request), validateAllProperties: true);
@@ -78,7 +78,14 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         erro.ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica);
         erro.SerieAno = NormalizarOpcional(request.SerieAno);
         erro.DataAlteracao = DateTime.UtcNow;
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new InvalidOperationException("O erro foi associado a um ditado durante a edição.", ex);
+        }
         return Mapear(erro);
     }
 
@@ -125,5 +132,8 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         erro.Id, erro.Codigo, erro.Nome, erro.Descricao, erro.ExemploEsperado, erro.ExemploResposta,
         erro.ObservacaoPedagogica, erro.SerieAno, erro.AutorId, erro.Ativo, erro.DataCriacao, erro.DataAlteracao,
         erro.Autor?.Nome,
-        erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString());
+        erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString())
+    {
+        TemRegraExecutavel = erro.RegraClassificacao.HasValue
+    };
 }

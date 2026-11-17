@@ -52,6 +52,17 @@ public class DitadoServiceTests : IDisposable
 		return usuario;
 	}
 
+	private async Task<List<int>> CriarSelecaoAsync(Usuario professor)
+	{
+		var escola = new Escola { Nome = "Escola de teste", Codigo = "ESC-COR01" };
+		_context.VinculosEscolares.Add(new VinculoEscolar { UsuarioId = professor.Id, Escola = escola, Papel = PapelEscolar.Professor });
+		var erro = new ErroCatalogo { Codigo = "ERRO-COR01", Nome = "Erro de teste", AutorId = professor.Id };
+		erro.Publicacoes.Add(new PublicacaoErroCatalogo { Nivel = NivelVisibilidade.PublicoGeral, ChaveVigente = 1, Versao = 1, CriadaPorId = professor.Id });
+		_context.ErrosCatalogo.Add(erro);
+		await _context.SaveChangesAsync();
+		return [erro.Id];
+	}
+
 	[Fact]
 	public async Task CriarDitado_SemCategorias_DeveCriarComSucesso()
 	{
@@ -63,6 +74,7 @@ public class DitadoServiceTests : IDisposable
 			Descricao = "Descrição teste",
 			TextoComMarcacoes = "O [gato] é bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
+			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int>()
 		};
 
@@ -92,6 +104,7 @@ public class DitadoServiceTests : IDisposable
 			Titulo = "Ditado Teste",
 			TextoComMarcacoes = "O [gato] é bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
+			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { categoria.Id }
 		};
 
@@ -121,6 +134,7 @@ public class DitadoServiceTests : IDisposable
 			Titulo = "Ditado Completo",
 			TextoComMarcacoes = "O [gato] é bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
+			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { cat1.Id, cat2.Id, cat3.Id }
 		};
 
@@ -149,6 +163,7 @@ public class DitadoServiceTests : IDisposable
 			Titulo = "Ditado Teste",
 			TextoComMarcacoes = "O [gato] é bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
+			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { categoria.Id, categoria.Id, categoria.Id }
 		};
 
@@ -170,6 +185,7 @@ public class DitadoServiceTests : IDisposable
 			Titulo = "Ditado Teste",
 			TextoComMarcacoes = "O [gato] é bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
+			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { 999 }
 		};
 

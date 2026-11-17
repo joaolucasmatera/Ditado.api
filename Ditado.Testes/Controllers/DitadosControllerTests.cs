@@ -11,6 +11,13 @@ namespace Ditado.Testes.Controllers;
 public class DitadosControllerTests : TesteIntegracaoBase
 {
 	private string? _tokenAdmin;
+	private static readonly TipoErro[] RegrasProgramadas =
+	[
+		TipoErro.Acentuacao, TipoErro.TrocaGrafemasSurdaSonora, TipoErro.RegraContextual,
+		TipoErro.GrafiaArbitrariaIrregular, TipoErro.Nasalizacao, TipoErro.ComplexidadeSilabica,
+		TipoErro.JunturaSegmentacao, TipoErro.ConcordanciaFlexao, TipoErro.MaiusculasPontuacao,
+		TipoErro.OmissaoLetra, TipoErro.AcrescimoLetra, TipoErro.SubstituicaoLetra
+	];
 
 	public DitadosControllerTests(CustomWebApplicationFactory factory) : base(factory)
 	{
@@ -55,7 +62,8 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Titulo = "Animais Domésticos",
 			Descricao = "Teste sobre animais",
 			TextoComMarcacoes = "O [cachorro] late muito quando vê o [gato].",
-			AudioBase64 = audioBase64
+			AudioBase64 = audioBase64,
+			ErroCatalogoIds = await GarantirRegrasPublicasAsync(RegrasProgramadas)
 		};
 
 		// Act
@@ -324,7 +332,8 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Titulo = "Teste Pontuação",
 			Descricao = "Teste com pontos e maiúsculas",
 			TextoComMarcacoes = "bla[. Nova] palavra e [Gato.] final",
-			AudioBase64 = audioBase64
+			AudioBase64 = audioBase64,
+			ErroCatalogoIds = await GarantirRegrasPublicasAsync(RegrasProgramadas)
 		};
 
 		// Act
@@ -486,7 +495,8 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Titulo = $"Teste {palavra}",
 			Descricao = "Teste de tipo de erro",
 			TextoComMarcacoes = $"A palavra é [{palavra}].",
-			AudioBase64 = audioBase64
+			AudioBase64 = audioBase64,
+			ErroCatalogoIds = await GarantirRegrasPublicasAsync(RegrasProgramadas)
 		};
 
 		var response = await PostAsync<DitadoResponse>("/api/ditados", request);
@@ -502,7 +512,8 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Titulo = "Teste Ditado",
 			Descricao = "Descrição teste",
 			TextoComMarcacoes = "O [cachorro] late muito quando vê o [gato].",
-			AudioBase64 = audioBase64
+			AudioBase64 = audioBase64,
+			ErroCatalogoIds = await GarantirRegrasPublicasAsync(RegrasProgramadas)
 		};
 
 		var response = await PostAsync<DitadoResponse>("/api/ditados", request);
@@ -517,7 +528,8 @@ public class DitadosControllerTests : TesteIntegracaoBase
 			Titulo = "Teste Acentuação",
 			Descricao = "Teste com palavras acentuadas",
 			TextoComMarcacoes = "A [árvore] é bonita.",
-			AudioBase64 = audioBase64
+			AudioBase64 = audioBase64,
+			ErroCatalogoIds = await GarantirRegrasPublicasAsync(RegrasProgramadas)
 		};
 
 		var response = await PostAsync<DitadoResponse>("/api/ditados", request);

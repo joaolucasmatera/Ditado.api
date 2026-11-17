@@ -19,4 +19,7 @@ public class DetalheRespostaDto
     public string EstadoClassificacao { get; set; } = "NaoClassificado";
     public string? MetodoClassificacao { get; set; }
     public List<string> TiposErro { get; set; } = new();
+    public List<ClassificacaoCatalogoDto> Classificacoes { get; set; } = new();
 }
+
+public record ClassificacaoCatalogoDto(int ErroCatalogoId, string Codigo, string Nome, int TipoErro);

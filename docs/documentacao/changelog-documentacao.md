@@ -1,5 +1,12 @@
 # Changelog da documentação
 
+## 17/11/2026 — PER-22 integra seleção e classificação por regras
+
+- A seleção CAT-05 passou a ser gravada no backend oficial, validada por escola e turma e congelada na primeira resposta.
+- A classificação por código usa as definições selecionadas com vínculo explícito. O resultado apresenta nomes do catálogo e mantém os tipos legados.
+- A especificação PG2 passa a prever LLM assíncrono para definições selecionadas sem executor, inclusive em respostas já classificadas por outra regra. Pesquisa e LLM permanecem como planejamento da PER-18.
+- Builds da API e do frontend concluídos. Os 139 testes pertinentes e o fluxo HTTP em MySQL isolado passaram. A comparação da suíte completa confirmou as mesmas 21 falhas da base. [Relatório de ciclo e limitações](../relatorio-ciclo-cor01-2026-11-17.md)
+
 ## 16/11/2026 — PER-59 corrige publicação e consulta no Catálogo de erros
 
 - A escola é inferida apenas para Instituição e Turmas. A definição ativa e sua publicação vigente passam pela validação antes de serem gravadas juntas.

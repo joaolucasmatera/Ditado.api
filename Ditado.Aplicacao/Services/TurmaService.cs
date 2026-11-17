@@ -332,6 +332,7 @@ public class TurmaService
 
 	public async Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
 	{
+		await using var transacao = await SelecaoErrosCatalogo.BloquearDitadoAsync(_context, request.DitadoId);
 		var turma = await _context.Turmas
 			.Include(t => t.Alunos)
 			.FirstOrDefaultAsync(t => t.Id == turmaId);
@@ -345,7 +346,8 @@ public class TurmaService
 				throw new InvalidOperationException("Perfil sem permissão para atribuir ditados.");
 		}
 
-		var ditado = await _context.Ditados.FindAsync(request.DitadoId);
+		var ditado = await _context.Ditados.Include(d => d.ErrosCatalogoSelecionados).ThenInclude(e => e.ErroCatalogo)
+			.SingleOrDefaultAsync(d => d.Id == request.DitadoId);
 		if (ditado == null)
 			throw new InvalidOperationException("Ditado n�o encontrado.");
 		if (!ditado.Ativo || ditado.ArquivadoEm.HasValue)
@@ -375,6 +377,8 @@ public class TurmaService
 		if (!escolaVinculoId.HasValue || escolaVinculoId != turma.EscolaId)
 			throw new InvalidOperationException("O professor responsável não possui vínculo ativo na escola da turma.");
 		var escolaId = turma.EscolaId.Value;
+		await SelecaoErrosCatalogo.ValidarDestinoAsync(_context, escolaId, turmaId,
+			ditado.ErrosCatalogoSelecionados.Select(e => e.ErroCatalogoId).ToArray());
 
 		var aplicacao = new AplicacaoDitado
 		{
@@ -389,7 +393,11 @@ public class TurmaService
 		_context.AplicacoesDitados.Add(aplicacao);
 		foreach (var aluno in turma.Alunos)
 			aplicacao.Participacoes.Add(new ParticipacaoAplicacao { AlunoId = aluno.Id });
+		foreach (var selecionado in ditado.ErrosCatalogoSelecionados)
+			aplicacao.ErrosSelecionados.Add(SelecaoErrosCatalogo.RegistrarAplicacao(selecionado.ErroCatalogo));
 		await _context.SaveChangesAsync();
+		if (transacao != null)
+			await transacao.CommitAsync();
 
 		return true;
 	}
