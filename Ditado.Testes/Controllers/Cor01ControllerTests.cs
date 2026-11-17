@@ -152,6 +152,69 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
     }
 
     [Fact]
+    public async Task ErroArquivadoClassificaNaAplicacaoExistenteEBloqueiaNovoUso()
+    {
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
+        var escolaId = await GarantirEscolaEVinculoAsync(professor.Id);
+        await GarantirEscolaEVinculoAsync(aluno.Id, PapelEscolar.Aluno);
+        var erroId = Assert.Single(await GarantirRegrasPublicasAsync(TipoErro.ComplexidadeSilabica));
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var turma = new Turma { Nome = "Turma com aplicação", EscolaId = escolaId, ProfessorResponsavelId = professor.Id };
+        var novaTurma = new Turma { Nome = "Turma sem aplicação", EscolaId = escolaId, ProfessorResponsavelId = professor.Id };
+        turma.Alunos.Add(await db.Usuarios.SingleAsync(u => u.Id == aluno.Id));
+        db.Turmas.AddRange(turma, novaTurma);
+        await db.SaveChangesAsync();
+
+        AdicionarTokenAutorizacao(professor.Token);
+        var ditado = Assert.IsType<DitadoResponse>(await PostAsync<DitadoResponse>("/api/Ditados", Pedido([erroId])));
+        var url = $"/api/Ditados/{ditado.Id}";
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"{url}/visibilidade", new { nivel = 1 })).StatusCode);
+        var atribuicao = new { ditadoId = ditado.Id, dataLimite = DateTime.UtcNow.AddDays(3) };
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"/api/Turmas/{turma.Id}/ditados", atribuicao)).StatusCode);
+
+        AdicionarTokenAutorizacao(aluno.Token);
+        var realizacao = Assert.IsType<DitadoParaRealizarResponse>(await GetAsync<DitadoParaRealizarResponse>($"{url}/realizar"));
+        var lacunas = realizacao.Segmentos.Where(s => s.SegmentoId.HasValue).Select(s => s.SegmentoId!.Value).ToArray();
+        var pedido = new SubmeterRespostaRequest
+        {
+            Respostas = [new() { SegmentoId = lacunas[1], Resposta = "pato" }, new() { SegmentoId = lacunas[2], Resposta = "gato" }]
+        };
+        var anterior = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter", pedido));
+        var classificacao = Assert.Single(anterior.Detalhes[0].Classificacoes);
+        Assert.Equal(erroId, classificacao.ErroCatalogoId);
+        Assert.Equal((int)TipoErro.ComplexidadeSilabica, classificacao.TipoErro);
+
+        AdicionarTokenAutorizacao(await ObterTokenAdminAsync());
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"/api/ErrosCatalogo/{erroId}/arquivar", new { })).StatusCode);
+        AdicionarTokenAutorizacao(professor.Token);
+        var catalogo = Assert.IsType<List<ErroPublicadoResponse>>(await GetAsync<List<ErroPublicadoResponse>>("/api/ErrosCatalogo?estado=ativo"));
+        Assert.DoesNotContain(catalogo, erro => erro.Id == erroId);
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostAsyncRaw("/api/Ditados", Pedido([erroId]))).StatusCode);
+        Assert.Equal(HttpStatusCode.BadRequest, (await PostAsyncRaw($"/api/Turmas/{novaTurma.Id}/ditados", atribuicao)).StatusCode);
+
+        AdicionarTokenAutorizacao(aluno.Token);
+        var nova = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter", pedido));
+        Assert.Equal(50m, nova.Nota);
+        Assert.Equal(classificacao, Assert.Single(nova.Detalhes[0].Classificacoes));
+
+        var aplicacao = await db.AplicacoesDitados.AsNoTracking().SingleAsync(a => a.DitadoId == ditado.Id);
+        var tentativas = await db.RespostaDitados.AsNoTracking().Where(r => r.DitadoId == ditado.Id)
+            .Include(r => r.RespostasSegmentos).ThenInclude(s => s.TiposErro).ToListAsync();
+        Assert.Equal(2, tentativas.Count);
+        Assert.All(tentativas, tentativa =>
+        {
+            Assert.Equal(aplicacao.Id, tentativa.AplicacaoDitadoId);
+            Assert.Equal(escolaId, tentativa.EscolaId);
+            Assert.Equal(50m, tentativa.Nota);
+            var tipo = Assert.Single(tentativa.RespostasSegmentos.SelectMany(s => s.TiposErro));
+            Assert.Equal(erroId, tipo.ErroCatalogoId);
+            Assert.Equal(TipoErro.ComplexidadeSilabica, tipo.TipoErro);
+        });
+    }
+
+    [Fact]
     public async Task DitadoLegadoSemSelecaoCalculaNotaEConservaClassificacaoHistorica()
     {
         var professor = await CriarUsuarioAsync(TipoUsuario.Professor);

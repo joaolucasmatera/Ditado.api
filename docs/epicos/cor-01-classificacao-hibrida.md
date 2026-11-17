@@ -8,7 +8,7 @@ Em ditado com seleção persistida, somente definições selecionadas com o vín
 
 Ditados legados sem seleção continuam disponíveis para realização e submissão com nota objetiva. Nas novas tentativas, respostas incorretas ficam sem classificação por regra e podem ser revisadas. As tentativas anteriores conservam suas classificações nos relatórios.
 
-O efeito do arquivamento de um erro sobre futuras tentativas de aplicações existentes segue pendente de decisão de produto. A implementação mantém a configuração da aplicação já atribuída e bloqueia novas associações e atribuições com aquele erro.
+Decisão confirmada em 17/11/2026. Um erro programado arquivado continua gerando classificação nas novas tentativas autorizadas de aplicações já atribuídas que conservem o erro na seleção. O arquivamento impede novas seleções e novas atribuições que incluam o erro. As classificações anteriores continuam vinculadas à definição original. [Registro da decisão na PER-22](https://linear.app/joaomoutinho/issue/PER-22/cor-01-integrar-erros-mapeados-a-correcao-existente#comment-53a92c17-012e-4497-aa78-456000b35282)
 
 Fontes [PER-22](https://linear.app/joaomoutinho/issue/PER-22/cor-01-integrar-erros-mapeados-a-correcao-existente), [PER-10](https://linear.app/joaomoutinho/issue/PER-10/cat-05-selecionar-erros-aplicaveis-a-um-ditado) e [contrato do Catálogo de erros](catalogo-contrato.md).
 

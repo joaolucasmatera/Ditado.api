@@ -23,8 +23,15 @@ O teste HTTP prepara uma tentativa histórica com Acentuação, realiza uma nova
 
 Build da API com 0 erros. Os 139 testes pertinentes passaram, incluindo o Swagger gerado. A suíte completa teve 256 aprovações de 277 e repetiu as mesmas 21 falhas da compilação anterior. Esta revisão foi validada em TestServer e EF InMemory.
 
-## Limitações e decisões pendentes
+## Revisão do efeito do arquivamento
+
+Em 17/11/2026, o usuário confirmou que um erro programado arquivado continua classificando novas tentativas das aplicações já atribuídas que conservem o item na seleção. Novas seleções e atribuições recusam esse erro. [Registro da decisão na PER-22](https://linear.app/joaomoutinho/issue/PER-22/cor-01-integrar-erros-mapeados-a-correcao-existente#comment-53a92c17-012e-4497-aa78-456000b35282)
+
+A submissão usa as definições selecionadas na aplicação. A criação de uma seleção ou atribuição exige que o item esteja disponível no catálogo. O teste HTTP atribui o ditado, registra uma tentativa, arquiva o erro e verifica o mesmo ID e nome de classificação em segunda tentativa, nota 50 nas duas tentativas, vínculos persistidos com a mesma escola e aplicação e recusa de novos usos.
+
+O teste confirmou o comportamento da implementação existente. Build da API com 0 erros e 140 testes pertinentes aprovados em TestServer com EF InMemory. Na suíte completa, 257 de 278 testes passaram. As mesmas 21 falhas já ocorriam em `0be3c55`.
+
+## Limitações
 
 - Em banco vazio, o EF da base não descobre as três migrations legadas de `CodigoCadastro`, `PinConfigurado` e `NumeroChamada` por falta de metadados da migration. A validação aplicou essas três colunas somente na fixture isolada. A API e o MySQL compartilhados foram preservados.
-- Arquivar um erro bloqueia novas seleções e atribuições. Uma aplicação já atribuída mantém a regra antes selecionada, inclusive nas próximas tentativas, até decisão sobre esse caso.
 - A demonstração foi feita por HTTP com MySQL real. A validação visual em navegador e o QA independente seguem para depois da revisão de coordenação.
