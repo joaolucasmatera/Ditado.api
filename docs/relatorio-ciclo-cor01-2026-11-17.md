@@ -34,4 +34,19 @@ O teste confirmou o comportamento da implementação existente. Build da API com
 ## Limitações
 
 - Em banco vazio, o EF da base não descobre as três migrations legadas de `CodigoCadastro`, `PinConfigurado` e `NumeroChamada` por falta de metadados da migration. A validação aplicou essas três colunas somente na fixture isolada. A API e o MySQL compartilhados foram preservados.
-- A demonstração foi feita por HTTP com MySQL real. A validação visual em navegador e o QA independente seguem para depois da revisão de coordenação.
+- A demonstração inicial foi feita por HTTP com MySQL real. O reteste independente dos fluxos corrigidos segue após a revisão da coordenação.
+
+## Correções dos fluxos apontados pelo QA
+
+O QA de `424ed94` e `14905a7` identificou ausência de vínculo escolar no cadastro manual e uma rota inexistente no carregamento da edição. [Registro do QA na PER-22](https://linear.app/joaomoutinho/issue/PER-22/cor-01-integrar-erros-mapeados-a-correcao-existente#comment-1f688419-5d54-457b-bb82-c2940da20b49)
+
+- `UsuarioService.CadastrarAlunoManualAsync` valida a escola ativa e o escopo do ator, cria o vínculo escolar do aluno e concede participação nas aplicações ativas da turma na mesma transação. Cadastro e atribuição bloqueiam a linha da turma para serializar o ingresso com uma atribuição simultânea. Administrador sem vínculo e sem capability global recebe 403. Cadastro em lote e confirmação de importação no frontend usam esse endpoint.
+- `CadastroDitado.vue` usa `ditadoService.visualizar`, reconstrói o texto com colchetes a partir dos segmentos e carrega áudio, categorias e seleção. O PUT envia título, descrição, categorias e a seleção editável. Texto e áudio são exibidos para consulta conforme os campos permitidos na atualização.
+- Os testes HTTP cadastram o aluno antes e depois da atribuição, configuram o primeiro PIN, autenticam e submetem pelo fluxo público da API. O próprio cadastro fornece vínculo e participação. A regressão também recusa professores e administradores sem escopo.
+- O teste de navegador reutilizável `tests/e2e/cor01-fluxos.e2e.js` usa dados sintéticos na API e no MySQL isolados. Ele abre a edição, salva metadados e seleção antes da primeira resposta, cria o PIN do aluno cadastrado após a atribuição, submete pela tela e verifica o bloqueio da seleção ao reabrir o formulário.
+
+Os builds da API e do frontend passaram. O recorte de 45 testes de cadastro, contexto escolar, importação, turma e correção passou em TestServer/EF InMemory. A suíte completa teve 263 aprovações de 284, com as mesmas 21 falhas da base `424ed94`.
+
+A regressão no Chrome passou com a API recompilada em 5041, frontend em 5181 e MySQL 8.0.21 isolado da tarefa. A criação do aluno após a atribuição, o primeiro PIN, a submissão e o resultado ocorreram pelos endpoints reais. A edição pela tela carregou título, descrição, categorias, texto reconstruído, áudio e seleção. O salvamento manteve texto, áudio e categoria e alterou os metadados e a seleção antes da resposta. Após a submissão, a seleção ficou desabilitada na tela, e salvar metadados manteve as referências anteriores. O Swagger gerado documenta o vínculo ativo e a concessão de participação pelo cadastro.
+
+Para executar a regressão de navegador, definir `E2E_API_URL` para a raiz da API isolada, incluindo `/api`, e `E2E_BASE_URL` para o frontend correspondente. No checkout frontend, executar `node tests/e2e/cor01-fluxos.e2e.js`. O teste usa o Playwright instalado e o Chrome em `%LOCALAPPDATA%\Google\Chrome\Application\chrome.exe`, com substituição por `E2E_CHROME_PATH` quando necessário.

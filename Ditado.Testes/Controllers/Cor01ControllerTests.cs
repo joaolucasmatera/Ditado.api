@@ -17,6 +17,98 @@ namespace Ditado.Testes.Controllers;
 
 public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIntegracaoBase(factory)
 {
+    [Theory]
+    [InlineData(false)]
+    [InlineData(true)]
+    public async Task CadastroManualPermitePrimeiroAcessoESubmissaoSemCompletarVinculos(bool ingressoAposAtribuicao)
+    {
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var escolaId = await GarantirEscolaEVinculoAsync(professor.Id);
+        var regraId = Assert.Single(await GarantirRegrasPublicasAsync(TipoErro.Acentuacao));
+        AdicionarTokenAutorizacao(professor.Token);
+        var turma = Assert.IsType<Ditado.Aplicacao.DTOs.Turmas.TurmaResponse>(
+            await PostAsync<Ditado.Aplicacao.DTOs.Turmas.TurmaResponse>("/api/Turmas",
+                new { nome = $"Turma de ingresso {professor.Id}", serie = 3, anoLetivo = 2026, escolaId, professorResponsavelId = professor.Id }));
+        var ditado = Assert.IsType<DitadoResponse>(await PostAsync<DitadoResponse>("/api/Ditados", Pedido([regraId])));
+        var url = $"/api/Ditados/{ditado.Id}";
+        Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"{url}/visibilidade", new { nivel = 1 })).StatusCode);
+        var atribuicao = new { ditadoId = ditado.Id, dataLimite = DateTime.UtcNow.AddDays(3) };
+        if (ingressoAposAtribuicao)
+            Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"/api/Turmas/{turma.Id}/ditados", atribuicao)).StatusCode);
+
+        var cadastro = await PostAsyncRaw("/api/Usuarios/alunos-manual", new
+        {
+            nome = "Aluno cadastrado pelo professor", numeroChamada = 1, turmaId = turma.Id
+        });
+        Assert.Equal(HttpStatusCode.OK, cadastro.StatusCode);
+        var aluno = Assert.IsType<UsuarioResponse>(await cadastro.Content.ReadFromJsonAsync<UsuarioResponse>());
+        if (!ingressoAposAtribuicao)
+            Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"/api/Turmas/{turma.Id}/ditados", atribuicao)).StatusCode);
+
+        RemoverTokenAutorizacao();
+        var primeiroAcesso = new { matriculaOuCodigo = aluno.CodigoCadastro, pin = "1357" };
+        Assert.Equal(HttpStatusCode.OK, (await PostAsyncRaw("/api/Usuarios/primeiro-acesso-aluno/verificar",
+            new { matriculaOuCodigo = aluno.CodigoCadastro })).StatusCode);
+        Assert.Equal(HttpStatusCode.OK, (await PostAsyncRaw("/api/Usuarios/primeiro-acesso-aluno", primeiroAcesso)).StatusCode);
+        var login = Assert.IsType<LoginResponse>(await PostAsync<LoginResponse>("/api/Usuarios/login-aluno", primeiroAcesso));
+        AdicionarTokenAutorizacao(login.Token);
+        var realizar = Assert.IsType<DitadoParaRealizarResponse>(await GetAsync<DitadoParaRealizarResponse>($"{url}/realizar"));
+        var segmentoId = realizar.Segmentos.First(s => s.SegmentoId.HasValue).SegmentoId!.Value;
+        var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter",
+            new SubmeterRespostaRequest { Respostas = [new() { SegmentoId = segmentoId, Resposta = "cafe" }] }));
+        Assert.Equal(regraId, Assert.Single(Assert.Single(resultado.Detalhes).Classificacoes).ErroCatalogoId);
+
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var vinculo = await db.VinculosEscolares.AsNoTracking().SingleAsync(v => v.UsuarioId == aluno.Id);
+        Assert.True(vinculo.Ativo);
+        Assert.Equal(escolaId, vinculo.EscolaId);
+        Assert.Equal(PapelEscolar.Aluno, vinculo.Papel);
+        var participacao = await db.ParticipacoesAplicacoes.AsNoTracking().Include(p => p.AplicacaoDitado)
+            .SingleAsync(p => p.AlunoId == aluno.Id);
+        Assert.Null(participacao.RevogadaEm);
+        Assert.Equal(ditado.Id, participacao.AplicacaoDitado.DitadoId);
+        Assert.Equal(escolaId, participacao.AplicacaoDitado.EscolaId);
+        var tentativa = await db.RespostaDitados.SingleAsync(r => r.Id == resultado.RespostaDitadoId);
+        Assert.Equal(participacao.AplicacaoDitadoId, tentativa.AplicacaoDitadoId);
+        Assert.Equal(escolaId, tentativa.EscolaId);
+    }
+
+    [Theory]
+    [InlineData(TipoUsuario.Administrador, false)]
+    [InlineData(TipoUsuario.Administrador, true)]
+    [InlineData(TipoUsuario.Professor, false)]
+    [InlineData(TipoUsuario.Professor, true)]
+    public async Task CadastroManualRecusaAtorSemEscopoSemGravarAluno(TipoUsuario tipo, bool vinculado)
+    {
+        var responsavel = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var escolaId = await GarantirEscolaEVinculoAsync(responsavel.Id);
+        var ator = await CriarUsuarioAsync(tipo);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var turma = new Turma
+        {
+            Nome = "Turma protegida", EscolaId = escolaId,
+            ProfessorResponsavelId = tipo == TipoUsuario.Professor && !vinculado ? ator.Id : responsavel.Id
+        };
+        db.Turmas.Add(turma);
+        if (vinculado)
+        {
+            var outraEscola = new Escola { Nome = "Outra escola", Codigo = Guid.NewGuid().ToString("N") };
+            db.VinculosEscolares.Add(new VinculoEscolar
+            {
+                UsuarioId = ator.Id, Escola = outraEscola,
+                Papel = tipo == TipoUsuario.Administrador ? PapelEscolar.Administrador : PapelEscolar.Professor
+            });
+        }
+        await db.SaveChangesAsync();
+        var antes = await db.Usuarios.CountAsync();
+        AdicionarTokenAutorizacao(ator.Token);
+        Assert.Equal(HttpStatusCode.Forbidden, (await PostAsyncRaw("/api/Usuarios/alunos-manual",
+            new { nome = "Cadastro recusado", numeroChamada = 1, turmaId = turma.Id })).StatusCode);
+        Assert.Equal(antes, await db.Usuarios.CountAsync());
+    }
+
     [Fact]
     public async Task AlunoRecebeSomenteClassificacoesSelecionadasEPreservaNota()
     {

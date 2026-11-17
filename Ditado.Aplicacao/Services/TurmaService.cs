@@ -333,6 +333,8 @@ public class TurmaService
 	public async Task<bool> AtribuirDitadoAsync(int turmaId, AtribuirDitadoRequest request, int usuarioLogadoId, TipoUsuario tipoUsuarioLogado)
 	{
 		await using var transacao = await SelecaoErrosCatalogo.BloquearDitadoAsync(_context, request.DitadoId);
+		if (transacao != null)
+			await _context.Database.ExecuteSqlInterpolatedAsync($"SELECT `Id` FROM `Turmas` WHERE `Id` = {turmaId} FOR UPDATE");
 		var turma = await _context.Turmas
 			.Include(t => t.Alunos)
 			.FirstOrDefaultAsync(t => t.Id == turmaId);
