@@ -182,7 +182,7 @@ public class DitadoService
 		var regrasSelecionadas = usaCatalogo
 			? definicoes.Where(e => e.RegraClassificacao.HasValue).ToDictionary(e => e.RegraClassificacao!.Value)
 			: new Dictionary<TipoErro, ErroCatalogo>();
-		var regras = usaCatalogo ? regrasSelecionadas.Keys.ToHashSet() : null;
+		var regras = regrasSelecionadas.Keys.ToHashSet();
 		var respostaDitado = new RespostaDitado
 		{
 			DitadoId = ditadoId,

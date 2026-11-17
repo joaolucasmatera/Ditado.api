@@ -207,7 +207,7 @@ public class DitadoServiceTests_TiposErro : IDisposable
     }
 
     [Fact]
-    public void RespostaSegmento_PersisteMultiplosTiposErro()
+    public void RespostaSegmento_LeMultiplosTiposLegados()
     {
         var ditado = new Ditado.Dominio.Entidades.Ditado { Titulo = "Ditado teste" };
         var aluno = new Usuario
@@ -239,7 +239,6 @@ public class DitadoServiceTests_TiposErro : IDisposable
         _context.RespostaDitados.Add(respostaDitado);
         _context.SaveChanges();
 
-        var tipos = ClassificadorTiposErro.IdentificarTiposErro("pato", segmento.Conteudo);
         var resposta = new RespostaSegmento
         {
             RespostaDitadoId = respostaDitado.Id,
@@ -249,18 +248,24 @@ public class DitadoServiceTests_TiposErro : IDisposable
             Correto = false,
             EstadoClassificacao = EstadoClassificacao.Classificado,
             MetodoClassificacao = MetodoClassificacao.Codigo,
-            TiposErro = tipos.Select(tipo => new RespostaSegmentoTipoErro { TipoErro = tipo }).ToList()
+            TiposErro =
+            [
+                new RespostaSegmentoTipoErro { TipoErro = TipoErro.OmissaoLetra },
+                new RespostaSegmentoTipoErro { TipoErro = TipoErro.ComplexidadeSilabica }
+            ]
         };
         _context.RespostaSegmentos.Add(resposta);
         _context.SaveChanges();
 
         var persistida = _context.RespostaSegmentos
+            .AsNoTracking()
             .Include(item => item.TiposErro)
             .Single(item => item.Id == resposta.Id);
 
         Assert.Equal(2, persistida.TiposErro.Count);
         Assert.Contains(persistida.TiposErro, item => item.TipoErro == TipoErro.OmissaoLetra);
         Assert.Contains(persistida.TiposErro, item => item.TipoErro == TipoErro.ComplexidadeSilabica);
+        Assert.All(persistida.TiposErro, item => Assert.Null(item.ErroCatalogoId));
         Assert.Equal(EstadoClassificacao.Classificado, persistida.EstadoClassificacao);
         Assert.Equal("prato", persistida.RespostaEsperada);
         Assert.Equal(MetodoClassificacao.Codigo, persistida.MetodoClassificacao);

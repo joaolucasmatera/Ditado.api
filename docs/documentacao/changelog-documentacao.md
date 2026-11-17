@@ -6,6 +6,7 @@
 - A classificação por código usa as definições selecionadas com vínculo explícito. O resultado apresenta nomes do catálogo e mantém os tipos legados.
 - A especificação PG2 passa a prever LLM assíncrono para definições selecionadas sem executor, inclusive em respostas já classificadas por outra regra. Pesquisa e LLM permanecem como planejamento da PER-18.
 - Builds da API e do frontend concluídos. Os 139 testes pertinentes e o fluxo HTTP em MySQL isolado passaram. A comparação da suíte completa confirmou as mesmas 21 falhas da base. [Relatório de ciclo e limitações](../relatorio-ciclo-cor01-2026-11-17.md)
+- A revisão da COR-01 alinhou as novas tentativas de ditados legados sem seleção ao contrato. Cada tentativa recebe nota, e respostas incorretas ficam revisáveis. As classificações históricas continuam disponíveis nos relatórios.
 
 ## 16/11/2026 — PER-59 corrige publicação e consulta no Catálogo de erros
 

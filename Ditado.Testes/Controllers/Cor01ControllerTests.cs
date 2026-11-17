@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.DTOs.Marketplace;
+using Ditado.Aplicacao.DTOs.Professores;
 using Ditado.Aplicacao.DTOs.Usuarios;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
@@ -151,25 +152,66 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
     }
 
     [Fact]
-    public async Task DitadoLegadoSemSelecaoPreservaClassificacaoSemVinculoDeCatalogo()
+    public async Task DitadoLegadoSemSelecaoCalculaNotaEConservaClassificacaoHistorica()
     {
-        AdicionarTokenAutorizacao(await ObterTokenAdminAsync());
+        var professor = await CriarUsuarioAsync(TipoUsuario.Professor);
+        var aluno = await CriarUsuarioAsync(TipoUsuario.Aluno);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
-        var autorId = await db.Usuarios.Where(u => u.AdministradorGeral).Select(u => u.Id).FirstAsync();
-        var lacuna = new DitadoSegmento { Tipo = TipoSegmento.Lacuna, Conteudo = "café" };
-        var ditado = new Dominio.Entidades.Ditado { Titulo = "Legado", AutorId = autorId, Segmentos = [lacuna] };
-        db.Ditados.Add(ditado);
+        var lacuna = new DitadoSegmento { Tipo = TipoSegmento.Lacuna, Conteudo = "café", Ordem = 1 };
+        var outraLacuna = new DitadoSegmento { Tipo = TipoSegmento.Lacuna, Conteudo = "gato", Ordem = 2 };
+        var ditado = new Dominio.Entidades.Ditado { Titulo = "Legado", AutorId = professor.Id, Segmentos = [lacuna, outraLacuna] };
+        ditado.Publicacoes.Add(new PublicacaoDitado { Nivel = NivelVisibilidade.PublicoGeral, Versao = 1, ChaveVigente = 1, CriadaPorId = professor.Id });
+        var turma = new Turma { Nome = "Turma legada", ProfessorResponsavelId = professor.Id };
+        turma.Alunos.Add(await db.Usuarios.SingleAsync(u => u.Id == aluno.Id));
+        db.TurmaDitados.Add(new TurmaDitado { Turma = turma, Ditado = ditado, DataLimite = DateTime.UtcNow.AddDays(1) });
+        var historica = new RespostaDitado { Ditado = ditado, AlunoId = aluno.Id, Nota = 75m, DataRealizacao = DateTime.UtcNow.AddDays(-1) };
+        historica.RespostasSegmentos.Add(new RespostaSegmento
+        {
+            Segmento = lacuna, RespostaFornecida = "cafe", RespostaEsperada = "café",
+            EstadoClassificacao = EstadoClassificacao.Classificado, MetodoClassificacao = MetodoClassificacao.Codigo,
+            TiposErro = [new RespostaSegmentoTipoErro { TipoErro = TipoErro.Acentuacao }]
+        });
+        db.RespostaDitados.Add(historica);
         await db.SaveChangesAsync();
 
-        var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"/api/Ditados/{ditado.Id}/submeter",
-            new SubmeterRespostaRequest { Respostas = [new() { SegmentoId = lacuna.Id, Resposta = "cafe" }] }));
-        var detalhe = Assert.Single(resultado.Detalhes);
-        Assert.Single(detalhe.TiposErro);
-        Assert.Empty(detalhe.Classificacoes);
-        var tipo = await db.RespostaSegmentoTiposErro.SingleAsync(t => t.RespostaSegmento.RespostaDitadoId == resultado.RespostaDitadoId);
-        Assert.Equal(TipoErro.Acentuacao, tipo.TipoErro);
-        Assert.Null(tipo.ErroCatalogoId);
+        AdicionarTokenAutorizacao(aluno.Token);
+        var url = $"/api/Ditados/{ditado.Id}";
+        Assert.Equal(HttpStatusCode.OK, (await GetAsyncRaw($"{url}/realizar")).StatusCode);
+        var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter",
+            new SubmeterRespostaRequest
+            {
+                Respostas = [new() { SegmentoId = lacuna.Id, Resposta = "cafe" }, new() { SegmentoId = outraLacuna.Id, Resposta = "gato" }]
+            }));
+        Assert.Equal(50m, resultado.Nota);
+        Assert.Equal(1, resultado.Acertos);
+        Assert.Equal(nameof(EstadoClassificacao.NaoClassificado), resultado.Detalhes[0].EstadoClassificacao);
+        Assert.Null(resultado.Detalhes[0].MetodoClassificacao);
+        Assert.Empty(resultado.Detalhes[0].TiposErro);
+        Assert.Empty(resultado.Detalhes[0].Classificacoes);
+        Assert.Equal(nameof(EstadoClassificacao.NaoSeAplica), resultado.Detalhes[1].EstadoClassificacao);
+
+        var tentativas = await db.RespostaDitados.AsNoTracking().Where(r => r.DitadoId == ditado.Id)
+            .Include(r => r.RespostasSegmentos).ThenInclude(r => r.TiposErro).ToListAsync();
+        Assert.Equal(2, tentativas.Count);
+        var nova = Assert.Single(tentativas, r => r.Id == resultado.RespostaDitadoId);
+        Assert.All(nova.RespostasSegmentos, segmento => Assert.Empty(segmento.TiposErro));
+        Assert.Equal(EstadoClassificacao.NaoClassificado, Assert.Single(nova.RespostasSegmentos, s => s.SegmentoId == lacuna.Id).EstadoClassificacao);
+        var anterior = Assert.Single(tentativas, r => r.Id == historica.Id);
+        Assert.Equal(75m, anterior.Nota);
+        var segmentoHistorico = Assert.Single(anterior.RespostasSegmentos);
+        Assert.Equal(EstadoClassificacao.Classificado, segmentoHistorico.EstadoClassificacao);
+        Assert.Equal(MetodoClassificacao.Codigo, segmentoHistorico.MetodoClassificacao);
+        var tipoHistorico = Assert.Single(segmentoHistorico.TiposErro);
+        Assert.Equal(TipoErro.Acentuacao, tipoHistorico.TipoErro);
+        Assert.Null(tipoHistorico.ErroCatalogoId);
+
+        AdicionarTokenAutorizacao(professor.Token);
+        var relatorio = Assert.IsType<DitadoAtribuidoDetalheDto>(await GetAsync<DitadoAtribuidoDetalheDto>(
+            $"/api/Professores/turmas/{turma.Id}/ditados/{ditado.Id}/resultados"));
+        var tipoNoRelatorio = Assert.Single(relatorio.ErrosPorTipo);
+        Assert.Equal((int)TipoErro.Acentuacao, tipoNoRelatorio.TipoErroId);
+        Assert.Equal(1, tipoNoRelatorio.Quantidade);
     }
 
     [Fact]
@@ -180,6 +222,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         Assert.True(schemas.GetProperty("CriarDitadoRequest").GetProperty("properties").TryGetProperty("erroCatalogoIds", out _));
         Assert.True(schemas.GetProperty("DitadoCompletoDto").GetProperty("properties").TryGetProperty("possuiRespostas", out _));
         Assert.True(schemas.GetProperty("DetalheRespostaDto").GetProperty("properties").TryGetProperty("classificacoes", out _));
+        var submissao = swagger.GetProperty("paths").GetProperty("/api/Ditados/{id}/submeter").GetProperty("post");
+        Assert.Contains("legados sem seleção", submissao.GetProperty("description").GetString());
     }
 
     private static object Pedido(int[] ids) => new

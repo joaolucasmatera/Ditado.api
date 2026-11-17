@@ -6,7 +6,9 @@ A nota e o gabarito continuam calculados pelo comparador atual. CAT-05 persiste 
 
 Em ditado com seleção persistida, somente definições selecionadas com o vínculo interno a uma regra programada geram classificação por código. Regras independentes acumulam resultados. A ocorrência incorreta sem correspondência permanece revisável. O resultado mantém `tiposErro` e acrescenta `classificacoes` com `erroCatalogoId`, `codigo`, `nome` e `tipoErro` numérico. O cliente usa os nomes da classificação do catálogo e recorre aos tipos legados quando ela não existe. Registros anteriores conservam somente sua identidade histórica.
 
-A especificação do catálogo indica falta de classificação para novas tentativas de ditados legados sem seleção. Já o backend integrado executa o classificador legado nessas tentativas. A transição preserva o comportamento atual para o legado vazio, sem criar associações ou reclassificar dados antigos. O contrato anterior também deixa em aberto o comportamento após arquivamento de erro já selecionado. A implementação mantém a configuração da aplicação já atribuída, inclusive para novas tentativas, e bloqueia a associação e atribuição novas com aquele erro. O efeito sobre futuras tentativas de aplicações existentes segue pendente de decisão de produto.
+Ditados legados sem seleção continuam disponíveis para realização e submissão com nota objetiva. Nas novas tentativas, respostas incorretas ficam sem classificação por regra e podem ser revisadas. As tentativas anteriores conservam suas classificações nos relatórios.
+
+O efeito do arquivamento de um erro sobre futuras tentativas de aplicações existentes segue pendente de decisão de produto. A implementação mantém a configuração da aplicação já atribuída e bloqueia novas associações e atribuições com aquele erro.
 
 Fontes [PER-22](https://linear.app/joaomoutinho/issue/PER-22/cor-01-integrar-erros-mapeados-a-correcao-existente), [PER-10](https://linear.app/joaomoutinho/issue/PER-10/cat-05-selecionar-erros-aplicaveis-a-um-ditado) e [contrato do Catálogo de erros](catalogo-contrato.md).
 
