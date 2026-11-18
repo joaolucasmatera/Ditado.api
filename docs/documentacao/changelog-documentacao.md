@@ -1,5 +1,10 @@
 # Changelog da documentação
 
+## 18/11/2026 — Operação Docker da PER-65
+
+- Registrada a decisão de implantação inicial no servidor da faculdade: enviar a imagem sem credenciais e injetar chaves, modelos e limites por um `.env.production` privado no `docker compose`.
+- O arquivo de ambiente permanece fora do Git e com acesso restrito; uma pipeline futura poderá substituir o arquivo por secrets do ambiente de deploy. Atualizados o Compose, o exemplo de configuração e o relatório da PER-65.
+
 ## 18/11/2026 — Plano da classificação híbrida e da pesquisa
 
 - Registrada a COR-01 (PER-22) como concluída e detalhada a sequência aprovada para a PER-18. A PER-63 reúne o fluxo com provedor simulado (PER-64) e a validação dos quatro provedores (PER-65). Revisão humana e exportação auditada ficam na PER-66.

@@ -12,6 +12,22 @@ services:
       Jwt__ChaveSecreta: ${JWT_SECRET:?Defina JWT_SECRET no ambiente ou em .env.docker}
       Jwt__Emissor: ${JWT_ISSUER:-DitadoAPI}
       Jwt__Audiencia: ${JWT_AUDIENCE:-DitadoClientes}
+      Llm__Enabled: ${LLM_ENABLED:-false}
+      Llm__TimeoutSeconds: ${LLM_TIMEOUT_SECONDS:-15}
+      Llm__MaxInputCharacters: ${LLM_MAX_INPUT_CHARACTERS:-8000}
+      Llm__MaxOutputTokens: ${LLM_MAX_OUTPUT_TOKENS:-768}
+      Llm__Chain__0__Provider: ${LLM_CHAIN_0_PROVIDER:-}
+      Llm__Chain__0__Model: ${LLM_CHAIN_0_MODEL:-}
+      Llm__Chain__1__Provider: ${LLM_CHAIN_1_PROVIDER:-}
+      Llm__Chain__1__Model: ${LLM_CHAIN_1_MODEL:-}
+      Llm__Chain__2__Provider: ${LLM_CHAIN_2_PROVIDER:-}
+      Llm__Chain__2__Model: ${LLM_CHAIN_2_MODEL:-}
+      Llm__Chain__3__Provider: ${LLM_CHAIN_3_PROVIDER:-}
+      Llm__Chain__3__Model: ${LLM_CHAIN_3_MODEL:-}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      GONKA_BROKER_API_KEY: ${GONKA_BROKER_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     extra_hosts:
       - host.docker.internal:host-gateway
     ports:

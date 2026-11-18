@@ -48,3 +48,7 @@ Para a demonstração local, use a [fixture da PER-64](relatorio-ciclo-per64-202
 Em `ditado_per65_gate1811`, o build da API terminou com zero erros e dois avisos existentes. O build do frontend passou. O recorte contou 60 testes aprovados e um ignorado, a comparação real. O Playwright passou com nota 33,33 após recarga e acesso de outra escola negado. A migration consta no histórico do MySQL. A trilha registrou uma chamada interrompida, uma conclusão com correspondência e duas sem correspondência. A corrida simulou o vencimento da reserva para testar a retomada. A fixture aplicou as três colunas legadas da PER-64 somente no schema de teste.
 
 Evidências locais em `work/logs/`: `per65-build.log`, `per65-pertinentes.trx`, `per65-mysql.log`, `per65-playwright.log` e `per65-trilha.log`. O contrato Swagger permanece o mesmo. Restam o provisionamento por ambiente, a seleção dos quatro modelos e a execução da comparação real. A validação independente fica pendente.
+
+## Operação Docker aprovada
+
+Para reduzir o trabalho no servidor da faculdade, a imagem não contém credenciais. O técnico deverá copiar `.env.docker.example` para um arquivo privado no servidor, preencher as chaves novas e executar `docker compose --env-file .env.production up -d`. O arquivo deve permanecer fora do Git, com acesso restrito, e não deve ser enviado junto com a imagem. A pipeline futura poderá substituir esse arquivo por secrets injetados no deploy.
