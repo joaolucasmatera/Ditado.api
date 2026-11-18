@@ -47,6 +47,8 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 **Domínio/MySQL:** persistir resposta, esperado, acerto, zero ou mais nomes/referências de erros identificados e método/estado da classificação. Uma resposta pode ter vários tipos de erro, sem categoria separada ou tipo principal. Sem correspondência confiável, persistir a ocorrência como não classificada/revisável. Preservar histórico e, para futuras identificações feitas pelo LLM, metadados mínimos de modelo, confiança/justificativa estruturada e versão das instruções quando necessário para auditoria.
 
+**Entrega híbrida planejada na PER-63.** Cada lacuna apresentada integra o registro da tentativa, incluindo acertos e lacunas sem resposta. A aplicação grava a tarefa e os candidatos selecionados sem executor junto da tentativa. Um worker processa a fila persistida no MySQL e a API retorna a nota sem aguardar essa análise. A consulta autorizada do resultado deve distinguir os achados por código das sugestões do LLM e mostrar o estado da análise. O [contrato da classificação híbrida](../../docs/epicos/cor-01-classificacao-hibrida.md#entrega-híbrida-planejada--per-63) detalha o fluxo, os critérios de aceite e as pendências de ativação.
+
 ### 3.3 Feedback personalizado do aluno
 
 **Frontend:** botão para solicitar/mostrar feedback na tela de resultado do aluno; apresentar resumo de acertos/erros, tipo mais frequente, dica ortográfica e exercício de reforço. Exibir mensagem de falha do LLM mantendo resultado tradicional acessível.
@@ -94,7 +96,7 @@ Recorrência pode ser calculada a partir das respostas persistidas, evitando con
 
 1. **Preparar a base e o plano documental:** fechar os nomes e descrições iniciais dos erros e suas regras de identificação quando aplicáveis; levantar exemplos rotulados; revisar arquitetura, modelo ER e dependências globais; registrar pendências sem presumir respostas.
 2. **Detalhar o épico do Catálogo de erros antes de implementá-lo:** documentar permissões, arquivamento, seleção por ditado, anotações, JSON, regras executáveis, descrições para análise LLM e backup/restauração. Implementar o Catálogo de erros e suas regras de acesso.
-3. **Detalhar o épico de classificação antes de implementá-lo:** entregar primeiro a COR-01 com comparação objetiva e regras selecionadas. Planejar análise assíncrona por LLM para as definições selecionadas sem executor e revisão de resultados inconclusivos. Registrar método, estado e recorrência.
+3. **Entregar a classificação em etapas.** A COR-01 concluiu a comparação objetiva e a integração das regras selecionadas. A PER-63 prevê primeiro o fluxo assíncrono completo com provedor simulado e depois a validação dos quatro provedores. Revisão humana e exportação para pesquisa ficam em uma história própria da PER-18. A [sequência aprovada](../../docs/epicos/cor-01-classificacao-hibrida.md#sequência-da-entrega) registra as dependências e o aceite de cada fatia.
 4. **Detalhar e implementar feedback do aluno:** geração LLM somente sob solicitação, retenção configurável e falha do provedor sem perda da correção tradicional.
 5. **Detalhar e implementar feedback do professor:** os três escopos sob solicitação (geral da turma, análise individual de cada aluno da turma, ou aluno específico), com autorização e tratamento de falhas/lotes.
 6. **Detalhar e implementar relatórios e dashboard:** consultas agregadas, métricas e filtros; começar por estatísticas descritivas e acrescentar evolução/comparações conforme o histórico amadureça; exportar PDF no navegador com os filtros e gráficos visíveis.
@@ -127,7 +129,7 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 ## 9. Critérios de aceite transversais
 
 - Todas as telas novas devem funcionar em navegadores de computador e celular, com layout responsivo e controles utilizáveis nos dois formatos.
-- Acerto e nota são calculados por código. Se os LLMs primário e de contingência estiverem indisponíveis, a resposta permanece corrigida, as classificações por regra são preservadas e os candidatos sem resultado automático seguem revisáveis.
+- Acerto e nota são calculados por código. Se a cadeia de provedores LLM estiver indisponível, a resposta permanece corrigida, as classificações por regra são preservadas e os candidatos sem resultado automático seguem revisáveis.
 - Professor só altera/exclui erros próprios; administrador pode administrar todos; arquivamento preserva referências antigas.
 - Recorrência é identificável por aluno e turma, para tipo e erro cadastrado, a partir de três ocorrências no histórico definido.
 - Nenhum feedback é gerado sem solicitação explícita do aluno ou professor.
@@ -144,6 +146,8 @@ Estudos de aquisição da escrita em crianças brasileiras usam termos como erro
 Referências iniciais: [estudo sobre erros gráficos nos anos iniciais (SciELO)](https://www.scielo.br/j/edur/a/Z3trLgDyBBZWB466FLHFXtz/?lang=pt), [estudo sobre transposições na escrita infantil](https://revistas.gel.org.br/estudos-linguisticos/article/view/3307) e [avaliação ortográfica de escolares do 2º ao 5º ano](https://www.scielo.br/j/jsbf/a/Y68KLnGKkVvCBmPvckWnwbj/?lang=pt).
 
 ### 10.2 Comparação preliminar de provedores
+
+Este levantamento de 04/11/2026 é histórico. Os provedores definidos para a entrega são Groq, Cohere, Gonka Broker e OpenRouter. Os modelos exatos e os critérios de comparação seguem o contrato da PER-63.
 
 Preços públicos consultados em 2026-11-04. Estimativa comparável: 1.000 chamadas com 1.000 tokens de entrada e 200 de saída por chamada (1 milhão de tokens de entrada e 0,2 milhão de saída). Valores USD, sem impostos, retries ou tokens adicionais de raciocínio.
 
@@ -169,8 +173,8 @@ Evolução temporal, comparação entre turmas e efeitos de intervenções ficam
 
 1. Documentar a arquitetura e o modelo de dados PG2; fechar o vocabulário em português brasileiro e preparar exemplos rotulados por série.
 2. Documentar e depois implementar o Catálogo de erros, permissões, arquivamento, seleção por ditado, anotações ligadas aos erros, regras executáveis e importação JSON; incluir a estratégia de backup/restauração.
-3. Planejar comparação de dois modelos na mesma amostra rotulada e registrar a configuração. Na operação futura, o LLM primário analisa as definições selecionadas sem executor em segundo plano e o de contingência assume em caso de falha. Uma saída válida sem correspondência encerra a análise sem classificação por LLM.
-4. Documentar e implementar a classificação: o código mantém comparação objetiva e cálculo da nota; persistir método/estado e deixar sem classificação específica quando não houver resultado confiável. Resolver ou aceitar explicitamente antes do desenvolvimento se o fallback ocorrer de forma síncrona ou assíncrona.
+3. Comparar os quatro modelos escolhidos na mesma amostra rotulada e registrar a configuração usada. Essa avaliação é separada da rotação operacional entre provedores.
+4. Usar uma cadeia configurável por ambiente para classificar em segundo plano as definições selecionadas sem executor. O próximo provedor é acionado em caso de timeout, falha de rede, indisponibilidade ou limite informado. Uma saída válida sem correspondência encerra a análise. Validar a saída inteira antes de persistir sugestões e registrar a origem e o desfecho de cada chamada. O comparador e a nota permanecem sob responsabilidade do código.
 5. Documentar e implementar feedback LLM do aluno e do professor somente sob demanda, com retenção global configurável de 60 dias por padrão.
 6. Documentar e entregar dashboard descritivo primeiro; acrescentar tendências/comparações conforme o histórico amadureça e exportar PDF no navegador conforme filtros e gráficos. Cada épico deve ter seus diagramas e documentação revisados antes do início da implementação, conforme a seção 10.5.
 
@@ -200,7 +204,7 @@ Antes de iniciar a implementação de cada épico, reservar uma etapa curta de d
 | Épico | Diagramas e documentação específicos |
 |---|---|
 | Catálogo de erros | Fluxo de publicação/edição/arquivamento por papel e autoria; modelo ER com observação e série/ano no próprio erro, associação ao ditado; formato JSON e validações para importação em lote; fluxo de backup e restauração. |
-| Correção objetiva e classificação híbrida | Submissão e comparação objetiva, regras selecionadas, persistência e recorrência. Planejar análise assíncrona das definições sem executor, contingência em falha do primário e revisão humana. |
+| Correção objetiva e classificação híbrida | COR-01 concluída com comparação objetiva e regras selecionadas. Etapa planejada com fila MySQL, análise assíncrona, cadeia de quatro provedores e resultado rastreável. Revisão humana e exportação para pesquisa na PER-66. |
 | Feedback personalizado do aluno | Fluxo sob demanda do botão até resposta armazenada/exibida, autorização, reutilização/regeneração e falha; contrato do endpoint e ciclo de retenção. |
 | Feedback personalizado do professor | Diagramas dos três escopos (geral da turma, análises individuais de toda a turma, aluno específico), autorização por turma, processamento em lote e resultados parciais/falhas; contrato de persistência e retenção. |
 | Relatórios e dashboard | Fluxo de filtros para consultas agregadas e exportação PDF no navegador; definição de denominadores e métricas; mapa entre filtros, endpoints, gráficos e dados de origem. |

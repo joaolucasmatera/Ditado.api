@@ -5,7 +5,9 @@ using Ditado.Dominio.Extensions;
 using Ditado.Dominio.Services;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.Extensions.Options;
 using System.Text.RegularExpressions;
+using Ditado.Aplicacao.Llm;
 
 namespace Ditado.Aplicacao.Services;
 
@@ -13,11 +15,13 @@ public class DitadoService
 {
 	private readonly DitadoDbContext _context;
 	private readonly CategoriaService _categoriaService;
+	private readonly LlmOptions _llmOptions;
 
-	public DitadoService(DitadoDbContext context, CategoriaService categoriaService)
+	public DitadoService(DitadoDbContext context, CategoriaService categoriaService, IOptions<LlmOptions>? llmOptions = null)
 	{
 		_context = context;
 		_categoriaService = categoriaService;
+		_llmOptions = llmOptions?.Value ?? new LlmOptions();
 	}
 
 	public async Task<DitadoResponse> CriarDitadoAsync(CriarDitadoRequest request, int autorId)
@@ -179,6 +183,17 @@ public class DitadoService
 		var definicoes = aplicacao == null
 			? ditado.ErrosCatalogoSelecionados.Select(e => e.ErroCatalogo)
 			: aplicacao.ErrosSelecionados.Select(e => e.ErroCatalogo);
+		var candidatosLlm = _llmOptions.Enabled && usaCatalogo && aplicacao?.EscolaId != null
+			? definicoes.Where(e => !e.RegraClassificacao.HasValue).ToArray()
+			: [];
+		var idsCandidatos = candidatosLlm.Select(e => e.Id).ToArray();
+		var versoesCandidatos = candidatosLlm.Length == 0
+			? new Dictionary<int, int>()
+			: await _context.PublicacoesErrosCatalogo
+				.Where(p => idsCandidatos.Contains(p.ErroCatalogoId))
+				.GroupBy(p => p.ErroCatalogoId)
+				.Select(g => new { Id = g.Key, Versao = g.Max(p => p.Versao) })
+				.ToDictionaryAsync(p => p.Id, p => p.Versao);
 		var regrasSelecionadas = usaCatalogo
 			? definicoes.Where(e => e.RegraClassificacao.HasValue).ToDictionary(e => e.RegraClassificacao!.Value)
 			: new Dictionary<TipoErro, ErroCatalogo>();
@@ -196,23 +211,23 @@ public class DitadoService
 		int acertos = 0;
 		int totalLacunas = 0;
 
-		foreach (var resposta in request.Respostas)
+		var respostas = request.Respostas.GroupBy(r => r.SegmentoId).ToDictionary(g => g.Key, g => g.First().Resposta);
+		foreach (var segmento in ditado.Segmentos.Where(s => s.Tipo == TipoSegmento.Lacuna).OrderBy(s => s.Ordem))
 		{
-			var segmento = ditado.Segmentos.FirstOrDefault(s => s.Id == resposta.SegmentoId);
-			if (segmento == null || segmento.Tipo != TipoSegmento.Lacuna)
-				continue;
-
+			var presente = respostas.TryGetValue(segmento.Id, out var resposta);
+			resposta ??= string.Empty;
 			totalLacunas++;
-			var correto = NormalizarTextoParaComparacao(resposta.Resposta) == NormalizarTextoParaComparacao(segmento.Conteudo);
+			var correto = presente && NormalizarTextoParaComparacao(resposta) == NormalizarTextoParaComparacao(segmento.Conteudo);
 			if (correto) acertos++;
 
 			var tiposErro = correto ? Array.Empty<TipoErro>() :
-				ClassificadorTiposErro.IdentificarTiposErro(resposta.Resposta, segmento.Conteudo, regras);
+				ClassificadorTiposErro.IdentificarTiposErro(resposta, segmento.Conteudo, regras);
 
 			var respostaSegmento = new RespostaSegmento
 			{
 				SegmentoId = segmento.Id,
-				RespostaFornecida = resposta.Resposta,
+				RespostaFornecida = resposta,
+				RespostaAusente = !presente,
 				RespostaEsperada = segmento.Conteudo,
 				Correto = correto,
 				EstadoClassificacao = correto ? EstadoClassificacao.NaoSeAplica :
@@ -226,11 +241,29 @@ public class DitadoService
 			};
 
 			respostaDitado.RespostasSegmentos.Add(respostaSegmento);
+			if (candidatosLlm.Length > 0)
+			{
+				respostaSegmento.AnaliseLlm = new LlmAnaliseTarefa
+				{
+					RespostaSegmento = respostaSegmento,
+					PromptVersao = LlmOptions.PromptVersion,
+					Candidatos = candidatosLlm.Select(erro => new LlmAnaliseCandidato
+					{
+						ErroCatalogoId = erro.Id,
+						Codigo = erro.Codigo,
+						Nome = erro.Nome,
+						Descricao = erro.Descricao,
+						Versao = versoesCandidatos.GetValueOrDefault(erro.Id)
+					}).ToList()
+				};
+			}
 
 			detalhes.Add(new DetalheRespostaDto
 			{
 				SegmentoId = segmento.Id,
-				RespostaFornecida = resposta.Resposta,
+				RespostaFornecida = resposta,
+				RespostaAusente = !presente,
+				EstadoAnaliseLlm = respostaSegmento.AnaliseLlm?.Estado.ToString(),
 				RespostaEsperada = segmento.Conteudo,
 				Correto = correto,
 				EstadoClassificacao = respostaSegmento.EstadoClassificacao.ToString(),
@@ -244,7 +277,9 @@ public class DitadoService
 			});
 		}
 
-		respostaDitado.Nota = totalLacunas > 0 ? (decimal)acertos / totalLacunas * 100 : 0;
+		respostaDitado.Nota = totalLacunas > 0
+			? decimal.Round((decimal)acertos / totalLacunas * 100, 2, MidpointRounding.AwayFromZero)
+			: 0;
 
 		_context.RespostaDitados.Add(respostaDitado);
 		await _context.SaveChangesAsync();

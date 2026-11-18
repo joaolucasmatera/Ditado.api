@@ -239,7 +239,10 @@ public class DitadosController : ControllerBase
 	/// Submete as respostas de um ditado
 	/// </summary>
 	/// <remarks>
-	/// Após o aluno preencher todas as lacunas, este endpoint:
+	/// A submissão registra todas as lacunas apresentadas, inclusive as omitidas.
+	/// A nota e os achados por código retornam imediatamente. Quando habilitada, a análise LLM
+	/// fica pendente e seu resultado pode ser consultado em GET /api/Alunos/tentativas/{tentativaId}/resultado.
+	/// Etapas da correção:
 	/// 1. Recebe as respostas do aluno (apenas para os segmentos tipo "Lacuna")
 	/// 2. Compara com as respostas esperadas (palavras que estavam entre colchetes)
 	/// 3. Classifica os erros

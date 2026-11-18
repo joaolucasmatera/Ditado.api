@@ -1,6 +1,6 @@
 # Correção objetiva e classificação híbrida
 
-## COR-01 — Primeira entrega
+## COR-01 — Primeira entrega concluída
 
 A nota e o gabarito continuam calculados pelo comparador atual. CAT-05 persiste `erroCatalogoIds` na criação e na edição autorizada e devolve `errosCatalogo` e `possuiRespostas` no detalhe administrativo. Novos ditados exigem seleção. Na edição, omitir a lista preserva a configuração. A primeira resposta congela a seleção. Novas associações exigem registro ativo e publicação vigente compatível com a escola e as turmas autorizadas. A atribuição valida seu destino e registra as referências autorizadas na aplicação. Mudanças antes da primeira resposta validam e sincronizam as aplicações ativas.
 
@@ -12,11 +12,18 @@ Decisão confirmada em 17/11/2026. Um erro programado arquivado continua gerando
 
 Fontes [PER-22](https://linear.app/joaomoutinho/issue/PER-22/cor-01-integrar-erros-mapeados-a-correcao-existente), [PER-10](https://linear.app/joaomoutinho/issue/PER-10/cat-05-selecionar-erros-aplicaveis-a-um-ditado) e [contrato do Catálogo de erros](catalogo-contrato.md).
 
-## Planejamento aprovado para pesquisa em 17/11/2026
+## Entrega híbrida planejada — PER-63
 
-- A unidade de coleta é a lacuna apresentada em cada tentativa, inclusive acertos e lacunas sem resposta. O protocolo prevê fixar a configuração e as referências da coleta e preservar a resposta original.
-- O LLM primário avalia as definições selecionadas sem executor em segundo plano, inclusive se uma regra independente já classificou a resposta. O modelo de contingência assume em caso de falha do primário. Uma saída válida sem correspondência permanece sem classificação por LLM. A API valida os candidatos e preserva gabarito, nota e achados de regras.
-- A trilha de revisão distingue a decisão humana das sugestões automáticas e registra origem, evidência e versão da regra, do modelo ou das instruções, quando aplicável. A exportação planejada é auditada e usa dois CSVs ligados pelo ID da lacuna, com respostas pseudonimizadas e classificações.
-- Comparar os dois modelos em uma mesma amostra rotulada. Provedores, critérios de aceitação, limites e regras para envio e acesso aos dados seguem pendentes. Chamadas a modelos, envio de dados externos, autorização de pesquisadores e exportação de pesquisa pertencem a etapas posteriores.
+Plano aprovado em 18/11/2026. Cada lacuna apresentada integra a coleta da tentativa, incluindo acertos e lacunas sem resposta. A submissão preserva a resposta original, o gabarito, o cálculo de nota e os achados por código. A gravação da tentativa inclui a tarefa LLM e as referências versionadas dos candidatos sem executor, congeladas a partir da seleção autorizada do ditado ou da aplicação. Um achado por código pode coexistir com uma sugestão LLM para a mesma lacuna.
 
-Fonte [PER-18](https://linear.app/joaomoutinho/issue/PER-18/epico-2-correcao-objetiva-e-classificacao-hibrida).
+Um worker processa a fila persistida no MySQL, com retomada após reinício e processamento idempotente. A API retorna a nota sem aguardar o worker. A consulta autorizada do resultado exibe a origem dos achados e o estado da análise, inclusive após recarregar a página. A API valida a saída inteira antes de gravar sugestões, aceita apenas candidatos selecionados e rejeita IDs desconhecidos ou duplicados e valores fora do contrato.
+
+Groq, Cohere, Gonka Broker e OpenRouter compõem a cadeia. A configuração de cada ambiente define ordem, modelos e limites de tempo e uso. O próximo provedor é acionado em caso de timeout, falha de rede, indisponibilidade ou limite informado pelo provedor, como HTTP 429. Saída válida sem correspondência encerra a análise sem sugestão. Saída inválida, erro de autenticação ou erro de contrato são registrados separadamente e seguem para falha ou revisão. A trilha registra cada tentativa com provedor, modelo, versão das instruções, desfecho e motivo sanitizado da troca. As credenciais ficam nas variáveis de ambiente ou no gerenciador de segredos.
+
+### Sequência da entrega
+
+1. [PER-64 — Fluxo completo com provedor simulado](https://linear.app/joaomoutinho/issue/PER-64/classificacao-hibrida-ponta-a-ponta-com-provedor-simulado). Completar a coleta das lacunas, a migration, a fila, a validação integral e a consulta do resultado. Demonstrar em MySQL isolado, com dados sintéticos, nota preservada, achados das duas origens, retomada da fila, resultado após recarga e isolamento entre escolas. Atualizar Swagger se o contrato da API mudar.
+2. [PER-65 — Validação dos quatro provedores](https://linear.app/joaomoutinho/issue/PER-65/configurar-e-validar-os-quatro-provedores-de-classificacao-llm). Verificar a saída de cada modelo configurado com dados sintéticos e comparar os quatro na mesma amostra rotulada, em avaliação separada da rotação operacional. Cobrir ordem, timeout, limite, ausência de correspondência, saída inválida e indisponibilidade de todos. O desenvolvedor apresenta build, testes e demonstração funcional antes do QA independente.
+3. [PER-66 — Revisão humana e exportação para pesquisa](https://linear.app/joaomoutinho/issue/PER-66/revisao-humana-e-exportacao-auditada-para-pesquisa). Registrar decisões humanas por amostra ou exceção preservando sugestões, evidências e origem. Exportar, com autorização e auditoria, dois CSVs pseudonimizados ligados pelo ID da lacuna. O arquivo de respostas inclui acertos e lacunas vazias. O arquivo de classificações registra origem e versão aplicável.
+
+Antes da ativação com respostas reais, definir modelos e ordem por ambiente, limites de tempo e uso, critério de aceite da amostra e dados permitidos para envio externo. A liberação para pesquisa também requer definição de perfis, permissões e escopo de acesso. [PER-63](https://linear.app/joaomoutinho/issue/PER-63/per-18-a-integracao-llm-hibrida-com-rotacao-de-provedores) · [PER-18](https://linear.app/joaomoutinho/issue/PER-18/epico-2-correcao-objetiva-e-classificacao-hibrida)

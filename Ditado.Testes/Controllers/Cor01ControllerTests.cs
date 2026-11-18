@@ -74,7 +74,7 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
             var segmentoId = realizar.Segmentos.First(s => s.SegmentoId.HasValue).SegmentoId!.Value;
             var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter",
                 new SubmeterRespostaRequest { Respostas = [new() { SegmentoId = segmentoId, Resposta = "cafe" }] }));
-            Assert.Equal(regraId, Assert.Single(Assert.Single(resultado.Detalhes).Classificacoes).ErroCatalogoId);
+            Assert.Equal(regraId, Assert.Single(resultado.Detalhes.Single(d => d.SegmentoId == segmentoId).Classificacoes).ErroCatalogoId);
         }
     }
 
@@ -117,7 +117,7 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         var segmentoId = realizar.Segmentos.First(s => s.SegmentoId.HasValue).SegmentoId!.Value;
         var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter",
             new SubmeterRespostaRequest { Respostas = [new() { SegmentoId = segmentoId, Resposta = "cafe" }] }));
-        Assert.Equal(regraId, Assert.Single(Assert.Single(resultado.Detalhes).Classificacoes).ErroCatalogoId);
+        Assert.Equal(regraId, Assert.Single(resultado.Detalhes.Single(d => !d.RespostaAusente).Classificacoes).ErroCatalogoId);
 
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
@@ -264,7 +264,7 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         AdicionarTokenAutorizacao(aluno.Token);
         var resultado = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter", pedido));
         Assert.Equal(1, resultado.Acertos);
-        Assert.Equal(1m / 3m * 100m, resultado.Nota);
+        Assert.Equal(33.33m, resultado.Nota);
         Assert.Equal("café", resultado.Detalhes[0].RespostaEsperada);
         Assert.Equal("Cafe", resultado.Detalhes[0].RespostaFornecida);
         Assert.Equal(2, resultado.Detalhes[0].TiposErro.Count);
@@ -378,7 +378,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
             Respostas = [new() { SegmentoId = lacunas[1], Resposta = "pato" }, new() { SegmentoId = lacunas[2], Resposta = "gato" }]
         };
         var anterior = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter", pedido));
-        var classificacao = Assert.Single(anterior.Detalhes[0].Classificacoes);
+        var classificacao = Assert.Single(anterior.Detalhes.Single(d => d.SegmentoId == lacunas[1]).Classificacoes);
+        Assert.True(anterior.Detalhes.Single(d => d.SegmentoId == lacunas[0]).RespostaAusente);
         Assert.Equal(erroId, classificacao.ErroCatalogoId);
         Assert.Equal((int)TipoErro.ComplexidadeSilabica, classificacao.TipoErro);
 
@@ -392,8 +393,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
 
         AdicionarTokenAutorizacao(aluno.Token);
         var nova = Assert.IsType<ResultadoDitadoResponse>(await PostAsync<ResultadoDitadoResponse>($"{url}/submeter", pedido));
-        Assert.Equal(50m, nova.Nota);
-        Assert.Equal(classificacao, Assert.Single(nova.Detalhes[0].Classificacoes));
+        Assert.Equal(33.33m, nova.Nota);
+        Assert.Equal(classificacao, Assert.Single(nova.Detalhes.Single(d => d.SegmentoId == lacunas[1]).Classificacoes));
 
         var aplicacao = await db.AplicacoesDitados.AsNoTracking().SingleAsync(a => a.DitadoId == ditado.Id);
         var tentativas = await db.RespostaDitados.AsNoTracking().Where(r => r.DitadoId == ditado.Id)
@@ -403,7 +404,7 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         {
             Assert.Equal(aplicacao.Id, tentativa.AplicacaoDitadoId);
             Assert.Equal(escolaId, tentativa.EscolaId);
-            Assert.Equal(50m, tentativa.Nota);
+            Assert.Equal(nova.Nota, tentativa.Nota);
             var tipo = Assert.Single(tentativa.RespostasSegmentos.SelectMany(s => s.TiposErro));
             Assert.Equal(erroId, tipo.ErroCatalogoId);
             Assert.Equal(TipoErro.ComplexidadeSilabica, tipo.TipoErro);

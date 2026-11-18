@@ -10,6 +10,8 @@ public class RespostaSegmento
     public string RespostaFornecida { get; set; } = string.Empty;
     public string? RespostaEsperada { get; set; }
     public bool Correto { get; set; }
+    public bool RespostaAusente { get; set; }
+    public LlmAnaliseTarefa? AnaliseLlm { get; set; }
     public TipoErro? TipoErro { get; set; }
     public MetodoClassificacao? MetodoClassificacao { get; set; }
     public EstadoClassificacao EstadoClassificacao { get; set; } = EstadoClassificacao.NaoClassificado;

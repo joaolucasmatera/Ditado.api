@@ -1,5 +1,20 @@
 # Changelog da documentação
 
+## 18/11/2026 — Plano da classificação híbrida e da pesquisa
+
+- Registrada a COR-01 (PER-22) como concluída e detalhada a sequência aprovada para a PER-18. A PER-63 reúne o fluxo com provedor simulado (PER-64) e a validação dos quatro provedores (PER-65). Revisão humana e exportação auditada ficam na PER-66.
+- Atualizados a [especificação PG2](../../Ditado/docs/ESPECIFICACAO_PG2.md), o [contrato da classificação](../epicos/cor-01-classificacao-hibrida.md), o [referencial](../REFERENCIAL_PROJETO.md) e o [relatório vivo](relatorio-aplicacao.md). A revisão registra critérios de aceite e pendências de ativação. As fatias novas permanecem planejadas.
+- Referências conferidas no Linear e no contrato. A validação funcional das novas fatias pertence aos ciclos de implementação.
+- Complementada a V0.27 do relatório com RF43 a RF49, RNF14 a RNF18 e CU15 a CU17. Os novos itens registram o plano aprovado, a coleta de lacunas, a fila MySQL, a cadeia de provedores, a validação da saída, a revisão e os dois CSVs de pesquisa. Corrigido o link da exportação para a seção vigente do contrato.
+- Conferidos os identificadores, a correspondência entre requisitos e casos planejados, as tabelas e os links locais com âncoras. A consulta ao Linear confirmou a PER-22 concluída, a PER-63 em andamento e PER-64 a PER-66 no backlog.
+
+## 17/11/2026 — Revisão dos requisitos e casos de uso do MVP
+
+- Atualizados atores, requisitos funcionais e não funcionais, regras de negócio e casos de uso do [relatório vivo](relatorio-aplicacao.md). A correspondência com os IDs do PDF facilita a revisão acadêmica e preserva as metas históricas sem medição.
+- Adicionada a [fonte editável do diagrama de casos de uso](diagramas/casos-de-uso.md) e atualizado o [índice](indice-diagramas.md). O diagrama acompanha as condições e exceções dos casos documentados.
+- O levantamento cruzou o PDF de setembro de 2025, o backend `424ed94`, o frontend `14905a7`, os contratos de multi-tenant e catálogo, os relatórios COR-01 e PER-59 e as evidências do Linear. As diferenças entre API, interface, regras acordadas e cobertura de QA foram registradas no relatório.
+- Verificadas a correspondência entre os requisitos atuais e os casos de uso, a cobertura dos IDs legados e os links do material atualizado. A implantação, os testes funcionais e a revisão acadêmica do diagrama não foram reexecutados nesta etapa.
+
 ## 17/11/2026 — PER-22 integra seleção e classificação por regras
 
 - A seleção CAT-05 passou a ser gravada no backend oficial, validada por escola e turma e congelada na primeira resposta.

@@ -34,6 +34,8 @@ public class DitadoDbContext : DbContext
     public DbSet<PublicacaoDitadoTurma> PublicacoesDitadosTurmas { get; set; }
     public DbSet<PublicacaoErroCatalogo> PublicacoesErrosCatalogo { get; set; }
     public DbSet<PublicacaoErroCatalogoTurma> PublicacoesErrosCatalogoTurmas { get; set; }
+    public DbSet<LlmAnaliseTarefa> LlmAnalisesTarefas { get; set; }
+    public DbSet<LlmAnaliseCandidato> LlmAnalisesCandidatos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -63,5 +65,7 @@ public class DitadoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PublicacaoDitadoTurmaConfiguration());
         modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoConfiguration());
         modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoTurmaConfiguration());
+        modelBuilder.ApplyConfiguration(new LlmAnaliseTarefaConfiguration());
+        modelBuilder.ApplyConfiguration(new LlmAnaliseCandidatoConfiguration());
     }
 }

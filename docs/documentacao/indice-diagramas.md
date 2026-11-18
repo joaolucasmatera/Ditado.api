@@ -4,13 +4,13 @@
 |---|---|---|---|---|---|
 | Modelo ER do Catálogo de erros | [`diagramas/catalogo-er.md`](diagramas/catalogo-er.md) | Pendente | Representar a proposta de entidades, autoria, associação ao ditado e classificação | 10 e 14 | Proposta/revisão pendente; não representa integralmente o schema implementado |
 | Contexto e arquitetura geral | A criar | A criar | Mostrar frontend, API, camadas, banco e integrações | 9 e 14 | Pendente |
-| Casos de uso | A criar | A criar | Relacionar atores e funcionalidades | 5, 6 e 14 | Pendente |
+| Casos de uso, V0.26 | [`diagramas/casos-de-uso.md`](diagramas/casos-de-uso.md) | Mermaid no Markdown | Relacionar os atores aos 14 casos levantados | 5, 11 e 14 | Conferência documental em 17/11/2026. Fonte, premissas e revisão acadêmica registradas no diagrama |
 | Fluxo de realização e correção | A criar | A criar | Mostrar a jornada do aluno e o processamento da resposta | 11 e 14 | Pendente |
 | Sequência de submissão | A criar | A criar | Mostrar frontend, API, domínio e persistência | 11 e 14 | Pendente |
 | Modelo ER atual | A criar | A criar | Documentar entidades efetivamente persistidas | 10 e 14 | Pendente; exige conferência do schema |
 | Componentes e implantação | A criar | A criar | Documentar distribuição dos componentes e execução | 9 e 14 | Pendente |
 | Fluxos do catálogo | A criar | A criar | Publicar, consultar, editar, arquivar, restaurar e selecionar erros | 6, 8 e 14 | Pendente; depende de contratos estabilizados |
-| Multi-tenant e autorização | A criar | A criar | Mostrar escola, escopos, papéis, auditoria e revogação | 5, 8 e 14 | Pendente; planejamento, não implementação atual |
+| Multi-tenant e autorização | A criar | A criar | Mostrar escola, escopos, papéis, auditoria e revogação | 5, 8 e 14 | Diagrama específico pendente. O estado atual dos controles está nas seções 5, 8 e 11 |
 
 ## Regras
 

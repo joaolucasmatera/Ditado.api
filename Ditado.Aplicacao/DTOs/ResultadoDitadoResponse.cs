@@ -16,10 +16,12 @@ public class DetalheRespostaDto
     public string RespostaFornecida { get; set; } = string.Empty;
     public string RespostaEsperada { get; set; } = string.Empty;
     public bool Correto { get; set; }
+    public bool RespostaAusente { get; set; }
+    public string? EstadoAnaliseLlm { get; set; }
     public string EstadoClassificacao { get; set; } = "NaoClassificado";
     public string? MetodoClassificacao { get; set; }
     public List<string> TiposErro { get; set; } = new();
     public List<ClassificacaoCatalogoDto> Classificacoes { get; set; } = new();
 }
 
-public record ClassificacaoCatalogoDto(int ErroCatalogoId, string Codigo, string Nome, int TipoErro);
+public record ClassificacaoCatalogoDto(int ErroCatalogoId, string Codigo, string Nome, int? TipoErro, string Origem = "Codigo");

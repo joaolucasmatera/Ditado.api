@@ -1,4 +1,7 @@
 using Ditado.Aplicacao.DTOs.Alunos;
+using Ditado.Aplicacao.DTOs;
+using Ditado.Dominio.Enums;
+using Ditado.Dominio.Extensions;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -128,6 +131,45 @@ public class AlunoService
 		}
 
 		return resultado.OrderBy(d => d.DataLimite).ToList();
+	}
+
+	public async Task<ResultadoDitadoResponse?> ObterMeuResultadoAsync(int alunoId, int tentativaId)
+	{
+		var tentativa = await _context.RespostaDitados.AsNoTracking()
+			.Where(r => r.Id == tentativaId && r.AlunoId == alunoId &&
+				_context.Usuarios.Any(u => u.Id == alunoId && u.Ativo) &&
+				(r.EscolaId == null || _context.VinculosEscolares.Any(v =>
+					v.UsuarioId == alunoId && v.EscolaId == r.EscolaId && v.Ativo && v.Escola.Ativa)))
+			.Include(r => r.RespostasSegmentos).ThenInclude(s => s.Segmento)
+			.Include(r => r.RespostasSegmentos).ThenInclude(s => s.TiposErro).ThenInclude(t => t.ErroCatalogo)
+			.Include(r => r.RespostasSegmentos).ThenInclude(s => s.AnaliseLlm).ThenInclude(a => a!.Candidatos)
+			.AsSplitQuery()
+			.SingleOrDefaultAsync();
+		if (tentativa is null) return null;
+
+		var detalhes = tentativa.RespostasSegmentos.OrderBy(s => s.Segmento.Ordem).Select(s => new DetalheRespostaDto
+		{
+			SegmentoId = s.SegmentoId,
+			RespostaFornecida = s.RespostaFornecida,
+			RespostaEsperada = s.RespostaEsperada ?? s.Segmento.Conteudo,
+			RespostaAusente = s.RespostaAusente,
+			Correto = s.Correto,
+			EstadoClassificacao = s.EstadoClassificacao.ToString(),
+			MetodoClassificacao = s.MetodoClassificacao?.ToString(),
+			EstadoAnaliseLlm = s.AnaliseLlm?.Estado.ToString(),
+			TiposErro = s.TiposErro.Select(t => t.TipoErro.ObterDescricao())
+				.Concat(s.TipoErro is { } legado ? [legado.ObterDescricao()] : Array.Empty<string>()).Distinct().ToList(),
+			Classificacoes = s.TiposErro.Where(t => t.ErroCatalogo != null)
+				.Select(t => new ClassificacaoCatalogoDto(t.ErroCatalogoId!.Value, t.ErroCatalogo!.Codigo, t.ErroCatalogo.Nome, (int)t.TipoErro))
+				.Concat(s.AnaliseLlm?.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
+					.Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")) ?? [])
+				.ToList()
+		}).ToList();
+		return new ResultadoDitadoResponse
+		{
+			RespostaDitadoId = tentativa.Id, Nota = tentativa.Nota, TotalLacunas = detalhes.Count,
+			Acertos = detalhes.Count(d => d.Correto), Erros = detalhes.Count(d => !d.Correto), Detalhes = detalhes
+		};
 	}
 
 	public async Task<List<TentativaDitadoResponse>> ListarMinhasTentativasAsync(int alunoId, int ditadoId)
