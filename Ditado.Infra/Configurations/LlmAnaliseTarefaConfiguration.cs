@@ -22,5 +22,7 @@ public sealed class LlmAnaliseTarefaConfiguration : IEntityTypeConfiguration<Llm
             .OnDelete(DeleteBehavior.Cascade);
         builder.HasIndex(x => new { x.Estado, x.CriadaEm });
         builder.HasIndex(x => x.RespostaSegmentoId).IsUnique();
+        builder.HasMany(x => x.TentativasProvedor).WithOne().HasForeignKey(x => x.LlmAnaliseTarefaId)
+            .OnDelete(DeleteBehavior.Cascade);
     }
 }

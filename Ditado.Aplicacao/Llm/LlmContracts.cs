@@ -7,7 +7,23 @@ public enum LlmProviderOutcome
     Sucesso,
     Tecnica,
     Permanente,
-    SaidaInvalida
+    SaidaInvalida,
+    Autenticacao
+}
+
+public enum LlmMotivo
+{
+    Configuracao,
+    Credencial,
+    LimiteProvedor,
+    Timeout,
+    Rede,
+    Indisponivel,
+    Contrato,
+    LimiteEntrada,
+    SaidaInvalida,
+    SaidaTruncada,
+    Interrupcao
 }
 
 public sealed record LlmCandidatePrompt(int Id, string Codigo, string Nome, string Descricao);
@@ -47,4 +63,5 @@ public sealed class LlmClassificationOutput
 public sealed record LlmProviderResponse(
     LlmProviderOutcome Outcome,
     LlmAnalysisOutput? Output = null,
-    string? Error = null);
+    LlmMotivo? Motivo = null,
+    int? HttpStatus = null);

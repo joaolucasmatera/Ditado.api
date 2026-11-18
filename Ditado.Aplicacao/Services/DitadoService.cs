@@ -183,7 +183,7 @@ public class DitadoService
 		var definicoes = aplicacao == null
 			? ditado.ErrosCatalogoSelecionados.Select(e => e.ErroCatalogo)
 			: aplicacao.ErrosSelecionados.Select(e => e.ErroCatalogo);
-		var candidatosLlm = _llmOptions.Enabled && usaCatalogo && aplicacao?.EscolaId != null
+		var candidatosLlm = _llmOptions.PodeEnfileirar && usaCatalogo && aplicacao?.EscolaId != null
 			? definicoes.Where(e => !e.RegraClassificacao.HasValue).ToArray()
 			: [];
 		var idsCandidatos = candidatosLlm.Select(e => e.Id).ToArray();

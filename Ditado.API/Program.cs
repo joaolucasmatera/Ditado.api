@@ -15,6 +15,7 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("Llm"));
+builder.Services.PostConfigure<LlmOptions>(o => o.Simulated &= builder.Environment.IsEnvironment("Testing"));
 builder.Services.AddHttpClient("Llm")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
     .RedactLoggedHeaders(_ => true);
@@ -151,6 +152,9 @@ builder.Services.AddScoped<LlmAnalysisProcessor>();
 builder.Services.AddHostedService<LlmAnalysisWorker>();
 
 var app = builder.Build();
+var llmOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
+if (llmOptions.Enabled && !llmOptions.PodeEnfileirar)
+    app.Logger.LogWarning("Classificação LLM desabilitada: verifique a ordem, os quatro modelos e os limites.");
 
 // APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODU��O - N�O EM DEVELOPMENT NEM TESTING)
 if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))

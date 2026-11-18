@@ -8,7 +8,8 @@ namespace Ditado.Aplicacao.Llm;
 
 public sealed class LlmProviderClient(
     IHttpClientFactory httpClientFactory,
-    IOptions<LlmOptions> options) : ILlmProviderClient
+    IOptions<LlmOptions> options,
+    Func<string, string?>? credenciais = null) : ILlmProviderClient
 {
     private static readonly JsonSerializerOptions JsonOptions = new(JsonSerializerDefaults.Web)
     {
@@ -22,84 +23,130 @@ public sealed class LlmProviderClient(
         IReadOnlyList<LlmCandidatePrompt> candidatos,
         CancellationToken cancellationToken)
     {
-        if (string.IsNullOrWhiteSpace(provider.Model) ||
-            !Uri.TryCreate(provider.BaseUrl, UriKind.Absolute, out var endpoint) ||
-            endpoint.Scheme != Uri.UriSchemeHttps || endpoint.UserInfo.Length != 0 ||
-            endpoint.Query.Length != 0 || endpoint.Fragment.Length != 0)
-            return new(LlmProviderOutcome.Tecnica, Error: "Provedor sem modelo ou URL configurados.");
+        if (!LlmOptions.Endpoints.TryGetValue(provider.Provider, out var endpoint) || string.IsNullOrWhiteSpace(provider.Model))
+            return new(LlmProviderOutcome.Permanente, Motivo: LlmMotivo.Configuracao);
 
-        var apiKey = string.IsNullOrWhiteSpace(provider.ApiKeyEnvironmentVariable)
-            ? null
-            : Environment.GetEnvironmentVariable(provider.ApiKeyEnvironmentVariable);
-        if (string.IsNullOrWhiteSpace(apiKey))
-            return new(LlmProviderOutcome.Tecnica, Error: "Chave do provedor não configurada no ambiente.");
+        var entrada = JsonSerializer.Serialize(new { respostaEsperada, respostaFornecida, candidatos }, JsonOptions);
+        if (entrada.Length > options.Value.MaxInputCharacters)
+            return new(LlmProviderOutcome.Permanente, Motivo: LlmMotivo.LimiteEntrada);
 
-        var payload = new
-        {
-            model = provider.Model,
-            messages = new[]
-            {
-                new { role = "system", content = "Classifique somente entre os candidatos fornecidos. Responda exclusivamente no JSON solicitado. Não crie candidatos." },
-                new { role = "user", content = JsonSerializer.Serialize(new { respostaEsperada, respostaFornecida, candidatos }, JsonOptions) }
-            },
-            response_format = BuildResponseFormat()
-        };
+        var apiKey = (credenciais ?? Environment.GetEnvironmentVariable)(endpoint.Credential);
+        if (string.IsNullOrWhiteSpace(apiKey) || apiKey.Any(char.IsWhiteSpace))
+            return new(LlmProviderOutcome.Autenticacao, Motivo: LlmMotivo.Credencial);
 
         var isCohere = provider.Provider.Equals("Cohere", StringComparison.OrdinalIgnoreCase);
+        var isOpenRouter = provider.Provider.Equals("OpenRouter", StringComparison.OrdinalIgnoreCase);
+        var isGroq = provider.Provider.Equals("Groq", StringComparison.OrdinalIgnoreCase);
+        var payload = new Dictionary<string, object>
+        {
+            ["model"] = provider.Model,
+            ["messages"] = new[]
+            {
+                new { role = "system", content = "Classifique somente entre os candidatos fornecidos. Responda exclusivamente no JSON solicitado. Não crie candidatos." },
+                new { role = "user", content = entrada }
+            },
+            ["response_format"] = isCohere
+                ? new { type = "json_object", schema = BuildSchema() }
+                : new { type = "json_schema", json_schema = new { name = "classificacao_ditado", strict = true, schema = BuildSchema() } },
+            [isGroq ? "max_completion_tokens" : "max_tokens"] = options.Value.MaxOutputTokens
+        };
+        if (isOpenRouter)
+            payload["provider"] = new { require_parameters = true, allow_fallbacks = false };
+
         var path = isCohere ? "/chat" : "/chat/completions";
-        var uri = new Uri($"{endpoint.AbsoluteUri.TrimEnd('/')}{path}");
+        var uri = new Uri(endpoint.Url + path);
         using var request = new HttpRequestMessage(HttpMethod.Post, uri)
         {
-            Content = JsonContent.Create<object>(isCohere ? BuildCoherePayload(provider.Model, respostaEsperada, respostaFornecida, candidatos) : payload, options: JsonOptions)
+            Content = JsonContent.Create(payload, options: JsonOptions)
         };
         request.Headers.Authorization = new AuthenticationHeaderValue("Bearer", apiKey);
 
+        int? statusRecebido = null;
         try
         {
             using var timeout = CancellationTokenSource.CreateLinkedTokenSource(cancellationToken);
-            timeout.CancelAfter(TimeSpan.FromSeconds(Math.Clamp(options.Value.TimeoutSeconds, 1, 60)));
-            using var response = await httpClientFactory.CreateClient("Llm").SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
-            if ((int)response.StatusCode == 408 || (int)response.StatusCode == 429 || (int)response.StatusCode >= 500)
-                return new(LlmProviderOutcome.Tecnica, Error: $"HTTP {(int)response.StatusCode} do provedor.");
-            if (!response.IsSuccessStatusCode)
-                return new(LlmProviderOutcome.Permanente, Error: $"HTTP {(int)response.StatusCode} do provedor.");
+            timeout.CancelAfter(TimeSpan.FromSeconds(options.Value.TimeoutSeconds));
+            using var client = httpClientFactory.CreateClient("Llm");
+            using var response = await client.SendAsync(request, HttpCompletionOption.ResponseHeadersRead, timeout.Token);
+            var httpStatus = (int)response.StatusCode;
+            statusRecebido = httpStatus;
+            if (!response.IsSuccessStatusCode && !(isOpenRouter && httpStatus == 403))
+                return HttpError(httpStatus, isOpenRouter);
             var buffer = new byte[100_001];
             await using var stream = await response.Content.ReadAsStreamAsync(timeout.Token);
             var length = await stream.ReadAtLeastAsync(buffer, buffer.Length, false, timeout.Token);
+            if (httpStatus == 403)
+                return OrcamentoOpenRouter(buffer.AsMemory(0, length))
+                    ? new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.LimiteProvedor, HttpStatus: 403)
+                    : HttpError(403, isOpenRouter);
             if (length == buffer.Length)
-                return new(LlmProviderOutcome.SaidaInvalida, Error: "Resposta do provedor excedeu o limite.");
-            var content = System.Text.Encoding.UTF8.GetString(buffer, 0, length);
+                return new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaInvalida);
+            using var json = JsonDocument.Parse(buffer.AsMemory(0, length));
+            var root = json.RootElement;
+            if (isOpenRouter && root.TryGetProperty("error", out var error) &&
+                error.TryGetProperty("code", out var errorCode) && errorCode.ValueKind == JsonValueKind.Number &&
+                errorCode.TryGetInt32(out var code))
+                return HttpError(code, isOpenRouter);
 
-            var text = isCohere ? ExtractCohereText(content) : ExtractOpenAiText(content);
+            var envelope = isCohere ? root : root.GetProperty("choices")[0];
+            var finish = envelope.GetProperty("finish_reason").GetString();
+            if (finish is "length" or "MAX_TOKENS")
+                return new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaTruncada);
+            if (finish != (isCohere ? "COMPLETE" : "stop"))
+                return new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaInvalida);
+
+            var content = envelope.GetProperty("message").GetProperty("content");
+            var text = isCohere
+                ? string.Concat(content.EnumerateArray().Select(part => part.GetProperty("text").GetString()))
+                : content.GetString();
             if (string.IsNullOrWhiteSpace(text))
-                return new(LlmProviderOutcome.SaidaInvalida, Error: "Resposta sem conteúdo estruturado.");
+                return new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaInvalida);
             var output = JsonSerializer.Deserialize<LlmAnalysisOutput>(text, JsonOptions);
             return output is null
-                ? new(LlmProviderOutcome.SaidaInvalida, Error: "JSON vazio do provedor.")
+                ? new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaInvalida)
                 : new(LlmProviderOutcome.Sucesso, output);
         }
         catch (Exception ex) when (ex is HttpRequestException or IOException)
         {
-            return new(LlmProviderOutcome.Tecnica, Error: "Falha de rede no provedor.");
+            if (statusRecebido == 403) return HttpError(403, isOpenRouter);
+            return new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Rede);
         }
-        catch (TaskCanceledException) when (!cancellationToken.IsCancellationRequested)
+        catch (OperationCanceledException) when (!cancellationToken.IsCancellationRequested)
         {
-            return new(LlmProviderOutcome.Tecnica, Error: "Timeout do provedor.");
+            if (statusRecebido == 403) return HttpError(403, isOpenRouter);
+            return new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Timeout);
         }
         catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException or IndexOutOfRangeException)
         {
-            return new(LlmProviderOutcome.SaidaInvalida, Error: "JSON inválido do provedor.");
+            return new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaInvalida);
         }
     }
 
-    private static object BuildResponseFormat() => new
+    private static LlmProviderResponse HttpError(int status, bool isOpenRouter) => status switch
     {
-        type = "json_schema",
-        json_schema = new
+        408 => new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Timeout, HttpStatus: status),
+        429 => new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.LimiteProvedor, HttpStatus: status),
+        402 when isOpenRouter => new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.LimiteProvedor, HttpStatus: status),
+        >= 500 and <= 599 => new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Indisponivel, HttpStatus: status),
+        401 or 403 or 498 => new(LlmProviderOutcome.Autenticacao, Motivo: LlmMotivo.Credencial, HttpStatus: status),
+        _ => new(LlmProviderOutcome.Permanente, Motivo: LlmMotivo.Contrato, HttpStatus: status)
+    };
+
+    private static bool OrcamentoOpenRouter(ReadOnlyMemory<byte> body)
+    {
+        try
         {
-            name = "classificacao_ditado",
-            strict = true,
-            schema = new
+            using var json = JsonDocument.Parse(body);
+            return json.RootElement.GetProperty("error").GetProperty("metadata").GetProperty("limit_source").GetString()
+                is "openrouter_guardrail_budget" or "openrouter_workspace_budget" or "openrouter_key_limit";
+        }
+        catch (Exception ex) when (ex is JsonException or KeyNotFoundException or InvalidOperationException)
+        {
+            return false;
+        }
+    }
+
+    private static object BuildSchema() => new
             {
                 type = "object",
                 additionalProperties = false,
@@ -118,44 +165,11 @@ public sealed class LlmProviderClient(
                             {
                                 candidatoId = new { type = "integer" },
                                 estado = new { type = "string", @enum = new[] { "correspondente", "naoCorrespondente", "inconclusivo" } },
-                                confianca = new { type = new[] { "number", "null" } },
-                                evidencia = new { type = new[] { "string", "null" } }
+                                confianca = new { anyOf = new[] { new { type = "number" }, new { type = "null" } } },
+                                evidencia = new { anyOf = new[] { new { type = "string" }, new { type = "null" } } }
                             }
                         }
                     }
                 }
-            }
-        }
-    };
-
-    private static object BuildCoherePayload(string model, string expected, string provided, IReadOnlyList<LlmCandidatePrompt> candidates) => new
-    {
-        model,
-        messages = new[]
-        {
-            new { role = "system", content = "Classifique somente entre os candidatos fornecidos. Responda exclusivamente no JSON solicitado. Não crie candidatos." },
-            new { role = "user", content = JsonSerializer.Serialize(new { respostaEsperada = expected, respostaFornecida = provided, candidatos = candidates }, JsonOptions) }
-        },
-        response_format = new { type = "json_object", schema = BuildCohereSchema() }
-    };
-
-    private static object BuildCohereSchema() => new
-    {
-        type = "object",
-        required = new[] { "classificacoes" },
-        properties = new { classificacoes = new { type = "array" } }
-    };
-
-    private static string ExtractOpenAiText(string content)
-    {
-        using var json = JsonDocument.Parse(content);
-        return json.RootElement.GetProperty("choices")[0].GetProperty("message").GetProperty("content").GetString() ?? string.Empty;
-    }
-
-    private static string ExtractCohereText(string content)
-    {
-        using var json = JsonDocument.Parse(content);
-        var parts = json.RootElement.GetProperty("message").GetProperty("content");
-        return parts.EnumerateArray().FirstOrDefault(x => x.TryGetProperty("text", out _)).GetProperty("text").GetString() ?? string.Empty;
-    }
+            };
 }

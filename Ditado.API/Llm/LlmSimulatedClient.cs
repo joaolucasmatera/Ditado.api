@@ -7,7 +7,7 @@ internal sealed class LlmSimulatedClient : ILlmProviderClient
     {
         cancellationToken.ThrowIfCancellationRequested();
         if (!provider.Provider.Equals("Simulado", StringComparison.OrdinalIgnoreCase))
-            return new(LlmProviderOutcome.Tecnica, Error: "Provedor indisponível no ambiente simulado.");
+            return new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Indisponivel);
 
         var corresponde = respostaEsperada == "café" && respostaFornecida == "cafe";
         if (corresponde) await Task.Delay(TimeSpan.FromSeconds(12), cancellationToken);

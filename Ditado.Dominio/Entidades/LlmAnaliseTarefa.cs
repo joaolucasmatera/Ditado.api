@@ -19,4 +19,5 @@ public class LlmAnaliseTarefa
 
     public RespostaSegmento RespostaSegmento { get; set; } = null!;
     public ICollection<LlmAnaliseCandidato> Candidatos { get; set; } = new List<LlmAnaliseCandidato>();
+    public ICollection<LlmTentativaProvedor> TentativasProvedor { get; set; } = new List<LlmTentativaProvedor>();
 }

@@ -67,5 +67,15 @@ public class DitadoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoTurmaConfiguration());
         modelBuilder.ApplyConfiguration(new LlmAnaliseTarefaConfiguration());
         modelBuilder.ApplyConfiguration(new LlmAnaliseCandidatoConfiguration());
+        modelBuilder.Entity<LlmTentativaProvedor>(b =>
+        {
+            b.ToTable("LlmTentativasProvedor");
+            b.HasKey(x => new { x.LlmAnaliseTarefaId, x.Numero });
+            b.Property(x => x.Provedor).HasMaxLength(80);
+            b.Property(x => x.Modelo).HasMaxLength(200);
+            b.Property(x => x.PromptVersao).HasMaxLength(80);
+            b.Property(x => x.Desfecho).HasMaxLength(40).IsConcurrencyToken();
+            b.Property(x => x.Motivo).HasMaxLength(40);
+        });
     }
 }

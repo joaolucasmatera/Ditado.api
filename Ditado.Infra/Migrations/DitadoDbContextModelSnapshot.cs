@@ -492,6 +492,53 @@ namespace Ditado.Infra.Migrations
                     b.ToTable("LlmAnalisesTarefas", (string)null);
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.LlmTentativaProvedor", b =>
+                {
+                    b.Property<int>("LlmAnaliseTarefaId")
+                        .HasColumnType("int");
+
+                    b.Property<int>("Numero")
+                        .HasColumnType("int");
+
+                    b.Property<string>("Desfecho")
+                        .IsConcurrencyToken()
+                        .IsRequired()
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<DateTime?>("EncerradaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<int?>("HttpStatus")
+                        .HasColumnType("int");
+
+                    b.Property<DateTime>("IniciadaEm")
+                        .HasColumnType("datetime(6)");
+
+                    b.Property<string>("Modelo")
+                        .IsRequired()
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
+                    b.Property<string>("Motivo")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("PromptVersao")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.Property<string>("Provedor")
+                        .IsRequired()
+                        .HasMaxLength(80)
+                        .HasColumnType("varchar(80)");
+
+                    b.HasKey("LlmAnaliseTarefaId", "Numero");
+
+                    b.ToTable("LlmTentativasProvedor", (string)null);
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.ParticipacaoAplicacao", b =>
                 {
                     b.Property<int>("Id")
@@ -1144,6 +1191,15 @@ namespace Ditado.Infra.Migrations
                     b.Navigation("RespostaSegmento");
                 });
 
+            modelBuilder.Entity("Ditado.Dominio.Entidades.LlmTentativaProvedor", b =>
+                {
+                    b.HasOne("Ditado.Dominio.Entidades.LlmAnaliseTarefa", null)
+                        .WithMany("TentativasProvedor")
+                        .HasForeignKey("LlmAnaliseTarefaId")
+                        .OnDelete(DeleteBehavior.Cascade)
+                        .IsRequired();
+                });
+
             modelBuilder.Entity("Ditado.Dominio.Entidades.ParticipacaoAplicacao", b =>
                 {
                     b.HasOne("Ditado.Dominio.Entidades.Usuario", "Aluno")
@@ -1448,6 +1504,8 @@ namespace Ditado.Infra.Migrations
             modelBuilder.Entity("Ditado.Dominio.Entidades.LlmAnaliseTarefa", b =>
                 {
                     b.Navigation("Candidatos");
+
+                    b.Navigation("TentativasProvedor");
                 });
 
             modelBuilder.Entity("Ditado.Dominio.Entidades.PublicacaoDitado", b =>

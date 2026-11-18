@@ -27,3 +27,5 @@ Groq, Cohere, Gonka Broker e OpenRouter compõem a cadeia. A configuração de c
 3. [PER-66 — Revisão humana e exportação para pesquisa](https://linear.app/joaomoutinho/issue/PER-66/revisao-humana-e-exportacao-auditada-para-pesquisa). Registrar decisões humanas por amostra ou exceção preservando sugestões, evidências e origem. Exportar, com autorização e auditoria, dois CSVs pseudonimizados ligados pelo ID da lacuna. O arquivo de respostas inclui acertos e lacunas vazias. O arquivo de classificações registra origem e versão aplicável.
 
 Antes da ativação com respostas reais, definir modelos e ordem por ambiente, limites de tempo e uso, critério de aceite da amostra e dados permitidos para envio externo. A liberação para pesquisa também requer definição de perfis, permissões e escopo de acesso. [PER-63](https://linear.app/joaomoutinho/issue/PER-63/per-18-a-integracao-llm-hibrida-com-rotacao-de-provedores) · [PER-18](https://linear.app/joaomoutinho/issue/PER-18/epico-2-correcao-objetiva-e-classificacao-hibrida)
+
+Veja a configuração dos quatro provedores, a trilha e a reprodução das validações no [relatório da PER-65](../relatorio-ciclo-per65-2026-11-18.md).

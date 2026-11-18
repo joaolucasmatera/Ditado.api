@@ -1,6 +1,6 @@
 param(
     [Parameter(Mandatory)]
-    [ValidatePattern('^ditado_per64_[a-z0-9]{8,24}$')]
+    [ValidatePattern('^ditado_per(64|65)_[a-z0-9]{8,24}$')]
     [string]$Schema,
     [Parameter(Mandatory)]
     [string]$ArtifactsPath,
@@ -9,7 +9,8 @@ param(
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSScriptRoot
-$port = 5064
+$port = if ($env:DITADO_LLM_DEMO_PORT) { [int]$env:DITADO_LLM_DEMO_PORT } else { 5064 }
+if ($port -notin 5064, 5065) { throw 'A demonstração usa apenas as portas 5064 e 5065.' }
 $logs = Join-Path $root 'work\logs'
 $pidFile = Join-Path $logs "$Schema.pid"
 $sdk = Join-Path $env:USERPROFILE '.dotnet9\dotnet.exe'

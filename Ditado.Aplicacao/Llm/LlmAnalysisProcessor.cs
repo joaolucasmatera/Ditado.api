@@ -13,11 +13,12 @@ public sealed class LlmAnalysisProcessor(
 {
     public async Task<bool> ProcessNextAsync(CancellationToken cancellationToken)
     {
-        if (!options.Value.Enabled)
+        if (!options.Value.PodeEnfileirar)
             return false;
 
         var tarefa = await context.LlmAnalisesTarefas
             .Include(x => x.Candidatos)
+            .Include(x => x.TentativasProvedor.Where(t => t.EncerradaEm == null))
             .Where(x => x.Estado == LlmAnaliseEstado.Pendente ||
                 (x.Estado == LlmAnaliseEstado.Processando && x.IniciadaEm < DateTime.UtcNow.AddMinutes(-5)))
             .OrderBy(x => x.CriadaEm)
@@ -27,6 +28,12 @@ public sealed class LlmAnalysisProcessor(
 
         tarefa.Estado = LlmAnaliseEstado.Processando;
         tarefa.IniciadaEm = DateTime.UtcNow;
+        foreach (var interrompida in tarefa.TentativasProvedor)
+        {
+            interrompida.Desfecho = "Interrompida";
+            interrompida.Motivo = nameof(LlmMotivo.Interrupcao);
+            interrompida.EncerradaEm = tarefa.IniciadaEm;
+        }
         try
         {
             await context.SaveChangesAsync(cancellationToken);
@@ -41,13 +48,9 @@ public sealed class LlmAnalysisProcessor(
 
     private async Task ProcessarAsync(LlmAnaliseTarefa tarefa, CancellationToken cancellationToken)
     {
-        var cadeia = ResolverCadeia();
-        if (cadeia.Count == 0)
-        {
-            FinalizarComFalha(tarefa, "Nenhum provedor LLM configurado.");
-            await context.SaveChangesAsync(cancellationToken);
-            return;
-        }
+        var cadeia = options.Value.Simulated
+            ? [new LlmProviderOptions { Provider = "Simulado", Model = "fixture-v1" }]
+            : options.Value.Chain;
 
         var candidatos = tarefa.Candidatos
             .Select(x => new LlmCandidatePrompt(x.Id, x.Codigo, x.Nome, x.Descricao))
@@ -57,16 +60,33 @@ public sealed class LlmAnalysisProcessor(
         for (var i = 0; i < cadeia.Count; i++)
         {
             var provider = cadeia[i];
+            var tentativa = new LlmTentativaProvedor
+            {
+                Numero = ++tarefa.Tentativas,
+                Provedor = provider.Provider,
+                Modelo = provider.Model,
+                PromptVersao = tarefa.PromptVersao,
+                IniciadaEm = DateTime.UtcNow
+            };
+            tarefa.TentativasProvedor.Add(tentativa);
+            await context.SaveChangesAsync(cancellationToken);
+
             var resultado = await providerClient.ClassificarAsync(provider, segmento.RespostaEsperada ?? string.Empty,
                 segmento.RespostaFornecida, candidatos, cancellationToken);
-            tarefa.Tentativas++;
             tarefa.Provedor = provider.Provider;
             tarefa.Modelo = provider.Model;
             tarefa.Origem = i == 0 ? "Primario" : "Backup";
-            tarefa.UltimoErro = resultado.Error;
+            tentativa.Desfecho = resultado.Outcome.ToString();
+            tentativa.Motivo = resultado.Motivo?.ToString();
+            tentativa.HttpStatus = resultado.HttpStatus;
+            tentativa.EncerradaEm = DateTime.UtcNow;
+            tarefa.UltimoErro = tentativa.Motivo;
 
             if (resultado.Outcome == LlmProviderOutcome.Tecnica)
+            {
+                await context.SaveChangesAsync(cancellationToken);
                 continue;
+            }
             if (resultado.Outcome != LlmProviderOutcome.Sucesso || resultado.Output is null)
             {
                 tarefa.Estado = LlmAnaliseEstado.Revisao;
@@ -79,12 +99,18 @@ public sealed class LlmAnalysisProcessor(
             {
                 tarefa.Estado = LlmAnaliseEstado.Revisao;
                 tarefa.UltimoErro = erro;
+                tentativa.Desfecho = nameof(LlmProviderOutcome.SaidaInvalida);
+                tentativa.Motivo = nameof(LlmMotivo.SaidaInvalida);
             }
             else
             {
                 tarefa.Estado = tarefa.Candidatos.Any(x => x.Estado == LlmCandidatoEstado.Inconclusivo)
                     ? LlmAnaliseEstado.Revisao
                     : LlmAnaliseEstado.Concluida;
+                tentativa.Desfecho = tarefa.Estado == LlmAnaliseEstado.Revisao
+                    ? "Inconclusiva"
+                    : tarefa.Candidatos.Any(x => x.Estado == LlmCandidatoEstado.Correspondente)
+                        ? "ComCorrespondencia" : "SemCorrespondencia";
             }
             tarefa.ConcluidaEm = DateTime.UtcNow;
             await context.SaveChangesAsync(cancellationToken);
@@ -95,33 +121,9 @@ public sealed class LlmAnalysisProcessor(
         await context.SaveChangesAsync(cancellationToken);
     }
 
-    private List<LlmProviderOptions> ResolverCadeia()
-    {
-        var configurados = options.Value.Providers;
-        if (options.Value.Simulated)
-            return [new() { Provider = "Simulado", Model = "fixture-v1" }];
-
-        return options.Value.Chain
-            .Where(x => !string.IsNullOrWhiteSpace(x.Provider))
-            .Select(x => configurados.TryGetValue(x.Provider, out var provider)
-                ? new LlmProviderOptions
-                {
-                    Provider = x.Provider,
-                    Model = string.IsNullOrWhiteSpace(x.Model) ? provider.Model : x.Model,
-                    BaseUrl = provider.BaseUrl,
-                    ApiKeyEnvironmentVariable = provider.ApiKeyEnvironmentVariable
-                }
-                : new LlmProviderOptions { Provider = x.Provider, Model = x.Model })
-            .Where(x => !string.IsNullOrWhiteSpace(x.Model) && x.Model.Length <= 200 &&
-                (x.Provider is "Groq" or "Cohere" or "GonkaBroker" or "OpenRouter"))
-            .DistinctBy(x => x.Provider)
-            .ToList();
-    }
-
-    private static bool AplicarSaida(LlmAnaliseTarefa tarefa, LlmAnalysisOutput output, out string? erro)
+    public static bool ValidarSaida(LlmAnalysisOutput output, IReadOnlySet<int> candidatos, out string? erro)
     {
         erro = null;
-        var candidatos = tarefa.Candidatos.ToDictionary(x => x.Id);
         var retornados = new HashSet<int>();
         if (output.Classificacoes is null || output.Classificacoes.Count > candidatos.Count)
         {
@@ -130,7 +132,7 @@ public sealed class LlmAnalysisProcessor(
         }
         foreach (var item in output.Classificacoes)
         {
-            if (item is null || !candidatos.ContainsKey(item.CandidatoId))
+            if (item is null || !candidatos.Contains(item.CandidatoId))
             {
                 erro = "O provedor retornou candidato fora da seleção.";
                 return false;
@@ -156,7 +158,13 @@ public sealed class LlmAnalysisProcessor(
                 return false;
             }
         }
+        return true;
+    }
 
+    private static bool AplicarSaida(LlmAnaliseTarefa tarefa, LlmAnalysisOutput output, out string? erro)
+    {
+        var candidatos = tarefa.Candidatos.ToDictionary(x => x.Id);
+        if (!ValidarSaida(output, candidatos.Keys.ToHashSet(), out erro)) return false;
         var agora = DateTime.UtcNow;
         foreach (var item in output.Classificacoes)
         {
@@ -173,7 +181,7 @@ public sealed class LlmAnalysisProcessor(
             candidato.AvaliadoEm = agora;
         }
 
-        foreach (var candidato in tarefa.Candidatos.Where(x => !retornados.Contains(x.Id)))
+        foreach (var candidato in tarefa.Candidatos.Where(x => x.Estado == LlmCandidatoEstado.NaoAvaliado))
         {
             candidato.Estado = LlmCandidatoEstado.NaoCorrespondente;
             candidato.AvaliadoEm = agora;
