@@ -15,7 +15,7 @@ public sealed class LlmProviderClientTests
     [InlineData("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "max_tokens", "json_schema")]
     public async Task ContratoDosQuatroAdaptadores(string provedor, string url, string tokens, string formato)
     {
-        const string saida = """{"classificacoes":[{"candidatoId":1,"estado":"correspondente","confianca":null,"evidencia":null}]}""";
+        const string saida = """{"lacunasAvaliadas":[1,2],"classificacoes":[{"candidatoId":1,"correspondentes":[{"lacunaId":2,"confianca":null,"evidencia":null}],"inconclusivas":[]}]}""";
         var envelope = provedor == "Cohere"
             ? JsonSerializer.Serialize(new { finish_reason = "COMPLETE", message = new { content = new[] { new { type = "text", text = saida } } } })
             : JsonSerializer.Serialize(new { choices = new[] { new { finish_reason = "stop", message = new { content = saida } } } });
@@ -28,6 +28,13 @@ public sealed class LlmProviderClientTests
             var corpo = json.RootElement;
             Assert.Equal("fixture/modelo", corpo.GetProperty("model").GetString());
             Assert.Equal(768, corpo.GetProperty(tokens).GetInt32());
+            using var amostra = JsonDocument.Parse(corpo.GetProperty("messages")[1].GetProperty("content").GetString()!);
+            Assert.Equal("O aluno chegaram.", amostra.RootElement.GetProperty("textoEscrito").GetString());
+            Assert.Equal("⟦1⟧Os alunos⟦/1⟧ ⟦2⟧chegaram⟦/2⟧.", amostra.RootElement.GetProperty("textoEsperado").GetString());
+            var lacunas = amostra.RootElement.GetProperty("lacunas");
+            Assert.Equal(2, lacunas.GetArrayLength());
+            Assert.Equal(2, lacunas[1].GetProperty("id").GetInt32());
+            Assert.Equal("chegaram", lacunas[1].GetProperty("escrito").GetString());
             var responseFormat = corpo.GetProperty("response_format");
             Assert.Equal(formato, responseFormat.GetProperty("type").GetString());
             var contrato = formato == "json_schema" ? responseFormat.GetProperty("json_schema") : responseFormat;
@@ -43,6 +50,7 @@ public sealed class LlmProviderClientTests
         });
         Assert.Equal(LlmProviderOutcome.Sucesso, resultado.Outcome);
         Assert.Equal(1, Assert.Single(resultado.Output!.Classificacoes).CandidatoId);
+        Assert.Equal(2, Assert.Single(resultado.Output!.Classificacoes[0].Correspondentes).LacunaId);
     }
 
     [Theory]
@@ -123,7 +131,10 @@ public sealed class LlmProviderClientTests
     private static Task<LlmProviderResponse> ExecutarAsync(string provedor,
         Func<HttpRequestMessage, CancellationToken, Task<HttpResponseMessage>> enviar, LlmOptions? options = null, CancellationToken ct = default)
         => new LlmProviderClient(new FixtureHttpFactory(enviar), Options.Create(options ?? new LlmOptions()), _ => "fixture")
-            .ClassificarAsync(new() { Provider = provedor, Model = "fixture/modelo" }, "café", "cafe", [new(1, "AC", "Acentuação", "Diferença de acento")], ct);
+            .ClassificarAsync(new() { Provider = provedor, Model = "fixture/modelo" },
+                new("O aluno chegaram.", "⟦1⟧Os alunos⟦/1⟧ ⟦2⟧chegaram⟦/2⟧.",
+                    [new(1, "Os alunos", "O aluno", true), new(2, "chegaram", "chegaram", true)],
+                    [new(1, "CV", "Concordância verbal", "Compare sujeito e verbo escritos.")]), ct);
 
     private static HttpResponseMessage Resposta(int status, string texto) =>
         new((HttpStatusCode)status) { Content = new StringContent(texto) };

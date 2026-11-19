@@ -35,9 +35,10 @@ if ($Retomar) {
     $ownedPid = [int](Get-Content -LiteralPath $pidFile)
     if ($listener.OwningProcess -ne $ownedPid) { throw 'Porta de demonstração ocupada por outro processo.' }
     Stop-Process -Id $ownedPid -Force
-    $claims = Invoke-FixtureSql ("USE {0}; UPDATE LlmAnalisesTarefas SET IniciadaEm=UTC_TIMESTAMP(6)-INTERVAL 6 MINUTE WHERE Estado=2; SELECT ROW_COUNT();" -f $Schema)
-    if ($claims -ne '1') { throw 'A demonstração esperava uma tarefa interrompida.' }
-    Write-Output 'Retomada: uma tarefa interrompida; vencimento da reserva simulado no MySQL.'
+    $claims = Invoke-FixtureSql ("USE {0}; SELECT COUNT(DISTINCT s.RespostaDitadoId) FROM LlmAnalisesTarefas t JOIN RespostaSegmentos s ON s.Id=t.RespostaSegmentoId WHERE t.Estado=2;" -f $Schema)
+    if ($claims -ne '1') { throw 'A demonstração esperava uma tentativa interrompida.' }
+    Invoke-FixtureSql ("USE {0}; UPDATE LlmAnalisesTarefas SET IniciadaEm=UTC_TIMESTAMP(6)-INTERVAL 6 MINUTE WHERE Estado=2;" -f $Schema)
+    Write-Output 'Retomada: uma tentativa interrompida; vencimento da reserva simulado no MySQL.'
 } else {
     if (Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue) {
         throw 'Porta de demonstração ocupada.'
@@ -51,8 +52,13 @@ if ($Retomar) {
         '--working-dir',$root,'--context','DitadoDbContext')
     & $sdk @efArgs database update 20261117050554_IntegrarCatalogoCor01 @project
     if ($LASTEXITCODE -ne 0) { throw 'Migrations da base falharam.' }
-    # As três migrations legadas de cadastro não têm metadados de descoberta.
-    Invoke-FixtureSql ("USE {0}; ALTER TABLE Usuarios ADD CodigoCadastro varchar(32) NULL, ADD PinConfigurado tinyint(1) NOT NULL DEFAULT 0, ADD NumeroChamada int NULL, ADD UNIQUE INDEX IX_Usuarios_CodigoCadastro (CodigoCadastro);" -f $Schema)
+    # Os builds antigos não descobrem as três migrations de cadastro.
+    $colunas = Invoke-FixtureSql ("SELECT COUNT(*) FROM information_schema.COLUMNS WHERE TABLE_SCHEMA='{0}' AND TABLE_NAME='Usuarios' AND COLUMN_NAME IN ('CodigoCadastro','PinConfigurado','NumeroChamada');" -f $Schema)
+    if ($colunas -eq '0') {
+        Invoke-FixtureSql ("USE {0}; ALTER TABLE Usuarios ADD CodigoCadastro varchar(32) NULL, ADD PinConfigurado tinyint(1) NOT NULL DEFAULT 0, ADD NumeroChamada int NULL, ADD UNIQUE INDEX IX_Usuarios_CodigoCadastro (CodigoCadastro);" -f $Schema)
+    } elseif ($colunas -ne '3') {
+        throw 'A fixture encontrou uma parte das colunas legadas de cadastro.'
+    }
     & $sdk @efArgs database update @project
     if ($LASTEXITCODE -ne 0) { throw 'Migration da PER-64 falhou.' }
     Invoke-FixtureSql ("USE {0}; SELECT MigrationId FROM __EFMigrationsHistory WHERE MigrationId LIKE '%ClassificacaoHibridaPer64';" -f $Schema)

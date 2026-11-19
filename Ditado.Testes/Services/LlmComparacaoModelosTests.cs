@@ -40,10 +40,12 @@ public sealed class LlmComparacaoModelosTests(ITestOutputHelper saida)
             foreach (var (esperado, fornecido, rotulos) in amostra)
             {
                 var inicio = Stopwatch.GetTimestamp();
-                var retorno = await cliente.ClassificarAsync(provedor, esperado, fornecido, candidatos, default);
+                var entrada = new LlmAttemptPrompt(fornecido, $"⟦1⟧{esperado}⟦/1⟧",
+                    [new(1, esperado, fornecido, true)], candidatos);
+                var retorno = await cliente.ClassificarAsync(provedor, entrada, default);
                 latencias.Add(Stopwatch.GetElapsedTime(inicio).TotalMilliseconds);
                 if (retorno.Outcome != LlmProviderOutcome.Sucesso || retorno.Output is null ||
-                    !LlmAnalysisProcessor.ValidarSaida(retorno.Output, new HashSet<int> { 1, 2 }, out _))
+                    !LlmAnalysisProcessor.ValidarSaida(retorno.Output, entrada))
                 {
                     saida.WriteLine("{0}: desfecho {1}, motivo {2}, HTTP {3}",
                         provedor.Provider, retorno.Outcome, retorno.Motivo, retorno.HttpStatus);
@@ -51,9 +53,9 @@ public sealed class LlmComparacaoModelosTests(ITestOutputHelper saida)
                     continue;
                 }
                 validas++;
-                var previstos = retorno.Output.Classificacoes.Where(c => c.Estado == "correspondente")
+                var previstos = retorno.Output.Classificacoes.Where(c => c.Correspondentes.Count > 0)
                     .Select(c => c.CandidatoId).ToHashSet();
-                if (previstos.SetEquals(rotulos) && retorno.Output.Classificacoes.All(c => c.Estado != "inconclusivo"))
+                if (previstos.SetEquals(rotulos) && retorno.Output.Classificacoes.All(c => c.Inconclusivas.Count == 0))
                     exatas++;
             }
             latencias.Sort();

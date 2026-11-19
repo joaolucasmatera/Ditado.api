@@ -28,34 +28,45 @@ public enum LlmMotivo
 
 public sealed record LlmCandidatePrompt(int Id, string Codigo, string Nome, string Descricao);
 
+public sealed record LlmGapPrompt(int Id, string Esperado, string? Escrito, bool Avaliar);
+
+public sealed record LlmAttemptPrompt(string TextoEscrito, string TextoEsperado,
+    IReadOnlyList<LlmGapPrompt> Lacunas, IReadOnlyList<LlmCandidatePrompt> Candidatos);
+
 public interface ILlmProviderClient
 {
-    Task<LlmProviderResponse> ClassificarAsync(LlmProviderOptions provider, string respostaEsperada,
-        string respostaFornecida, IReadOnlyList<LlmCandidatePrompt> candidatos, CancellationToken cancellationToken);
+    Task<LlmProviderResponse> ClassificarAsync(LlmProviderOptions provider, LlmAttemptPrompt entrada, CancellationToken cancellationToken);
 }
 
 public sealed class LlmAnalysisOutput
 {
-    [JsonPropertyName("classificacoes")]
+    [JsonRequired]
+    public List<int> LacunasAvaliadas { get; set; } = [];
+
     [JsonRequired]
     public List<LlmClassificationOutput> Classificacoes { get; set; } = [];
 }
 
 public sealed class LlmClassificationOutput
 {
-    [JsonPropertyName("candidatoId")]
     [JsonRequired]
     public int CandidatoId { get; set; }
 
-    [JsonPropertyName("estado")]
     [JsonRequired]
-    public string Estado { get; set; } = string.Empty;
+    public List<LlmGapFinding> Correspondentes { get; set; } = [];
 
-    [JsonPropertyName("confianca")]
+    [JsonRequired]
+    public List<LlmGapFinding> Inconclusivas { get; set; } = [];
+}
+
+public sealed class LlmGapFinding
+{
+    [JsonRequired]
+    public int LacunaId { get; set; }
+
     [JsonRequired]
     public decimal? Confianca { get; set; }
 
-    [JsonPropertyName("evidencia")]
     [JsonRequired]
     public string? Evidencia { get; set; }
 }
