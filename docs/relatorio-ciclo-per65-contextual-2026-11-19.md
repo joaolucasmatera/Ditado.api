@@ -28,3 +28,15 @@ O worker grava a conclusão de todas as tarefas do lote em uma operação e mant
 O tipo `Ditado.Aplicacao.Llm.LlmProviderClient` fica em `Ditado.API.dll`. O contrato fica em `Ditado.Aplicacao.dll` no mesmo diretório. O build local está em `C:\Users\lucas\AppData\Local\Temp\ditado-per65-contextual-artifacts\bin\Ditado.API\debug`. Para o gate sintético, use o cliente com a nova versão do payload e valide a resposta com `LlmAnalysisProcessor.ValidarSaida`.
 
 Os limites configurados de entrada e saída se aplicam à tentativa inteira. A qualidade linguística em provedores reais depende do gate sintético da coordenação. Neste ciclo de implementação a validação usou provedores simulados, sem dados escolares.
+
+## Revisão v4 · evidência de concordância por bloco
+
+A coordenação observou um falso positivo na lacuna 14 do lote de 24 na v3. O modelo citou “as crianças” ao julgar “a criança chegou”. A v4 envia `blocos` em ordem. Cada bloco traz seu `textoEscrito` contínuo e as próprias `lacunas`, cada uma com ID, esperado, escrito e indicador de avaliação. O único gabarito enviado é o valor esperado por alvo. Os IDs vêm do vínculo entre resposta e segmento.
+
+A divisão usa a pontuação e as quebras de linha do ditado. Uma resposta digitada com pontuação interna permanece vinculada à lacuna inteira. Abreviações seguidas de espaço podem encurtar o bloco. A instrução pede que o modelo use o sujeito e o verbo escritos no trecho do alvo.
+
+O cliente agora retorna o status HTTP recebido nas respostas bem-sucedidas. Os testes exercitam HTTP 200 nos quatro adaptadores e releem o valor gravado pelo worker. O teste de montagem verifica os IDs dentro de cada bloco, inclusive em trechos adjacentes com sujeitos no singular e no plural.
+
+O build v4 teve zero erros e dois avisos preexistentes. Passaram os 66 testes selecionados. A evidência está em `work/logs/per65-contextual-v4-build.log` e `work/logs/per65-contextual-v4.trx`.
+
+Para repetir o lote com `per18-v4-contextual`, construa `LlmAttemptPrompt(blocos, candidatos)` com um `LlmBlocoPrompt(textoEscrito, lacunas)` por trecho. Use as DLLs de `C:\Users\lucas\AppData\Local\Temp\ditado-per65-contextual-v4-artifacts\bin\Ditado.API\debug`. O resultado linguístico da lacuna 14 depende da repetição com o provedor real.

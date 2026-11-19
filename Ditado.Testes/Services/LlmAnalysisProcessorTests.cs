@@ -13,6 +13,7 @@ public sealed class LlmAnalysisProcessorTests
     [Theory]
     [InlineData("concordancia", "Groq", LlmAnaliseEstado.Concluida)]
     [InlineData("inedito", "Groq", LlmAnaliseEstado.Concluida)]
+    [InlineData("pontuacao", "Groq", LlmAnaliseEstado.Concluida)]
     [InlineData("historico", "Groq", LlmAnaliseEstado.Concluida)]
     [InlineData("limite", "Groq,OpenRouter", LlmAnaliseEstado.Concluida)]
     [InlineData("todos", "Groq,OpenRouter,Cohere,GonkaBroker", LlmAnaliseEstado.Falha)]
@@ -31,16 +32,25 @@ public sealed class LlmAnalysisProcessorTests
         await using var context = new DitadoDbContext(new DbContextOptionsBuilder<DitadoDbContext>()
             .UseInMemoryDatabase(Guid.NewGuid().ToString()).Options);
         var inedito = caso == "inedito";
-        var sujeito = new DitadoSegmento { Ordem = 1, Tipo = TipoSegmento.Lacuna, Conteudo = inedito ? "As equipes" : "Os alunos" };
+        var sujeito = new DitadoSegmento { Ordem = 1, Tipo = TipoSegmento.Lacuna, Conteudo = caso switch
+        {
+            "inedito" => "As equipes", "vazio" => "As crianças", _ => "Os alunos"
+        } };
         var verbo = new DitadoSegmento { Ordem = 3, Tipo = TipoSegmento.Lacuna, Conteudo = inedito ? "viajaram" : "chegaram" };
         var ausente = new DitadoSegmento { Ordem = 5, Tipo = TipoSegmento.Lacuna, Conteudo = "ontem" };
         var ditado = new Ditado.Dominio.Entidades.Ditado
         {
             Segmentos = [ausente, verbo, new() { Ordem = 6, Tipo = TipoSegmento.Texto, Conteudo = ". ⟦123⟧" },
                 sujeito, new() { Ordem = 2, Tipo = TipoSegmento.Texto, Conteudo = " " },
-                new() { Ordem = 4, Tipo = TipoSegmento.Texto, Conteudo = " " }]
+                new() { Ordem = 4, Tipo = TipoSegmento.Texto, Conteudo = ". As crianças chegaram " }]
         };
-        var escritaSujeito = inedito ? "A equipe" : "O aluno";
+        var escritaSujeito = caso switch
+        {
+            "vazio" => "A criança",
+            "inedito" => "A equipe",
+            "pontuacao" => "A equipe! ⟦14⟧",
+            _ => "O aluno"
+        };
         var escritaVerbo = caso == "vazio" ? "chegou" : verbo.Conteudo;
         var resposta = new RespostaDitado
         {
@@ -78,11 +88,15 @@ public sealed class LlmAnalysisProcessorTests
         Assert.All(fixture.Chamadas, chamada =>
         {
             var entrada = chamada.Entrada;
-            Assert.Equal($"{escritaSujeito} {escritaVerbo} . ⟦123⟧", entrada.TextoEscrito);
-            Assert.Equal($"⟦{ids[0]}⟧{sujeito.Conteudo}⟦/{ids[0]}⟧ ⟦{ids[1]}⟧{verbo.Conteudo}⟦/{ids[1]}⟧ ⟦{ids[2]}⟧ontem⟦/{ids[2]}⟧. ⟦123⟧", entrada.TextoEsperado);
+            Assert.Equal(new[] { $"{escritaSujeito} {escritaVerbo}.", " As crianças chegaram .", " ⟦123⟧" },
+                entrada.Blocos.Select(b => b.TextoEscrito));
+            Assert.Equal(ids.Take(2), entrada.Blocos[0].Lacunas.Select(l => l.Id));
+            Assert.Equal(ids[2], Assert.Single(entrada.Blocos[1].Lacunas).Id);
+            Assert.Empty(entrada.Blocos[2].Lacunas);
+            Assert.Equal(sujeito.Conteudo, entrada.Blocos[0].Lacunas[0].Esperado);
             Assert.Equal(ids, entrada.Lacunas.Select(l => l.Id));
             Assert.Equal(new[] { true, true, caso != "historico" }, entrada.Lacunas.Select(l => l.Avaliar));
-            Assert.Null(entrada.Lacunas[2].Escrito);
+            Assert.Null(entrada.Blocos[1].Lacunas[0].Escrito);
             Assert.Equal(new[] { 31, 32 }, entrada.Candidatos.Select(c => c.Id));
             Assert.Equal("Concordância verbal", entrada.Candidatos[0].Nome);
         });
@@ -111,7 +125,11 @@ public sealed class LlmAnalysisProcessorTests
         }
         if (caso == "todos")
             Assert.Equal(new[] { "LimiteProvedor", "Timeout", "Rede", "Indisponivel" }, trilha.Select(a => a.Motivo));
-        if (caso == "vazio") Assert.Equal("SemCorrespondencia", Assert.Single(trilha).Desfecho);
+        if (caso == "vazio")
+        {
+            Assert.Equal("SemCorrespondencia", Assert.Single(trilha).Desfecho);
+            Assert.Equal(200, trilha[0].HttpStatus);
+        }
         if (estado != LlmAnaliseEstado.Concluida)
             Assert.All(tarefas.SelectMany(t => t.Candidatos), c => Assert.Equal(LlmCandidatoEstado.NaoAvaliado, c.Estado));
         else
@@ -151,7 +169,7 @@ public sealed class LlmAnalysisProcessorTests
         public Task<LlmProviderResponse> ClassificarAsync(LlmProviderOptions provider, LlmAttemptPrompt entrada, CancellationToken cancellationToken)
         {
             Chamadas.Add((provider.Provider, entrada));
-            var verboId = entrada.Lacunas[1].Id;
+            var verboId = entrada.Blocos[0].Lacunas[1].Id;
             var grupos = entrada.Candidatos.Select(c => new LlmClassificationOutput { CandidatoId = c.Id }).ToList();
             var achado = new LlmGapFinding { LacunaId = verboId, Evidencia = "O sujeito escrito é singular." };
             if (caso != "vazio") grupos[0].Correspondentes.Add(achado);
@@ -175,7 +193,7 @@ public sealed class LlmAnalysisProcessorTests
                     "Cohere" => LlmMotivo.Rede,
                     _ => LlmMotivo.Indisponivel
                 }),
-                _ => new(LlmProviderOutcome.Sucesso, new() { LacunasAvaliadas = cobertura, Classificacoes = grupos })
+                _ => new(LlmProviderOutcome.Sucesso, new() { LacunasAvaliadas = cobertura, Classificacoes = grupos }, HttpStatus: 200)
             });
         }
     }

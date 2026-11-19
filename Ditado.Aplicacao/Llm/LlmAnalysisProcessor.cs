@@ -1,4 +1,5 @@
 using System.Text;
+using System.Text.RegularExpressions;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
@@ -91,14 +92,28 @@ public sealed class LlmAnalysisProcessor(
 
         var avaliadas = tarefas.Select(t => t.RespostaSegmentoId).ToHashSet();
         var escrito = new StringBuilder();
-        var esperado = new StringBuilder();
+        var blocos = new List<LlmBlocoPrompt>();
         var lacunas = new List<LlmGapPrompt>();
+        void FecharBloco()
+        {
+            if (escrito.Length == 0 && lacunas.Count == 0) return;
+            blocos.Add(new(escrito.ToString(), lacunas.ToArray()));
+            escrito.Clear();
+            lacunas.Clear();
+        }
         foreach (var segmento in segmentos)
         {
             if (segmento.Tipo != TipoSegmento.Lacuna)
             {
-                escrito.Append(segmento.Conteudo);
-                esperado.Append(segmento.Conteudo);
+                var inicio = 0;
+                foreach (Match fim in Regex.Matches(segmento.Conteudo, @"[.!?…]+(?=\s|$)|\r\n|[\r\n]"))
+                {
+                    var proximo = fim.Index + fim.Length;
+                    escrito.Append(segmento.Conteudo, inicio, proximo - inicio);
+                    FecharBloco();
+                    inicio = proximo;
+                }
+                escrito.Append(segmento.Conteudo.AsSpan(inicio));
                 continue;
             }
 
@@ -108,12 +123,13 @@ public sealed class LlmAnalysisProcessor(
             var id = respostaLacuna.Id;
             lacunas.Add(new(id, gabarito, original, avaliadas.Contains(id)));
             escrito.Append(original);
-            esperado.Append($"⟦{id}⟧").Append(gabarito).Append($"⟦/{id}⟧");
+            if (Regex.IsMatch(segmento.Conteudo, @"[.!?…]\s*\z")) FecharBloco();
         }
+        FecharBloco();
 
         var candidatos = tarefas[0].Candidatos.OrderBy(c => c.ErroCatalogoId)
             .Select(c => new LlmCandidatePrompt(c.ErroCatalogoId, c.Codigo, c.Nome, c.Descricao)).ToArray();
-        return new(escrito.ToString(), esperado.ToString(), lacunas, candidatos);
+        return new(blocos, candidatos);
     }
 
     private async Task ProcessarAsync(LlmAnaliseTarefa[] tarefas, LlmAttemptPrompt entrada, CancellationToken cancellationToken)

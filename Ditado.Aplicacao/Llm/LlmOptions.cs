@@ -3,7 +3,7 @@ namespace Ditado.Aplicacao.Llm;
 public sealed class LlmOptions
 {
     public bool Enabled { get; set; }
-    public const string PromptVersion = "per18-v3-contextual";
+    public const string PromptVersion = "per18-v4-contextual";
     public int TimeoutSeconds { get; set; } = 15;
     public int MaxInputCharacters { get; set; } = 8000;
     public int MaxOutputTokens { get; set; } = 768;

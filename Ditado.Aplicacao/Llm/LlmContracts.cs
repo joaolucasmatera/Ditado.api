@@ -30,8 +30,13 @@ public sealed record LlmCandidatePrompt(int Id, string Codigo, string Nome, stri
 
 public sealed record LlmGapPrompt(int Id, string Esperado, string? Escrito, bool Avaliar);
 
-public sealed record LlmAttemptPrompt(string TextoEscrito, string TextoEsperado,
-    IReadOnlyList<LlmGapPrompt> Lacunas, IReadOnlyList<LlmCandidatePrompt> Candidatos);
+public sealed record LlmBlocoPrompt(string TextoEscrito, IReadOnlyList<LlmGapPrompt> Lacunas);
+
+public sealed record LlmAttemptPrompt(IReadOnlyList<LlmBlocoPrompt> Blocos, IReadOnlyList<LlmCandidatePrompt> Candidatos)
+{
+    [JsonIgnore]
+    public IEnumerable<LlmGapPrompt> Lacunas => Blocos.SelectMany(bloco => bloco.Lacunas);
+}
 
 public interface ILlmProviderClient
 {

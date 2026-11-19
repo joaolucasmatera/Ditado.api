@@ -40,8 +40,7 @@ public sealed class LlmComparacaoModelosTests(ITestOutputHelper saida)
             foreach (var (esperado, fornecido, rotulos) in amostra)
             {
                 var inicio = Stopwatch.GetTimestamp();
-                var entrada = new LlmAttemptPrompt(fornecido, $"⟦1⟧{esperado}⟦/1⟧",
-                    [new(1, esperado, fornecido, true)], candidatos);
+                var entrada = new LlmAttemptPrompt([new(fornecido, [new(1, esperado, fornecido, true)])], candidatos);
                 var retorno = await cliente.ClassificarAsync(provedor, entrada, default);
                 latencias.Add(Stopwatch.GetElapsedTime(inicio).TotalMilliseconds);
                 if (retorno.Outcome != LlmProviderOutcome.Sucesso || retorno.Output is null ||
