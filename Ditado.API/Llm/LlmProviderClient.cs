@@ -96,7 +96,9 @@ public sealed class LlmProviderClient(
 
             var content = envelope.GetProperty("message").GetProperty("content");
             var text = isCohere
-                ? string.Concat(content.EnumerateArray().Select(part => part.GetProperty("text").GetString()))
+                ? string.Concat(content.EnumerateArray()
+                    .Where(part => part.GetProperty("type").ValueEquals("text"))
+                    .Select(part => part.GetProperty("text").GetString()))
                 : content.GetString();
             if (string.IsNullOrWhiteSpace(text))
                 return new(LlmProviderOutcome.SaidaInvalida, Motivo: LlmMotivo.SaidaInvalida);

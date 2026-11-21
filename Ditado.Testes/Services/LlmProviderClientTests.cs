@@ -56,6 +56,35 @@ public sealed class LlmProviderClientTests
     }
 
     [Theory]
+    [InlineData(true)]
+    [InlineData(false)]
+    public async Task CohereLeSomenteOsBlocosDeTextoNaOrdem(bool incluirTexto)
+    {
+        var blocos = new List<object> { new { type = "thinking", thinking = "Rascunho do provedor." } };
+        if (incluirTexto)
+        {
+            blocos.Add(new { type = "text", text = """{"lacunasAvaliadas":[1,2],""" });
+            blocos.Add(new { type = "text", text = "\"classificacoes\":[{\"candidatoId\":1,\"correspondentes\":[],\"inconclusivas\":[]}]}" });
+        }
+        var envelope = JsonSerializer.Serialize(new { finish_reason = "COMPLETE", message = new { content = blocos } });
+        var resultado = await ExecutarAsync("Cohere", (_, _) => Task.FromResult(Resposta(200, envelope)));
+
+        if (incluirTexto)
+        {
+            Assert.Equal(LlmProviderOutcome.Sucesso, resultado.Outcome);
+            Assert.Equal(200, resultado.HttpStatus);
+            Assert.Equal(new[] { 1, 2 }, resultado.Output!.LacunasAvaliadas);
+            Assert.Equal(1, Assert.Single(resultado.Output.Classificacoes).CandidatoId);
+        }
+        else
+        {
+            Assert.Equal(LlmProviderOutcome.SaidaInvalida, resultado.Outcome);
+            Assert.Equal(LlmMotivo.SaidaInvalida, resultado.Motivo);
+            Assert.Null(resultado.Output);
+        }
+    }
+
+    [Theory]
     [InlineData(429, LlmProviderOutcome.Tecnica, LlmMotivo.LimiteProvedor)]
     [InlineData(503, LlmProviderOutcome.Tecnica, LlmMotivo.Indisponivel)]
     [InlineData(408, LlmProviderOutcome.Tecnica, LlmMotivo.Timeout)]
