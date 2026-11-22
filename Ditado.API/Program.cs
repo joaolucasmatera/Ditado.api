@@ -154,7 +154,7 @@ builder.Services.AddHostedService<LlmAnalysisWorker>();
 var app = builder.Build();
 var llmOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
 if (llmOptions.Enabled && !llmOptions.PodeEnfileirar)
-    app.Logger.LogWarning("Classificação LLM desabilitada: verifique a ordem, os quatro modelos e os limites.");
+    app.Logger.LogWarning("Classificação LLM desabilitada. Verifique a ordem, os modelos de Groq, Cohere e OpenRouter e os limites.");
 
 // APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODU��O - N�O EM DEVELOPMENT NEM TESTING)
 if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))

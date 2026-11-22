@@ -22,11 +22,8 @@ services:
       Llm__Chain__1__Model: ${LLM_CHAIN_1_MODEL:-}
       Llm__Chain__2__Provider: ${LLM_CHAIN_2_PROVIDER:-}
       Llm__Chain__2__Model: ${LLM_CHAIN_2_MODEL:-}
-      Llm__Chain__3__Provider: ${LLM_CHAIN_3_PROVIDER:-}
-      Llm__Chain__3__Model: ${LLM_CHAIN_3_MODEL:-}
       GROQ_API_KEY: ${GROQ_API_KEY:-}
       COHERE_API_KEY: ${COHERE_API_KEY:-}
-      GONKA_BROKER_API_KEY: ${GONKA_BROKER_API_KEY:-}
       OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
     extra_hosts:
       - host.docker.internal:host-gateway

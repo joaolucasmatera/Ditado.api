@@ -16,7 +16,8 @@ public sealed class LlmAnalysisProcessorTests
     [InlineData("pontuacao", "Groq", LlmAnaliseEstado.Concluida)]
     [InlineData("historico", "Groq", LlmAnaliseEstado.Concluida)]
     [InlineData("limite", "Groq,OpenRouter", LlmAnaliseEstado.Concluida)]
-    [InlineData("todos", "Groq,OpenRouter,Cohere,GonkaBroker", LlmAnaliseEstado.Falha)]
+    [InlineData("terceiro", "Groq,OpenRouter,Cohere", LlmAnaliseEstado.Concluida)]
+    [InlineData("todos", "Groq,OpenRouter,Cohere", LlmAnaliseEstado.Falha)]
     [InlineData("vazio", "Groq", LlmAnaliseEstado.Concluida)]
     [InlineData("fora", "Groq", LlmAnaliseEstado.Revisao)]
     [InlineData("duplicado", "Groq", LlmAnaliseEstado.Revisao)]
@@ -79,7 +80,7 @@ public sealed class LlmAnalysisProcessorTests
         {
             Enabled = true,
             Chain = [new() { Provider = "Groq", Model = "fixture" }, new() { Provider = "OpenRouter", Model = "fixture/backup" },
-                new() { Provider = "Cohere", Model = "fixture" }, new() { Provider = "GonkaBroker", Model = "fixture" }]
+                new() { Provider = "Cohere", Model = "fixture" }]
         }));
         Assert.True(await processor.ProcessNextAsync(default));
         Assert.False(await processor.ProcessNextAsync(default));
@@ -124,7 +125,13 @@ public sealed class LlmAnalysisProcessorTests
             Assert.Equal(429, trilha[0].HttpStatus);
         }
         if (caso == "todos")
-            Assert.Equal(new[] { "LimiteProvedor", "Timeout", "Rede", "Indisponivel" }, trilha.Select(a => a.Motivo));
+            Assert.Equal(new[] { "LimiteProvedor", "Timeout", "Rede" }, trilha.Select(a => a.Motivo));
+        if (caso == "terceiro")
+        {
+            Assert.Equal(new[] { "LimiteProvedor", "Timeout", null }, trilha.Select(a => a.Motivo));
+            Assert.Equal(200, trilha[2].HttpStatus);
+            Assert.All(tarefas, tarefa => Assert.Equal("Cohere", tarefa.Provedor));
+        }
         if (caso == "vazio")
         {
             Assert.Equal("SemCorrespondencia", Assert.Single(trilha).Desfecho);
@@ -185,7 +192,10 @@ public sealed class LlmAnalysisProcessorTests
                 "permanente" => new LlmProviderResponse(LlmProviderOutcome.Permanente),
                 "malformado" => new LlmProviderResponse(LlmProviderOutcome.SaidaInvalida),
                 "nulo" => new LlmProviderResponse(LlmProviderOutcome.Sucesso, new() { Classificacoes = null! }),
-                "limite" when provider.Provider == "Groq" => new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.LimiteProvedor, HttpStatus: 429),
+                "limite" or "terceiro" when provider.Provider == "Groq" =>
+                    new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.LimiteProvedor, HttpStatus: 429),
+                "terceiro" when provider.Provider == "OpenRouter" =>
+                    new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Timeout),
                 "todos" => new(LlmProviderOutcome.Tecnica, Motivo: provider.Provider switch
                 {
                     "Groq" => LlmMotivo.LimiteProvedor,

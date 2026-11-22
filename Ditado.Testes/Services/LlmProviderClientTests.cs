@@ -11,9 +11,8 @@ public sealed class LlmProviderClientTests
     [Theory]
     [InlineData("Groq", "https://api.groq.com/openai/v1/chat/completions", "max_completion_tokens", "json_schema")]
     [InlineData("Cohere", "https://api.cohere.com/v2/chat", "max_tokens", "json_object")]
-    [InlineData("GonkaBroker", "https://proxy.gonkabroker.com/v1/chat/completions", "max_tokens", "json_schema")]
     [InlineData("OpenRouter", "https://openrouter.ai/api/v1/chat/completions", "max_tokens", "json_schema")]
-    public async Task ContratoDosQuatroAdaptadores(string provedor, string url, string tokens, string formato)
+    public async Task ContratoDosTresAdaptadores(string provedor, string url, string tokens, string formato)
     {
         const string saida = """{"lacunasAvaliadas":[1,2],"classificacoes":[{"candidatoId":1,"correspondentes":[{"lacunaId":2,"confianca":null,"evidencia":null}],"inconclusivas":[]}]}""";
         var envelope = provedor == "Cohere"
@@ -123,6 +122,28 @@ public sealed class LlmProviderClientTests
         Assert.False(options.PodeEnfileirar);
     }
 
+    [Fact]
+    public async Task ProvedorRemovidoInvalidaCadeiaENaoDisparaHttp()
+    {
+        var provedorRemovido = new LlmProviderOptions { Provider = "GonkaBroker", Model = "fixture" };
+        var options = new LlmOptions
+        {
+            Enabled = true,
+            Chain = [new() { Provider = "Groq", Model = "fixture" }, new() { Provider = "Cohere", Model = "fixture" },
+                new() { Provider = "OpenRouter", Model = "fixture/modelo" }]
+        };
+        Assert.True(options.PodeEnfileirar);
+        options.Chain.Add(provedorRemovido);
+        Assert.False(options.PodeEnfileirar);
+        options.Chain.RemoveAt(2);
+        Assert.False(options.PodeEnfileirar);
+
+        var resultado = await ExecutarAsync(provedorRemovido.Provider,
+            (_, _) => throw new InvalidOperationException("HTTP inesperado."));
+        Assert.Equal(LlmProviderOutcome.Permanente, resultado.Outcome);
+        Assert.Equal(LlmMotivo.Configuracao, resultado.Motivo);
+    }
+
     [Theory]
     [InlineData("{}", "stop", LlmMotivo.SaidaInvalida)]
     [InlineData("json quebrado", "stop", LlmMotivo.SaidaInvalida)]
@@ -130,7 +151,7 @@ public sealed class LlmProviderClientTests
     public async Task SaidaInvalidaNaoViraListaVazia(string conteudo, string fim, LlmMotivo motivo)
     {
         var envelope = JsonSerializer.Serialize(new { choices = new[] { new { finish_reason = fim, message = new { content = conteudo } } } });
-        var r = await ExecutarAsync("GonkaBroker", (_, _) => Task.FromResult(Resposta(200, envelope)));
+        var r = await ExecutarAsync("Groq", (_, _) => Task.FromResult(Resposta(200, envelope)));
         Assert.Equal(LlmProviderOutcome.SaidaInvalida, r.Outcome);
         Assert.Equal(motivo, r.Motivo);
     }

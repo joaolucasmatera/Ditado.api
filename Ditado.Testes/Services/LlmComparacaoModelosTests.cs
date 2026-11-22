@@ -11,11 +11,11 @@ public sealed class LlmComparacaoModelosTests(ITestOutputHelper saida)
 {
     [LlmRealFact]
     [Trait("Categoria", "LlmReal")]
-    public async Task CompararQuatroModelosNaMesmaAmostra()
+    public async Task CompararTresModelosNaMesmaAmostra()
     {
         var options = new ConfigurationBuilder().AddEnvironmentVariables().Build()
             .GetSection("Llm").Get<LlmOptions>() ?? new();
-        Assert.True(options.CadeiaCompleta, "Configure a ordem, os quatro modelos e os limites.");
+        Assert.True(options.CadeiaCompleta, "Configure a ordem, os três modelos e os limites.");
         foreach (var (provider, endpoint) in LlmOptions.Endpoints)
             Assert.False(string.IsNullOrWhiteSpace(Environment.GetEnvironmentVariable(endpoint.Credential)), $"Credencial ausente para {provider}.");
 

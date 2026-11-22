@@ -15,7 +15,6 @@ public sealed class LlmOptions
         {
             ["Groq"] = ("https://api.groq.com/openai/v1", "GROQ_API_KEY"),
             ["Cohere"] = ("https://api.cohere.com/v2", "COHERE_API_KEY"),
-            ["GonkaBroker"] = ("https://proxy.gonkabroker.com/v1", "GONKA_BROKER_API_KEY"),
             ["OpenRouter"] = ("https://openrouter.ai/api/v1", "OPENROUTER_API_KEY")
         };
 
