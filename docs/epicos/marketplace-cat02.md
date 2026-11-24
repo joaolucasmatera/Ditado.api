@@ -4,7 +4,24 @@
 
 Usuário aprovou o formulário revisado com “Ok, gostei”, conforme SQUAD, 6 nov 2026. O nome de produto vigente é **Catálogo de erros**; “Marketplace” permanece somente em nomes técnicos, caminhos e referências históricas. Esta página é o contrato vigente da fatia e substitui propostas CAT02-P1 de [CAT-09](catalogo-contrato.md), sem encerrar o enabler global. Uma história funcional por vez; CAT-01/listagem ampla e CAT-05/seleção permanecem fora.
 
-Nome e Descrição obrigatórios; Exemplo opcional em um grupo Escrita esperada → Resposta do aluno (ambos ou nenhum); Observação pedagógica e Série/ano opcionais. Inputs vazios, placeholders apenas ilustrativos, labels e ajuda sempre visíveis. A descrição pode conter orientação/exemplos livres além do grupo estruturado. Sem executor/prompt/modelo, sem chamada LLM ou alteração de classificações/notas ao publicar.
+Nome e Descrição são obrigatórios. Observação pedagógica, Série/ano e exemplos são opcionais. Cada exemplo reúne Escrita esperada e Resposta do aluno. A descrição pode incluir orientações e exemplos em texto livre. A publicação não executa a LLM nem altera classificações e notas anteriores.
+
+## Vários exemplos (24 nov 2026)
+
+Na branch `codex/catalogo-varios-exemplos`, `POST /api/ErrosCatalogo` e `PUT /api/ErrosCatalogo/{id}` aceitam a lista opcional `exemplos`. Cada elemento tem `esperado` e `resposta`, ambos obrigatórios e com até 2000 caracteres. A ordem é preservada no recibo, na edição e no detalhe.
+
+```json
+{
+  "nome": "Troca de M por N",
+  "descricao": "Troca de M por N antes de P ou B",
+  "exemplos": [
+    {"esperado": "campo", "resposta": "canpo"},
+    {"esperado": "tambor", "resposta": "tanbor"}
+  ]
+}
+```
+
+No PUT, a lista substitui os exemplos da definição e `[]` os remove. Se a lista for omitida, `exemploEsperado` e `exemploResposta` mantêm o comportamento legado para o primeiro par e preservam os demais. Na resposta, esses dois campos espelham o primeiro par. Registros antigos com um par são lidos como uma lista de um item. O mesmo formato de item legado continua aceito na entrada da definição. A importação de arquivos da CAT-07 segue com contrato próprio e rota pendente.
 
 ## Contrato da entrega original (PER-7)
 

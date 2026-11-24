@@ -233,6 +233,8 @@ public sealed class LlmProviderClient(
         Em “os atletas correu”, há discordância. Marque somente a lacuna do verbo se esse for o critério do candidato.
         Não transfira achados entre frases ou entre lacunas com a mesma palavra.
         Para erros de grafia, compare resposta e esperado. Uma resposta nula está ausente; não a complete com o gabarito.
+        Em cada erro candidato, exemplos contém pares [escrita esperada, resposta do aluno] que ilustram o critério.
+        Um exemplo único pode vir nos campos exemploEsperado e exemploResposta.
         Retorne exclusivamente um objeto JSON {"segmentos":[{"segmentoId":101,"candidatosCorrespondentes":[1],"inconclusivo":false}]}.
         Inclua cada segmentoId de ditado.lacunas exatamente uma vez, inclusive em lacunas sem achados.
         Use apenas IDs de errosCandidatos, sem repetições. Use lista vazia quando nenhum candidato corresponder.

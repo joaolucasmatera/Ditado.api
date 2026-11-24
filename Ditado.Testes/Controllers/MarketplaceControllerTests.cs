@@ -56,8 +56,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var colegaId = await AutenticarAsync(TipoUsuario.Professor);
         await GarantirEscolaEVinculoAsync(colegaId);
         var ativos = await Client.GetFromJsonAsync<List<ErroPublicadoResponse>>("/api/ErrosCatalogo?estado=ativo");
-        Assert.Contains(criado, ativos!);
-        Assert.Equal(criado, await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location));
+        Assert.Equivalent(criado, Assert.Single(ativos!, erro => erro.Id == criado.Id), strict: true);
+        Assert.Equivalent(criado, await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location), strict: true);
 
         var professorOutraEscolaId = await AutenticarAsync(TipoUsuario.Professor);
         var outraEscola = new Escola { Nome = "Outra escola", Codigo = Guid.NewGuid().ToString("N") };
@@ -67,8 +67,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         ativos = await Client.GetFromJsonAsync<List<ErroPublicadoResponse>>("/api/ErrosCatalogo?estado=ativo");
         if (nivel == NivelVisibilidade.PublicoGeral)
         {
-            Assert.Contains(criado, ativos!);
-            Assert.Equal(criado, await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location));
+            Assert.Equivalent(criado, Assert.Single(ativos!, erro => erro.Id == criado.Id), strict: true);
+            Assert.Equivalent(criado, await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location), strict: true);
         }
         else
         {
@@ -216,6 +216,69 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     }
 
     [Fact]
+    public async Task Exemplos_PublicaReleEditaERemoveSemPerderOutroPar()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        var segundo = new ExemploErroDto("tambor", "tanbor");
+        const string nome = "Troca de M por N";
+        const string descricao = "Troca de M por N antes de P ou B";
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome, descricao, exemplos = new[] { new ExemploErroDto(" campo ", " canpo "), segundo } }));
+        var url = $"/api/ErrosCatalogo/{criado.Id}";
+        var esperado = new[] { new ExemploErroDto("campo", "canpo"), segundo };
+        Assert.Equal(esperado, criado.Exemplos);
+        Assert.Equal(esperado, (await GetAsync<ErroPublicadoResponse>(url))!.Exemplos);
+
+        var editado = new ExemploErroDto("tempo", "tenpo");
+        var atualizacao = await PutAsync<ErroPublicadoResponse>(url,
+            new { nome, descricao, exemplos = new[] { editado, segundo } });
+        Assert.Equal(new[] { editado, segundo }, atualizacao!.Exemplos);
+
+        // Um cliente antigo ainda pode editar o primeiro exemplo de uma definição com vários pares.
+        atualizacao = await PutAsync<ErroPublicadoResponse>(url,
+            new { nome, descricao, exemploEsperado = "sombrio", exemploResposta = "sonbrio" });
+        Assert.Equal(new[] { new ExemploErroDto("sombrio", "sonbrio"), segundo }, atualizacao!.Exemplos);
+
+        await PutAsync<ErroPublicadoResponse>(url, new { nome, descricao, exemplos = new[] { segundo } });
+        var relido = (await GetAsync<ErroPublicadoResponse>(url))!;
+        Assert.Equal(segundo, Assert.Single(relido.Exemplos));
+        Assert.Equal((segundo.Esperado, segundo.Resposta), (relido.ExemploEsperado, relido.ExemploResposta));
+
+        await PutAsync<ErroPublicadoResponse>(url, new { nome, descricao, exemplos = Array.Empty<ExemploErroDto>() });
+        relido = (await GetAsync<ErroPublicadoResponse>(url))!;
+        Assert.Empty(relido.Exemplos);
+        Assert.Null(relido.ExemploEsperado);
+        Assert.Null(relido.ExemploResposta);
+    }
+
+    [Fact]
+    public async Task Exemplos_LeParDeCargaLegadaERejeitaListaIncompleta()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        using var legado = JsonDocument.Parse("""
+            {"nome":"Troca antes de P","descricao":"Exemplo de carga legada","exemploEsperado":"campo","exemploResposta":"canpo"}
+            """);
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", legado.RootElement));
+        var relido = (await GetAsync<ErroPublicadoResponse>($"/api/ErrosCatalogo/{criado.Id}"))!;
+        Assert.Equal(new ExemploErroDto("campo", "canpo"), Assert.Single(relido.Exemplos));
+
+        var rejeitado = await PostAsyncRaw("/api/ErrosCatalogo", new
+        {
+            nome = "Definição inválida", descricao = "Par incompleto",
+            exemplos = new[] { new { esperado = "campo", resposta = " " } }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejeitado.StatusCode);
+        rejeitado = await PostAsyncRaw("/api/ErrosCatalogo", new
+        {
+            nome = "Definição inválida", descricao = "Par nulo",
+            exemplos = new object?[] { null }
+        });
+        Assert.Equal(HttpStatusCode.BadRequest, rejeitado.StatusCode);
+    }
+
+    [Fact]
     public async Task Swagger_DocumentaPublicacaoEAlteracaoDeVisibilidade()
     {
         var documento = await Client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json");
@@ -227,6 +290,13 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var corpo = post.GetProperty("requestBody").GetProperty("content").GetProperty("application/json");
         Assert.Equal("#/components/schemas/PublicarErroRequest", corpo.GetProperty("schema").GetProperty("$ref").GetString());
         Assert.Contains(documento.GetProperty("security").EnumerateArray(), item => item.TryGetProperty("Bearer", out _));
+        var esquemas = documento.GetProperty("components").GetProperty("schemas");
+        foreach (var esquema in new[] { "PublicarErroRequest", "ErroPublicadoResponse" })
+        {
+            var exemplos = esquemas.GetProperty(esquema).GetProperty("properties").GetProperty("exemplos");
+            Assert.Equal("array", exemplos.GetProperty("type").GetString());
+            Assert.Equal("#/components/schemas/ExemploErroDto", exemplos.GetProperty("items").GetProperty("$ref").GetString());
+        }
 
         var alterar = documento.GetProperty("paths").GetProperty("/api/ErrosCatalogo/{id}/visibilidade").GetProperty("post");
         Assert.Equal("Altera a visibilidade vigente de um erro do catálogo.", alterar.GetProperty("summary").GetString());
@@ -268,7 +338,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.NotNull(response.Headers.Location);
         Assert.Equal(nameof(NivelVisibilidade.Instituicao), criado.NivelVisibilidade);
         var recibo = await Client.GetFromJsonAsync<ErroPublicadoResponse>(response.Headers.Location);
-        Assert.Equal(criado, recibo);
+        Assert.Equivalent(criado, recibo, strict: true);
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
         var persistido = await db.ErrosCatalogo.AsNoTracking().SingleAsync(e => e.Id == criado.Id);

@@ -42,12 +42,11 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         {
             Codigo = $"ERR_{Guid.NewGuid():N}",
             Nome = request.Nome.Trim(), Descricao = request.Descricao.Trim(),
-            ExemploEsperado = NormalizarOpcional(request.ExemploEsperado),
-            ExemploResposta = NormalizarOpcional(request.ExemploResposta),
             ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica),
             SerieAno = NormalizarOpcional(request.SerieAno),
             AutorId = autorId, Autor = ator, Ativo = true, DataCriacao = agora, DataAlteracao = agora
         };
+        AtualizarExemplos(erro, request);
         erro.Publicacoes.Add(publicacao);
         context.ErrosCatalogo.Add(erro);
         await context.SaveChangesAsync(cancellationToken);
@@ -73,8 +72,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         Validator.ValidateObject(request, new ValidationContext(request), validateAllProperties: true);
         erro.Nome = request.Nome.Trim();
         erro.Descricao = request.Descricao.Trim();
-        erro.ExemploEsperado = NormalizarOpcional(request.ExemploEsperado);
-        erro.ExemploResposta = NormalizarOpcional(request.ExemploResposta);
+        AtualizarExemplos(erro, request);
         erro.ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica);
         erro.SerieAno = NormalizarOpcional(request.SerieAno);
         erro.DataAlteracao = DateTime.UtcNow;
@@ -128,12 +126,24 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
 
     private static string? NormalizarOpcional(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
+    private static void AtualizarExemplos(ErroCatalogo erro, PublicarErroRequest request)
+    {
+        var exemplos = request.Exemplos?.Select(e => new ExemploErroDto(e.Esperado.Trim(), e.Resposta.Trim())).ToArray()
+            ?? ExemploErroDto.Ler(NormalizarOpcional(request.ExemploEsperado), NormalizarOpcional(request.ExemploResposta),
+                erro.ExemplosAdicionaisJson);
+        var primeiro = exemplos.FirstOrDefault();
+        erro.ExemploEsperado = primeiro?.Esperado;
+        erro.ExemploResposta = primeiro?.Resposta;
+        erro.ExemplosAdicionaisJson = ExemploErroDto.GravarAdicionais(exemplos);
+    }
+
     private static ErroPublicadoResponse Mapear(ErroCatalogo erro) => new(
         erro.Id, erro.Codigo, erro.Nome, erro.Descricao, erro.ExemploEsperado, erro.ExemploResposta,
         erro.ObservacaoPedagogica, erro.SerieAno, erro.AutorId, erro.Ativo, erro.DataCriacao, erro.DataAlteracao,
         erro.Autor?.Nome,
         erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString())
     {
-        TemRegraExecutavel = erro.RegraClassificacao.HasValue
+        TemRegraExecutavel = erro.RegraClassificacao.HasValue,
+        Exemplos = ExemploErroDto.Ler(erro.ExemploEsperado, erro.ExemploResposta, erro.ExemplosAdicionaisJson)
     };
 }

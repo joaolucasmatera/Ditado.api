@@ -4,7 +4,7 @@ public sealed class LlmOptions
 {
     public bool Enabled { get; set; }
     public const string PromptVersion = "per18-v4-contextual";
-    public const string RouterPromptVersion = "per69-v5-segmentos";
+    public const string RouterPromptVersion = "per69-v6-exemplos";
     public string VersaoAtiva => RouterConfigurado && !Simulated ? RouterPromptVersion : PromptVersion;
     public int TimeoutSeconds { get; set; } = 15;
     public int MaxInputCharacters { get; set; } = 8000;

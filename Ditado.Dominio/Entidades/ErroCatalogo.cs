@@ -10,6 +10,7 @@ public class ErroCatalogo
     public string Descricao { get; set; } = string.Empty;
     public string? ExemploEsperado { get; set; }
     public string? ExemploResposta { get; set; }
+    public string? ExemplosAdicionaisJson { get; set; }
     public string? ObservacaoPedagogica { get; set; }
     public string? SerieAno { get; set; }
     public int AutorId { get; set; }

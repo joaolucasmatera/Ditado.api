@@ -313,6 +313,8 @@ namespace Ditado.Infra.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("varchar(2000)");
 
+                    b.Property<string>("ExemplosAdicionaisJson").HasColumnType("longtext");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(200)
@@ -415,6 +417,7 @@ namespace Ditado.Infra.Migrations
 
                     b.Property<string>("ExemploEsperado").HasColumnType("longtext");
                     b.Property<string>("ExemploResposta").HasColumnType("longtext");
+                    b.Property<string>("ExemplosAdicionaisJson").HasColumnType("longtext");
                     b.Property<string>("ObservacaoPedagogica").HasColumnType("longtext");
 
                     b.Property<int>("LlmAnaliseTarefaId")
