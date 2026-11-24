@@ -8,7 +8,7 @@ Nome e Descrição são obrigatórios. Observação pedagógica, Série/ano e ex
 
 ## Vários exemplos (24 nov 2026)
 
-Na branch `codex/catalogo-varios-exemplos`, `POST /api/ErrosCatalogo` e `PUT /api/ErrosCatalogo/{id}` aceitam a lista opcional `exemplos`. Cada elemento tem `esperado` e `resposta`, ambos obrigatórios e com até 2000 caracteres. A ordem é preservada no recibo, na edição e no detalhe.
+Na branch `codex/catalogo-varios-exemplos`, `POST /api/ErrosCatalogo` e `PUT /api/ErrosCatalogo/{id}` aceitam a lista opcional `exemplos`, com até cinco pares. Cada elemento tem `esperado` e `resposta`, ambos obrigatórios e com até 2000 caracteres. A ordem é preservada no recibo, na edição e no detalhe. O formulário abre com uma linha opcional quando ainda não há exemplos.
 
 ```json
 {

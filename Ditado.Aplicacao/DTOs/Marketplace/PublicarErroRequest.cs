@@ -15,7 +15,8 @@ public class PublicarErroRequest : IValidatableObject
     public string? ExemploEsperado { get; set; }
     [StringLength(2000)]
     public string? ExemploResposta { get; set; }
-    /// <summary>Pares opcionais em ordem de exibição. Quando informada, a lista substitui os campos legados.</summary>
+    /// <summary>Até cinco pares opcionais em ordem de exibição. A lista substitui os campos legados.</summary>
+    [MaxLength(5, ErrorMessage = "Informe até 5 exemplos.")]
     public List<ExemploErroDto>? Exemplos { get; set; }
     [StringLength(10000)]
     public string? ObservacaoPedagogica { get; set; }

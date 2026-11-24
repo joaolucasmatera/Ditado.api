@@ -19,7 +19,7 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// exige que a escola seja omitida e que a lista de turmas esteja vazia.
     /// No nível 2 (Instituição, padrão), a escola informada ou a do vínculo ativo é usada.
     /// O nível 3 (Turmas) também exige turmas-alvo da escola.
-    /// A lista opcional exemplos aceita pares completos com até 2000 caracteres por campo.
+    /// A lista opcional exemplos aceita até cinco pares completos, com até 2000 caracteres por campo.
     /// Exemplo público: {"nome":"Troca de M por N","descricao":"Troca antes de P ou B","nivel":1,"exemplos":[{"esperado":"campo","resposta":"canpo"},{"esperado":"tambor","resposta":"tanbor"}]}.
     /// Os campos legados exemploEsperado e exemploResposta continuam aceitos quando a lista é omitida.
     /// </remarks>
@@ -52,7 +52,7 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// Professores só podem atualizar erros de sua autoria. Administradores da Escola
     /// precisam de vínculo ativo com a escola do autor/publicação; Administrador Geral
     /// possui capability global. Após a primeira associação a um ditado, a definição fica imutável.
-    /// Informe exemplos para substituir a lista inteira. Envie [] para remover todos os pares.
+    /// Informe até cinco exemplos para substituir a lista inteira. Envie [] para remover todos os pares.
     /// Uma requisição legada atualiza o primeiro par e preserva os pares adicionais.
     /// </remarks>
     /// <param name="id">ID do erro de catálogo.</param>
