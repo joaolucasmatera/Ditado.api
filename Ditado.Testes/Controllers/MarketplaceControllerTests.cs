@@ -279,6 +279,29 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     }
 
     [Fact]
+    public async Task Exemplos_AceitaCincoERejeitaSeisNaPublicacaoENaEdicao()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        const string nome = "Definição com exemplos";
+        const string descricao = "Teste do limite";
+        var seis = Enumerable.Range(1, 6).Select(i => new ExemploErroDto($"esperado {i}", $"resposta {i}")).ToArray();
+        var cinco = seis[..5];
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome, descricao, exemplos = cinco }));
+        Assert.Equal(cinco, criado.Exemplos);
+        var excesso = new { nome, descricao, exemplos = seis };
+        var post = await PostAsyncRaw("/api/ErrosCatalogo", excesso);
+        Assert.Equal(HttpStatusCode.BadRequest, post.StatusCode);
+        var url = $"/api/ErrosCatalogo/{criado.Id}";
+        var put = await Client.PutAsJsonAsync(url, excesso);
+        Assert.Equal(HttpStatusCode.BadRequest, put.StatusCode);
+        Assert.Contains("Informe até 5 exemplos.", (await put.Content.ReadFromJsonAsync<JsonElement>())
+            .GetProperty("errors").GetProperty("Exemplos")[0].GetString());
+        Assert.Equal(cinco, (await GetAsync<ErroPublicadoResponse>(url))!.Exemplos);
+    }
+
+    [Fact]
     public async Task Swagger_DocumentaPublicacaoEAlteracaoDeVisibilidade()
     {
         var documento = await Client.GetFromJsonAsync<JsonElement>("/swagger/v1/swagger.json");
@@ -296,6 +319,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
             var exemplos = esquemas.GetProperty(esquema).GetProperty("properties").GetProperty("exemplos");
             Assert.Equal("array", exemplos.GetProperty("type").GetString());
             Assert.Equal("#/components/schemas/ExemploErroDto", exemplos.GetProperty("items").GetProperty("$ref").GetString());
+            if (esquema == "PublicarErroRequest")
+                Assert.Equal(5, exemplos.GetProperty("maxItems").GetInt32());
         }
 
         var alterar = documento.GetProperty("paths").GetProperty("/api/ErrosCatalogo/{id}/visibilidade").GetProperty("post");
