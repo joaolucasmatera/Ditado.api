@@ -2,6 +2,7 @@ namespace Ditado.Aplicacao.DTOs.Professores;
 
 public class AlunoResultadoDto
 {
+    public int NumeroTentativas { get; set; }
     public int AlunoId { get; set; }
     public string Nome { get; set; } = string.Empty;
     public string? Matricula { get; set; }

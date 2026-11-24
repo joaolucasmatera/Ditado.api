@@ -24,4 +24,9 @@ public class DetalheRespostaDto
     public List<ClassificacaoCatalogoDto> Classificacoes { get; set; } = new();
 }
 
-public record ClassificacaoCatalogoDto(int ErroCatalogoId, string Codigo, string Nome, int? TipoErro, string Origem = "Codigo");
+public record ClassificacaoCatalogoDto(int ErroCatalogoId, string Codigo, string Nome, int? TipoErro, string Origem = "Codigo")
+{
+    /// <summary>Modelo efetivo gravado para um achado LLM no histórico do professor.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ModeloLlm { get; init; }
+}

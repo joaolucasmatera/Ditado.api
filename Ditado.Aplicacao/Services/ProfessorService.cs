@@ -52,7 +52,8 @@ public class ProfessorService
             .OrderByDescending(r => r.DataRealizacao).ThenByDescending(r => r.Id).ToListAsync();
 
         return tentativas.Count == 0 ? null : tentativas
-            .Select(r => new TentativaAlunoProfessorDto(r.DataRealizacao, ResultadoTentativa.Mapear(r))).ToList();
+            .Select(r => new TentativaAlunoProfessorDto(r.DataRealizacao,
+                ResultadoTentativa.Mapear(r, incluirModeloLlm: true))).ToList();
     }
 
     /// <summary>
@@ -233,6 +234,10 @@ public class ProfessorService
             .ToListAsync();
 
         var melhoresPorAluno = melhoresTentativas.ToDictionary(r => r.AlunoId);
+        var numeroTentativasPorAluno = await consultaTentativas
+            .GroupBy(r => r.AlunoId)
+            .Select(g => new { AlunoId = g.Key, Total = g.Count() })
+            .ToDictionaryAsync(g => g.AlunoId, g => g.Total);
         var classificacoes = melhoresTentativas.SelectMany(r => r.RespostasSegmentos
             .Select(s => new { r.AlunoId, Segmento = s, Erros = ObterErros(s) })).ToArray();
         var errosPorAluno = classificacoes.ToLookup(r => r.AlunoId);
@@ -255,6 +260,7 @@ public class ProfessorService
                 Fez = fez,
                 DataEntrega = resposta?.DataRealizacao,
                 Nota = resposta != null ? Math.Round(resposta.Nota, 2) : null,
+                NumeroTentativas = numeroTentativasPorAluno.GetValueOrDefault(aluno.Id),
                 ErroMaisComum = erroMaisComum,
                 Atrasado = resposta != null && resposta.DataRealizacao > atribuicao.DataLimite
             });

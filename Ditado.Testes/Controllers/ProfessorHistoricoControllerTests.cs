@@ -64,6 +64,7 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         revisada.AnaliseLlm = new()
         {
             Estado = LlmAnaliseEstado.Revisao,
+            Modelo = "modelo-efetivo-do-teste",
             Candidatos = [new() { ErroCatalogoId = analise.Id, Codigo = analise.Codigo,
                 Nome = analise.Nome, Estado = LlmCandidatoEstado.Correspondente }]
         };
@@ -92,6 +93,8 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         var detalhe = historico[0].Resultado.Detalhes[0];
         Assert.Equal(("Café", "cafe", "Revisao"), (detalhe.RespostaEsperada, detalhe.RespostaFornecida, detalhe.EstadoAnaliseLlm));
         Assert.Equal(new[] { "Codigo", "LLM" }, detalhe.Classificacoes.Select(c => c.Origem));
+        Assert.Null(Assert.Single(detalhe.Classificacoes, c => c.Origem == "Codigo").ModeloLlm);
+        Assert.Equal("modelo-efetivo-do-teste", Assert.Single(detalhe.Classificacoes, c => c.Origem == "LLM").ModeloLlm);
         var legado = Assert.Single(historico[1].Resultado.Detalhes);
         Assert.Equal("café", legado.RespostaEsperada);
         Assert.Single(legado.TiposErro);
@@ -100,6 +103,7 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         var resumo = Assert.IsType<DitadoAtribuidoDetalheDto>(
             await GetAsync<DitadoAtribuidoDetalheDto>($"/api/Professores/turmas/{turma.Id}/ditados/{ditado.Id}/resultados"));
         Assert.Equal(50m, Assert.Single(resumo.Alunos).Nota);
+        Assert.Equal(2, Assert.Single(resumo.Alunos).NumeroTentativas);
         Assert.Equal(50m, resumo.NotaMedia);
         Assert.Equal(2, resumo.ErrosPorTipo.Count);
         var codigo = Assert.Single(resumo.ErrosPorTipo, e => e.Origem == "Codigo");
@@ -122,6 +126,10 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         Assert.Equal(3, operacao.GetProperty("parameters").GetArrayLength());
         Assert.True(operacao.GetProperty("responses").TryGetProperty("404", out _));
         var schemas = swagger.RootElement.GetProperty("components").GetProperty("schemas");
+        Assert.True(schemas.GetProperty("ClassificacaoCatalogoDto").GetProperty("properties")
+            .TryGetProperty("modeloLlm", out _));
+        Assert.True(schemas.GetProperty("AlunoResultadoDto").GetProperty("properties")
+            .TryGetProperty("numeroTentativas", out _));
         Assert.True(schemas.GetProperty("ErrosPorTipoDto").GetProperty("properties").TryGetProperty("origem", out _));
         Assert.True(schemas.GetProperty("DitadoAtribuidoDetalheDto").GetProperty("properties")
             .TryGetProperty("lacunasIncorretasAguardandoLlm", out _));

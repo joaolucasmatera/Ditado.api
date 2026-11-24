@@ -21,7 +21,7 @@ internal static class ResultadoTentativa
             .Concat(resposta.AnaliseLlm?.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
                 .Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")) ?? []);
 
-    public static ResultadoDitadoResponse Mapear(RespostaDitado tentativa)
+    public static ResultadoDitadoResponse Mapear(RespostaDitado tentativa, bool incluirModeloLlm = false)
     {
         var detalhes = tentativa.RespostasSegmentos.OrderBy(s => s.Segmento.Ordem).Select(s => new DetalheRespostaDto
         {
@@ -35,7 +35,9 @@ internal static class ResultadoTentativa
             EstadoAnaliseLlm = s.AnaliseLlm?.Estado.ToString(),
             TiposErro = s.TiposErro.Select(t => t.TipoErro.ObterDescricao())
                 .Concat(s.TipoErro is { } legado ? [legado.ObterDescricao()] : Array.Empty<string>()).Distinct().ToList(),
-            Classificacoes = Classificacoes(s).ToList()
+            Classificacoes = Classificacoes(s).Select(c => incluirModeloLlm && c.Origem == "LLM"
+                ? c with { ModeloLlm = s.AnaliseLlm?.Modelo }
+                : c).ToList()
         }).ToList();
         return new ResultadoDitadoResponse
         {

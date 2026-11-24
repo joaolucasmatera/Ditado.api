@@ -1,6 +1,6 @@
 # Histórico de tentativas na tela de resultados do professor
 
-Na tela `/turmas/:turmaId/ditados/:ditadoId/resultados`, o professor abre o aluno e escolhe uma tentativa por data e nota. O modal abre na mais recente. Cada lacuna mostra a resposta esperada, o texto escrito, os acertos e as classificações por Código e LLM. Os estados da análise aparecem por lacuna, inclusive pendência, revisão e falha. O resumo continua usando a melhor nota de cada aluno, com desempate pela entrega mais antiga e pelo ID.
+Na tela `/turmas/:turmaId/ditados/:ditadoId/resultados`, o professor abre o histórico do aluno. Cada tentativa tem sua própria tabela com gabarito, resposta e classificação por lacuna. A ordem padrão mostra as mais recentes primeiro e pode ser invertida. O resumo usa a melhor nota, com desempate pela entrega mais antiga e pelo ID, e mostra o total de tentativas.
 
 O novo GET em `/api/Professores/turmas/{turmaId}/alunos/{alunoId}/ditados/{ditadoId}/tentativas` usa a mesma leitura do resultado do aluno e devolve a data e o resultado já persistidos. O professor precisa ser responsável pela turma e ter vínculo ativo quando a turma tem escola. A aplicação e a participação identificam tentativas atuais e preservam o acesso ao histórico de participações revogadas. Uma resposta legada sem ID de aplicação entra quando existe vínculo do aluno com a turma e a data e a escola permitem identificar uma única atribuição legada. Registros ambíguos ficam fora da consulta. O endpoint devolve HTTP 404 para histórico indisponível e só projeta os dados pedagógicos do resultado.
 
@@ -41,3 +41,14 @@ O serviço atualizado leu o schema ativo em modo somente leitura. O histórico r
 O build do frontend passou. O Playwright com API isolada e MySQL sintético validou duas entregas na mesma tabela, a melhor nota no resumo, as duas origens de correção e HTTP 404 para um professor de outra escola. Uma consulta MySQL em modo somente leitura recuperou as cinco tentativas do cenário local. Na demonstração do frontend, o navegador recebeu uma cópia desses resultados com nomes substituídos e mostrou as cinco linhas, suas datas, notas e respostas, além do achado de concordância verbal na terceira linha. Uma variante sintética verificou alinhamento com gabarito repetido, lacunas ausentes, cinco estados de LLM e rolagem em uma tela de 390 px. O ambiente ativo seguiu servindo a versão anterior durante o teste.
 
 Evidências locais em `work/logs/historico-prototipo4-build.log`, `work/logs/historico-prototipo4-e2e.log`, `work/logs/historico-prototipo4-leitura.log` e `work/logs/historico-prototipo4-navegador.log`.
+## Ajustes solicitados em 24/11/2026
+
+A lista de alunos exibe `numeroTentativas` por aluno, considerando o mesmo escopo de turma, ditado e escola do histórico. O modal abre com as mais recentes primeiro e permite inverter a ordem sem renumerar as tentativas. O cabeçalho de cada lacuna exibe seu número acima do gabarito.
+
+Após a demonstração com 24 lacunas, o usuário escolheu o protótipo 3. O modal usa uma tabela de quatro colunas por tentativa, com uma linha por lacuna. A ordem selecionável, a numeração histórica e as origens por Código e LLM continuam disponíveis. A nota e a contagem de acertos ficam na faixa de cada tentativa.
+
+Os quadros Erros por Tipo e Erros por Palavra têm altura máxima de 320 px e rolagem interna quando a lista excede esse limite. Os títulos ficam acima da área rolável.
+
+O usuário aprovou o protótipo 3. A coluna Classificação pode exibir o modelo efetivo de cada achado LLM, lido do registro da lacuna e disponibilizado no histórico do professor. Achados legados sem registro identificam essa ausência.
+
+Nas telas do professor e do aluno, os rótulos visíveis passaram a ser “Correção tradicional” e “Correção IA”. O contrato mantém `Codigo` e `LLM` como valores de origem. Tentativas com nota exatamente igual a 100 recebem selo verde. O build Docker e a publicação foram confirmados nos bundles das duas telas. A tentativa sintética de 24 lacunas retornou o modelo efetivo `@cf/openai/gpt-oss-120b` na consulta do histórico.
