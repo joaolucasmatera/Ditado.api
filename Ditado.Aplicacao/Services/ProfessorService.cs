@@ -16,6 +16,44 @@ public class ProfessorService
         _context = context;
     }
 
+    private IQueryable<Turma> TurmasDoProfessor(int professorId) =>
+        _context.Turmas.Where(t => t.ProfessorResponsavelId == professorId && t.ProfessorResponsavel.Ativo &&
+            (t.EscolaId == null || (t.Escola!.Ativa && t.ProfessorResponsavel.VinculosEscolares.Any(v =>
+                v.EscolaId == t.EscolaId && v.Ativo &&
+                (v.Papel == PapelEscolar.Professor || v.Papel == PapelEscolar.Administrador)))));
+
+    private IQueryable<RespostaDitado> TentativasDaTurma(int turmaId, int ditadoId, int? escolaId) =>
+        _context.RespostaDitados.Where(r => r.DitadoId == ditadoId && r.Aluno.Tipo == TipoUsuario.Aluno &&
+            (r.EscolaId == null || r.EscolaId == escolaId) &&
+            (r.AplicacaoDitadoId != null
+                ? r.AplicacaoDitado!.TurmaId == turmaId && r.AplicacaoDitado.DitadoId == ditadoId &&
+                  r.AplicacaoDitado.EscolaId == escolaId &&
+                  r.AplicacaoDitado.Participacoes.Any(p => p.AlunoId == r.AlunoId) &&
+                  r.Aluno.VinculosEscolares.Any(v => v.EscolaId == escolaId && v.Papel == PapelEscolar.Aluno)
+                : r.Aluno.TurmasComoAluno.Any(t => t.Id == turmaId) &&
+                  (escolaId == null || r.Aluno.VinculosEscolares.Any(v =>
+                      v.EscolaId == escolaId && v.Papel == PapelEscolar.Aluno && v.Ativo)) &&
+                  _context.TurmaDitados.Any(td => td.TurmaId == turmaId && td.DitadoId == ditadoId &&
+                      td.DataAtribuicao <= r.DataRealizacao) &&
+                  // Sem AplicacaoDitadoId, a data e a escola precisam identificar uma única atribuição legada.
+                  !_context.TurmaDitados.Any(td => td.TurmaId != turmaId && td.DitadoId == ditadoId &&
+                      td.DataAtribuicao <= r.DataRealizacao &&
+                      (r.EscolaId == null || td.Turma.EscolaId == null || td.Turma.EscolaId == r.EscolaId))));
+
+    public async Task<List<TentativaAlunoProfessorDto>?> ListarTentativasAlunoAsync(int turmaId, int ditadoId,
+        int alunoId, int professorId)
+    {
+        var turma = await TurmasDoProfessor(professorId).AsNoTracking().SingleOrDefaultAsync(t => t.Id == turmaId);
+        if (turma is null) return null;
+
+        var tentativas = await ResultadoTentativa.ComDetalhes(TentativasDaTurma(turmaId, ditadoId, turma.EscolaId)
+                .AsNoTracking().Where(r => r.AlunoId == alunoId))
+            .OrderByDescending(r => r.DataRealizacao).ThenByDescending(r => r.Id).ToListAsync();
+
+        return tentativas.Count == 0 ? null : tentativas
+            .Select(r => new TentativaAlunoProfessorDto(r.DataRealizacao, ResultadoTentativa.Mapear(r))).ToList();
+    }
+
     /// <summary>
     /// Lista todos os ditados atribu�dos pelo professor logado
     /// </summary>
@@ -140,9 +178,7 @@ public class ProfessorService
     public async Task<DitadoAtribuidoDetalheDto?> ObterDetalhesAtribuicaoAsync(int turmaId, int ditadoId, int professorId)
     {
         // Verificar se a turma pertence ao professor
-        var turma = await _context.Turmas
-            .Include(t => t.Alunos)
-            .FirstOrDefaultAsync(t => t.Id == turmaId && t.ProfessorResponsavelId == professorId);
+        var turma = await TurmasDoProfessor(professorId).FirstOrDefaultAsync(t => t.Id == turmaId);
 
         if (turma == null)
             return null;
@@ -157,7 +193,9 @@ public class ProfessorService
         var aplicacaoNova = await _context.AplicacoesDitados
             .Include(a => a.Ditado)
             .ThenInclude(d => d.Segmentos)
-            .FirstOrDefaultAsync(a => a.TurmaId == turmaId && a.DitadoId == ditadoId && a.Ativa);
+            .Where(a => a.TurmaId == turmaId && a.DitadoId == ditadoId && a.EscolaId == turma.EscolaId)
+            .OrderByDescending(a => a.Ativa).ThenByDescending(a => a.DataAtribuicao).ThenByDescending(a => a.Id)
+            .FirstOrDefaultAsync();
 
         if (atribuicao == null && aplicacaoNova != null)
         {
@@ -175,17 +213,18 @@ public class ProfessorService
         if (atribuicao == null)
             return null;
 
-        // Buscar todos os alunos da turma
-        var alunosDaTurma = aplicacaoNova != null && !possuiAtribuicaoLegada
-            ? await _context.Usuarios.Where(u => _context.ParticipacoesAplicacoes.Any(p => p.AplicacaoDitadoId == aplicacaoNova.Id && p.AlunoId == u.Id && !p.RevogadaEm.HasValue)).ToListAsync()
-            : await _context.Usuarios.Where(u => u.TurmasComoAluno.Any(t => t.Id == turmaId)).ToListAsync();
-
         // O relatório principal usa o melhor resultado de cada aluno.
-        var consultaTentativas = _context.RespostaDitados
-            .Where(r => alunosDaTurma.Select(a => a.Id).Contains(r.AlunoId));
-        consultaTentativas = aplicacaoNova != null && !possuiAtribuicaoLegada
-            ? consultaTentativas.Where(r => r.AplicacaoDitadoId == aplicacaoNova.Id)
-            : consultaTentativas.Where(r => r.DitadoId == ditadoId);
+        var consultaTentativas = TentativasDaTurma(turmaId, ditadoId, turma.EscolaId);
+        var aplicacaoId = aplicacaoNova?.Id;
+        var alunosDaTurma = await _context.Usuarios.Where(u => u.Tipo == TipoUsuario.Aluno &&
+            (consultaTentativas.Any(r => r.AlunoId == u.Id) ||
+             ((turma.EscolaId == null || u.VinculosEscolares.Any(v =>
+                  v.EscolaId == turma.EscolaId && v.Papel == PapelEscolar.Aluno && v.Ativo)) &&
+                (possuiAtribuicaoLegada
+                    ? u.TurmasComoAluno.Any(t => t.Id == turmaId)
+                    : _context.ParticipacoesAplicacoes.Any(p =>
+                        p.AplicacaoDitadoId == aplicacaoId && p.AlunoId == u.Id && !p.RevogadaEm.HasValue)))))
+            .ToListAsync();
 
         var primeiraTentativas = await consultaTentativas
             .Include(r => r.RespostasSegmentos)
@@ -193,7 +232,7 @@ public class ProfessorService
             .Include(r => r.RespostasSegmentos)
             .ThenInclude(rs => rs.TiposErro)
             .GroupBy(r => r.AlunoId)
-            .Select(g => g.OrderByDescending(r => r.Nota).ThenBy(r => r.DataRealizacao).First())
+            .Select(g => g.OrderByDescending(r => r.Nota).ThenBy(r => r.DataRealizacao).ThenBy(r => r.Id).First())
             .ToListAsync();
 
         var primeiraTentativasPorAluno = primeiraTentativas.ToDictionary(r => r.AlunoId);

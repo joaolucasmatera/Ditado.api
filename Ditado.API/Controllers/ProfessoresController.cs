@@ -176,5 +176,35 @@ public class ProfessoresController : ControllerBase
 
         return Ok(resultado);
     }
+
+    /// <summary>
+    /// Lista o histórico de tentativas de um aluno em um ditado atribuído à turma.
+    /// </summary>
+    /// <remarks>
+    /// O professor responsável com vínculo na escola consulta as tentativas em ordem da mais recente para a
+    /// mais antiga. Cada item traz a data e o resultado com nota, lacunas e classificações por origem.
+    /// Exemplo de item: {"dataRealizacao":"2026-11-23T14:30:00Z","resultado":{"respostaDitadoId":12,"nota":80,"totalLacunas":5,"acertos":4,"erros":1}}.
+    /// </remarks>
+    /// <param name="turmaId">ID da turma do professor responsável.</param>
+    /// <param name="ditadoId">ID do ditado atribuído à turma.</param>
+    /// <param name="alunoId">ID do aluno vinculado à atribuição.</param>
+    /// <response code="200">Histórico do aluno no ditado da turma.</response>
+    /// <response code="401">Autenticação necessária.</response>
+    /// <response code="403">Papel de professor ou administrador necessário.</response>
+    /// <response code="404">Histórico indisponível para a turma, o aluno ou o ditado informados.</response>
+    [HttpGet("turmas/{turmaId:int}/alunos/{alunoId:int}/ditados/{ditadoId:int}/tentativas")]
+    [ProducesResponseType(typeof(List<TentativaAlunoProfessorDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<TentativaAlunoProfessorDto>>> ListarTentativasAluno(
+        int turmaId, int ditadoId, int alunoId)
+    {
+        var professorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var tentativas = await _professorService.ListarTentativasAlunoAsync(turmaId, ditadoId, alunoId, professorId);
+        return tentativas is null
+            ? NotFound(new { mensagem = "Histórico indisponível para esta turma, aluno e ditado." })
+            : Ok(tentativas);
+    }
 }
 

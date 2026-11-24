@@ -424,7 +424,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         ditado.Publicacoes.Add(new PublicacaoDitado { Nivel = NivelVisibilidade.PublicoGeral, Versao = 1, ChaveVigente = 1, CriadaPorId = professor.Id });
         var turma = new Turma { Nome = "Turma legada", ProfessorResponsavelId = professor.Id };
         turma.Alunos.Add(await db.Usuarios.SingleAsync(u => u.Id == aluno.Id));
-        db.TurmaDitados.Add(new TurmaDitado { Turma = turma, Ditado = ditado, DataLimite = DateTime.UtcNow.AddDays(1) });
+        db.TurmaDitados.Add(new TurmaDitado { Turma = turma, Ditado = ditado,
+            DataAtribuicao = DateTime.UtcNow.AddDays(-2), DataLimite = DateTime.UtcNow.AddDays(1) });
         var historica = new RespostaDitado { Ditado = ditado, AlunoId = aluno.Id, Nota = 75m, DataRealizacao = DateTime.UtcNow.AddDays(-1) };
         historica.RespostasSegmentos.Add(new RespostaSegmento
         {
