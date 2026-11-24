@@ -1,3 +1,4 @@
+using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.DTOs.Professores;
 using Ditado.Dominio.Enums;
 using Ditado.Dominio.Entidades;
@@ -226,40 +227,25 @@ public class ProfessorService
                         p.AplicacaoDitadoId == aplicacaoId && p.AlunoId == u.Id && !p.RevogadaEm.HasValue)))))
             .ToListAsync();
 
-        var primeiraTentativas = await consultaTentativas
-            .Include(r => r.RespostasSegmentos)
-            .ThenInclude(rs => rs.Segmento)
-            .Include(r => r.RespostasSegmentos)
-            .ThenInclude(rs => rs.TiposErro)
+        var melhoresTentativas = await ResultadoTentativa.ComDetalhes(consultaTentativas)
             .GroupBy(r => r.AlunoId)
             .Select(g => g.OrderByDescending(r => r.Nota).ThenBy(r => r.DataRealizacao).ThenBy(r => r.Id).First())
             .ToListAsync();
 
-        var primeiraTentativasPorAluno = primeiraTentativas.ToDictionary(r => r.AlunoId);
+        var melhoresPorAluno = melhoresTentativas.ToDictionary(r => r.AlunoId);
+        var classificacoes = melhoresTentativas.SelectMany(r => r.RespostasSegmentos
+            .Select(s => new { r.AlunoId, Segmento = s, Erros = ObterErros(s) })).ToArray();
+        var errosPorAluno = classificacoes.ToLookup(r => r.AlunoId);
+        var semClassificacao = classificacoes.Where(r => !r.Segmento.Correto && r.Erros.Count == 0).ToArray();
 
         // Montar lista de alunos
         var alunosResultado = new List<AlunoResultadoDto>();
 
         foreach (var aluno in alunosDaTurma)
         {
-            var fez = primeiraTentativasPorAluno.ContainsKey(aluno.Id);
-            var resposta = fez ? primeiraTentativasPorAluno[aluno.Id] : null;
-
-            string? erroMaisComum = null;
-            if (resposta != null)
-            {
-                var erros = resposta.RespostasSegmentos
-                    .Where(rs => !rs.Correto)
-                    .SelectMany(ObterTiposErro)
-                    .GroupBy(tipoErro => tipoErro)
-                    .OrderByDescending(g => g.Count())
-                    .FirstOrDefault();
-
-                if (erros != null)
-                {
-                    erroMaisComum = erros.Key.ObterDescricao();
-                }
-            }
+            var fez = melhoresPorAluno.TryGetValue(aluno.Id, out var resposta);
+            var erroMaisComum = AgruparErros(errosPorAluno[aluno.Id].SelectMany(r => r.Erros))
+                .FirstOrDefault()?.Descricao;
 
             alunosResultado.Add(new AlunoResultadoDto
             {
@@ -275,20 +261,7 @@ public class ProfessorService
         }
 
         // Calcular erros por tipo usando o resultado principal de cada aluno.
-        var todosErros = primeiraTentativas
-            .SelectMany(r => r.RespostasSegmentos)
-            .Where(rs => !rs.Correto)
-            .SelectMany(ObterTiposErro)
-            .GroupBy(tipoErro => tipoErro)
-            .Select(g => new ErrosPorTipoDto
-            {
-                TipoErroId = (int)g.Key,
-                Descricao = g.Key.ObterDescricao(),
-                DescricaoCurta = g.Key.ObterDescricaoCurta(),
-                Quantidade = g.Count()
-            })
-            .OrderByDescending(e => e.Quantidade)
-            .ToList();
+        var todosErros = AgruparErros(classificacoes.SelectMany(r => r.Erros));
 
         // Calcular erros por palavra usando o resultado principal de cada aluno.
         var lacunas = atribuicao.Ditado.Segmentos
@@ -297,12 +270,12 @@ public class ProfessorService
             .ToList();
 
         var errosPorPalavra = new List<ErrosPorPalavraDto>();
-        var totalAlunosQueFizeram = primeiraTentativas.Count;
+        var totalAlunosQueFizeram = melhoresTentativas.Count;
 
         foreach (var lacuna in lacunas)
         {
             // Contar quantos alunos erraram esta palavra no resultado principal.
-            var quantidadeErros = primeiraTentativas
+            var quantidadeErros = melhoresTentativas
                 .SelectMany(r => r.RespostasSegmentos)
                 .Count(rs => rs.SegmentoId == lacuna.Id && !rs.Correto);
 
@@ -318,9 +291,9 @@ public class ProfessorService
 
         // Estat�sticas gerais
         var totalAlunos = alunosDaTurma.Count;
-        var alunosQueFizeram = primeiraTentativas.Count;
-        var notaMedia = primeiraTentativas.Any()
-            ? Math.Round(primeiraTentativas.Average(r => r.Nota), 2)
+        var alunosQueFizeram = melhoresTentativas.Count;
+        var notaMedia = melhoresTentativas.Any()
+            ? Math.Round(melhoresTentativas.Average(r => r.Nota), 2)
             : (decimal?)null;
 
         return new DitadoAtribuidoDetalheDto
@@ -342,18 +315,46 @@ public class ProfessorService
             NotaMedia = notaMedia,
             Alunos = alunosResultado.OrderBy(a => a.Nome).ToList(),
             ErrosPorTipo = todosErros,
+            LacunasIncorretasSemClassificacao = semClassificacao.Length,
+            LacunasIncorretasAguardandoLlm = semClassificacao.Count(r =>
+                r.Segmento.AnaliseLlm?.Estado is LlmAnaliseEstado.Pendente or LlmAnaliseEstado.Processando),
             ErrosPorPalavra = errosPorPalavra
         };
     }
 
-    private static IEnumerable<TipoErro> ObterTiposErro(RespostaSegmento resposta)
+    private static List<ClassificacaoCatalogoDto> ObterErros(RespostaSegmento resposta)
     {
-        if (resposta.TiposErro.Count > 0)
-            return resposta.TiposErro.Select(tipo => tipo.TipoErro);
+        var erros = ResultadoTentativa.Classificacoes(resposta).Where(e => !resposta.Correto || e.Origem == "LLM").ToList();
+        if (!resposta.Correto)
+        {
+            var tipos = resposta.TiposErro.Select(t => t.TipoErro)
+                .Append(resposta.TipoErro ?? TipoErro.Nenhum).Distinct();
+            foreach (var tipo in tipos.Where(t => t != TipoErro.Nenhum && erros.All(e => e.TipoErro != (int)t)))
+                erros.Add(new(0, string.Empty, tipo.ObterDescricao(), (int)tipo));
+        }
+        return erros.DistinctBy(ChaveErro).ToList();
+    }
 
-        return resposta.TipoErro.HasValue
-            ? new[] { resposta.TipoErro.Value }
-            : Array.Empty<TipoErro>();
+    // Código e registros legados do mesmo executor representam o mesmo tipo.
+    private static (string Origem, int? Tipo, int Catalogo) ChaveErro(ClassificacaoCatalogoDto erro) =>
+        (erro.Origem, erro.TipoErro, erro.TipoErro.HasValue ? 0 : erro.ErroCatalogoId);
+
+    private static List<ErrosPorTipoDto> AgruparErros(IEnumerable<ClassificacaoCatalogoDto> erros)
+    {
+        return erros.GroupBy(ChaveErro).Select(grupo =>
+        {
+            var catalogo = grupo.FirstOrDefault(e => e.ErroCatalogoId > 0);
+            var descricao = catalogo?.Nome ?? grupo.First().Nome;
+            return new ErrosPorTipoDto
+            {
+                ErroCatalogoId = catalogo?.ErroCatalogoId,
+                Origem = grupo.Key.Origem,
+                TipoErroId = grupo.Key.Tipo ?? 0,
+                Descricao = descricao,
+                DescricaoCurta = catalogo?.Nome ?? ((TipoErro)grupo.Key.Tipo.GetValueOrDefault()).ObterDescricaoCurta(),
+                Quantidade = grupo.Count()
+            };
+        }).OrderByDescending(e => e.Quantidade).ThenBy(e => e.DescricaoCurta).ToList();
     }
 }
 

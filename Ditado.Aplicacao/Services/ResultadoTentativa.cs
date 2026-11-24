@@ -15,6 +15,12 @@ internal static class ResultadoTentativa
             .Include(r => r.RespostasSegmentos).ThenInclude(s => s.AnaliseLlm).ThenInclude(a => a!.Candidatos)
             .AsSplitQuery();
 
+    public static IEnumerable<ClassificacaoCatalogoDto> Classificacoes(RespostaSegmento resposta) =>
+        resposta.TiposErro.Where(t => t.ErroCatalogo != null)
+            .Select(t => new ClassificacaoCatalogoDto(t.ErroCatalogoId!.Value, t.ErroCatalogo!.Codigo, t.ErroCatalogo.Nome, (int)t.TipoErro))
+            .Concat(resposta.AnaliseLlm?.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
+                .Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")) ?? []);
+
     public static ResultadoDitadoResponse Mapear(RespostaDitado tentativa)
     {
         var detalhes = tentativa.RespostasSegmentos.OrderBy(s => s.Segmento.Ordem).Select(s => new DetalheRespostaDto
@@ -29,11 +35,7 @@ internal static class ResultadoTentativa
             EstadoAnaliseLlm = s.AnaliseLlm?.Estado.ToString(),
             TiposErro = s.TiposErro.Select(t => t.TipoErro.ObterDescricao())
                 .Concat(s.TipoErro is { } legado ? [legado.ObterDescricao()] : Array.Empty<string>()).Distinct().ToList(),
-            Classificacoes = s.TiposErro.Where(t => t.ErroCatalogo != null)
-                .Select(t => new ClassificacaoCatalogoDto(t.ErroCatalogoId!.Value, t.ErroCatalogo!.Codigo, t.ErroCatalogo.Nome, (int)t.TipoErro))
-                .Concat(s.AnaliseLlm?.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
-                    .Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")) ?? [])
-                .ToList()
+            Classificacoes = Classificacoes(s).ToList()
         }).ToList();
         return new ResultadoDitadoResponse
         {

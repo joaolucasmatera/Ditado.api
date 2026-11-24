@@ -13,11 +13,11 @@ public class DitadoAtribuidoDetalheDto
     public string DitadoTitulo { get; set; } = string.Empty;
     public string? DitadoDescricao { get; set; }
     
-    // Dados da Atribuição
+    // Dados da AtribuiÃ§Ã£o
     public DateTime DataAtribuicao { get; set; }
     public DateTime DataLimite { get; set; }
     
-    // Estatísticas Gerais
+    // EstatÃ­sticas Gerais
     public int TotalAlunos { get; set; }
     public int AlunosQueFizeram { get; set; }
     public decimal PercentualConclusao { get; set; }
@@ -26,9 +26,11 @@ public class DitadoAtribuidoDetalheDto
     // Lista de Alunos
     public List<AlunoResultadoDto> Alunos { get; set; } = new();
     
-    // Gráfico de Erros por Tipo
+    // GrÃ¡fico de Erros por Tipo
     public List<ErrosPorTipoDto> ErrosPorTipo { get; set; } = new();
+    public int LacunasIncorretasSemClassificacao { get; set; }
+    public int LacunasIncorretasAguardandoLlm { get; set; }
     
-    // Gráfico de Erros por Palavra (1ª tentativa)
+    // GrÃ¡fico de Erros por Palavra (1Âª tentativa)
     public List<ErrosPorPalavraDto> ErrosPorPalavra { get; set; } = new();
 }

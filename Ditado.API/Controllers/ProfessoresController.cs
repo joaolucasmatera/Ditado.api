@@ -87,7 +87,10 @@ public class ProfessoresController : ControllerBase
     /// **2. Gr�fico de Erros por Tipo:**
     /// - Agrega��o de todos os erros da turma
     /// - Considera o melhor resultado de cada aluno
-    /// - Formato: `[{ tipoErroId, descricao, descricaoCurta, quantidade }]`
+    /// - Inclui achados por Código e LLM com a origem e o ID do catálogo quando disponível.
+    /// - Cada categoria conta uma vez por lacuna. Para LLM, tipoErroId é 0.
+    /// - Os contadores de lacunas incorretas sem classificação e aguardando LLM distinguem ausência de achados de ausência de erros.
+    /// - Exemplo: `[{ tipoErroId: 0, erroCatalogoId: 31, origem: "LLM", descricaoCurta: "Concordância verbal", quantidade: 1 }]`
     /// 
     /// **3. Gr�fico de Erros por Palavra:**
     /// - Lista de palavras (lacunas) do ditado
