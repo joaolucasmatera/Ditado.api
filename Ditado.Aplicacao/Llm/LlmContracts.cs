@@ -55,7 +55,8 @@ public sealed record LlmRouterResposta(int SegmentoId, string? Resposta);
 public sealed record LlmRouterCandidato(int Id, string Nome, string Descricao,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ExemploEsperado,
     [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ExemploResposta,
-    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ObservacaoPedagogica);
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string? ObservacaoPedagogica,
+    [property: JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingNull)] string[][]? Exemplos = null);
 
 public sealed class LlmRouterOutput
 {

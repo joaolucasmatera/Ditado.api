@@ -255,6 +255,7 @@ public class DitadoService
 						Descricao = erro.Descricao,
 						ExemploEsperado = erro.ExemploEsperado,
 						ExemploResposta = erro.ExemploResposta,
+						ExemplosAdicionaisJson = erro.ExemplosAdicionaisJson,
 						ObservacaoPedagogica = erro.ObservacaoPedagogica,
 						Versao = versoesCandidatos.GetValueOrDefault(erro.Id)
 					}).ToList()

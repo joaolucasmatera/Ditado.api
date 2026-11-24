@@ -19,7 +19,9 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// exige que a escola seja omitida e que a lista de turmas esteja vazia.
     /// No nível 2 (Instituição, padrão), a escola informada ou a do vínculo ativo é usada.
     /// O nível 3 (Turmas) também exige turmas-alvo da escola.
-    /// Exemplo público: {"nome":"Troca de M por N","descricao":"Descrição pedagógica","nivel":1,"turmaIds":[]}.
+    /// A lista opcional exemplos aceita pares completos com até 2000 caracteres por campo.
+    /// Exemplo público: {"nome":"Troca de M por N","descricao":"Troca antes de P ou B","nivel":1,"exemplos":[{"esperado":"campo","resposta":"canpo"},{"esperado":"tambor","resposta":"tanbor"}]}.
+    /// Os campos legados exemploEsperado e exemploResposta continuam aceitos quando a lista é omitida.
     /// </remarks>
     /// <param name="request">Definição do erro e escopo da publicação inicial.</param>
     /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
@@ -50,6 +52,8 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// Professores só podem atualizar erros de sua autoria. Administradores da Escola
     /// precisam de vínculo ativo com a escola do autor/publicação; Administrador Geral
     /// possui capability global. Após a primeira associação a um ditado, a definição fica imutável.
+    /// Informe exemplos para substituir a lista inteira. Envie [] para remover todos os pares.
+    /// Uma requisição legada atualiza o primeiro par e preserva os pares adicionais.
     /// </remarks>
     /// <param name="id">ID do erro de catálogo.</param>
     /// <param name="request">Campos editáveis da definição.</param>
@@ -76,13 +80,14 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
             return atualizado is null ? NotFound(new { mensagem = "Erro de catálogo não encontrado." }) : Ok(atualizado);
         }
         catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
+        catch (ValidationException ex) { return BadRequest(new { mensagem = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
     }
 
     /// <summary>Obtém o erro ativo e indica se a definição possui regra programada.</summary>
     /// <param name="id">ID do erro de catálogo.</param>
     /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
-    /// <response code="200">Definição visível, com o indicador temRegraExecutavel.</response>
+    /// <response code="200">Definição visível, com temRegraExecutavel e a lista ordenada de exemplos. Os campos legados espelham o primeiro par.</response>
     /// <response code="401">Não autenticado.</response>
     /// <response code="403">Papel sem acesso ao detalhe.</response>
     /// <response code="404">Erro inexistente, inativo ou fora do escopo.</response>
@@ -102,7 +107,7 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// <summary>Lista erros do catálogo no escopo do usuário autenticado.</summary>
     /// <param name="estado">Estado da lista: <c>ativo</c> ou <c>arquivado</c>.</param>
     /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
-    /// <response code="200">Erros visíveis com autoria, privacidade e indicação de regra programada.</response>
+    /// <response code="200">Erros visíveis com autoria, privacidade, exemplos e indicação de regra programada.</response>
     /// <response code="401">Não autenticado.</response>
     [HttpGet]
     [Authorize(Roles = "Administrador,Professor,Aluno")]

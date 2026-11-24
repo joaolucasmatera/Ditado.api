@@ -1,5 +1,6 @@
 using System.Text;
 using System.Text.RegularExpressions;
+using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
@@ -139,8 +140,7 @@ public sealed class LlmAnalysisProcessor(
                 string.Concat(segmentos.Select(s => esperados.TryGetValue(s.Id, out var esperado) ? $"[{esperado}]" : s.Conteudo)),
                 resposta.Ditado.DitadoCategorias.Select(c => c.Categoria.Nome).OrderBy(n => n, StringComparer.Ordinal).ToArray(),
                 lacunasRouter),
-                congelados.Select(c => new LlmRouterCandidato(c.ErroCatalogoId, c.Nome, c.Descricao,
-                    c.ExemploEsperado, c.ExemploResposta, c.ObservacaoPedagogica)).ToArray(),
+                congelados.Select(MapearCandidatoRouter).ToArray(),
                 lacunasRouter.Select(l =>
                 {
                     var r = respostas[l.SegmentoId].Single();
@@ -148,6 +148,18 @@ public sealed class LlmAnalysisProcessor(
                 }).ToArray()),
             RespostasInternas = lacunasRouter.ToDictionary(l => l.SegmentoId, l => respostas[l.SegmentoId].Single().Id)
         };
+    }
+
+    private static LlmRouterCandidato MapearCandidatoRouter(LlmAnaliseCandidato candidato)
+    {
+        if (candidato.ExemplosAdicionaisJson is null)
+            return new(candidato.ErroCatalogoId, candidato.Nome, candidato.Descricao,
+                candidato.ExemploEsperado, candidato.ExemploResposta, candidato.ObservacaoPedagogica);
+
+        var exemplos = ExemploErroDto.Ler(candidato.ExemploEsperado, candidato.ExemploResposta,
+            candidato.ExemplosAdicionaisJson).Select(exemplo => new[] { exemplo.Esperado, exemplo.Resposta }).ToArray();
+        return new(candidato.ErroCatalogoId, candidato.Nome, candidato.Descricao,
+            null, null, candidato.ObservacaoPedagogica, exemplos);
     }
 
     private async Task ProcessarAsync(LlmAnaliseTarefa[] tarefas, LlmAttemptPrompt entrada, CancellationToken cancellationToken)

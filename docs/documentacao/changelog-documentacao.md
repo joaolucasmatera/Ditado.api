@@ -1,5 +1,9 @@
 # Changelog da documentação
 
+## 24/11/2026 — Exemplos do Catálogo de erros
+
+- Registrado o contrato da lista de exemplos e sua compatibilidade com o par legado. A mudança envolve publicação, edição, recibo, detalhe e o congelamento dos pares na análise LLM. [Contrato do catálogo](../epicos/marketplace-cat02.md#vários-exemplos-24-nov-2026) · [Relatório de ciclo](../relatorio-ciclo-catalogo-exemplos-2026-11-24.md)
+
 ## 23/11/2026 — Contrato do Router por segmento
 
 - A repetição híbrida no mesmo ditado confirmou cinco achados via LLM, classificações de Acentuação por código, um controle limpo, nota de 14,29 e releitura idêntica. A suíte final registrou 69 aprovações e um teste ignorado. [Retorno e comparação por lacuna](evidencias/per69-processo-e-validacao-2026-11-23.md#repetição-final-com-correção-híbrida-no-mesmo-ditado)

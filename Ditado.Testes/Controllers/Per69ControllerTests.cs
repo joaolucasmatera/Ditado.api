@@ -51,8 +51,11 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
         var ids = new List<int>();
         foreach (var (nome, descricao, exemploEsperado, exemploResposta) in definicoes)
         {
-            var publicado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>(
-                "/api/ErrosCatalogo", new { nome, descricao, exemploEsperado, exemploResposta, nivel = 1 }));
+            object request = ids.Count == 0
+                ? new { nome, descricao, exemplos = new[] { new ExemploErroDto(exemploEsperado, exemploResposta),
+                    new ExemploErroDto("Os pássaros voaram", "Os pássaros voou") }, nivel = 1 }
+                : new { nome, descricao, exemploEsperado, exemploResposta, nivel = 1 };
+            var publicado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", request));
             Assert.False(publicado.TemRegraExecutavel);
             ids.Add(publicado.Id);
         }
@@ -79,6 +82,12 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
         var regra = Assert.Single(inicial.Detalhes[6].Classificacoes);
         Assert.Equal(("Codigo", acentuacao), (regra.Origem, regra.ErroCatalogoId));
 
+        // Simula uma alteração na origem após o enfileiramento para testar a independência da cópia congelada.
+        var catalogado = await db.ErrosCatalogo.SingleAsync(e => e.Id == ids[0]);
+        catalogado.ExemploResposta = "Alteração posterior";
+        catalogado.ExemplosAdicionaisJson = null;
+        await db.SaveChangesAsync();
+
         var chamadasAntes = factory.Router.Chamadas;
         var processor = scope.ServiceProvider.GetRequiredService<LlmAnalysisProcessor>();
         Assert.True(await processor.ProcessNextAsync(default));
@@ -104,6 +113,7 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
                 a.RespostaSegmento.RespostaDitadoId == inicial.RespostaDitadoId));
         Assert.False(string.IsNullOrWhiteSpace(trilha.Modelo));
         Assert.NotEqual(LlmOptions.RouterModel, trilha.Modelo);
+        Assert.Equal(LlmOptions.RouterPromptVersion, trilha.PromptVersao);
         output.WriteLine(JsonSerializer.Serialize(new { routerReal = factory.Router.UsaRouterLocal, ids,
             final.Nota, final.Detalhes, trilha.Provedor, trilha.Modelo, trilha.PromptVersao, trilha.TentativasRouter }));
     }
@@ -289,10 +299,21 @@ public sealed class Per69Factory : CustomWebApplicationFactory
                 using var lote = JsonDocument.Parse(envelope.RootElement.GetProperty("messages")[1].GetProperty("content").GetString()!);
                 var lacunas = lote.RootElement.GetProperty("respostas").EnumerateArray().ToArray();
                 var candidatos = lote.RootElement.GetProperty("errosCandidatos").EnumerateArray().ToArray();
+                if (router.Caso == "cinco")
+                {
+                    var multi = Assert.Single(candidatos, c => c.TryGetProperty("exemplos", out _));
+                    Assert.False(multi.TryGetProperty("exemploResposta", out _));
+                    var pares = multi.GetProperty("exemplos").Deserialize<string[][]>()!;
+                    Assert.Equal(new[] { "Os alunos chegaram", "Os alunos chegou" }, pares[0]);
+                    Assert.Equal(new[] { "Os pássaros voaram", "Os pássaros voou" }, pares[1]);
+                    Assert.Equal(2, pares.Length);
+                }
                 var correspondencias = router.Caso == "cinco"
                     ? new[] { "Os alunos chegou", "xave", "portao", "pasou", "canpo" }.ToDictionary(
                         exemplo => exemplo.Split(' ')[^1],
-                        exemplo => candidatos.Single(c => c.GetProperty("exemploResposta").ValueEquals(exemplo)).GetProperty("id").GetInt32())
+                        exemplo => candidatos.Single(c => c.TryGetProperty("exemplos", out var pares)
+                            ? pares[0][1].ValueEquals(exemplo)
+                            : c.GetProperty("exemploResposta").ValueEquals(exemplo)).GetProperty("id").GetInt32())
                     : new Dictionary<string, int> { ["chegou"] = Assert.Single(candidatos).GetProperty("id").GetInt32() };
                 var saida = JsonSerializer.Serialize(new
                 {
