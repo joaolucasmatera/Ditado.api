@@ -31,6 +31,7 @@ public sealed class LlmAnalysisProcessor(
 
         var resposta = await context.RespostaDitados
             .Include(r => r.Ditado).ThenInclude(d => d.Segmentos)
+            .Include(r => r.Ditado).ThenInclude(d => d.DitadoCategorias).ThenInclude(d => d.Categoria)
             .Include(r => r.RespostasSegmentos).ThenInclude(s => s.AnaliseLlm).ThenInclude(t => t!.Candidatos)
             .Include(r => r.RespostasSegmentos).ThenInclude(s => s.AnaliseLlm)
                 .ThenInclude(t => t!.TentativasProvedor.Where(a => a.EncerradaEm == null))
@@ -48,7 +49,7 @@ public sealed class LlmAnalysisProcessor(
         {
             tarefa.Estado = LlmAnaliseEstado.Processando;
             tarefa.IniciadaEm = agora;
-            tarefa.PromptVersao = LlmOptions.PromptVersion;
+            tarefa.PromptVersao = options.Value.VersaoAtiva;
             foreach (var interrompida in tarefa.TentativasProvedor.Where(a => a.EncerradaEm is null))
             {
                 interrompida.Desfecho = "Interrompida";
@@ -127,16 +128,33 @@ public sealed class LlmAnalysisProcessor(
         }
         FecharBloco();
 
-        var candidatos = tarefas[0].Candidatos.OrderBy(c => c.ErroCatalogoId)
-            .Select(c => new LlmCandidatePrompt(c.ErroCatalogoId, c.Codigo, c.Nome, c.Descricao)).ToArray();
-        return new(blocos, candidatos);
+        var congelados = tarefas[0].Candidatos.OrderBy(c => c.ErroCatalogoId).ToArray();
+        var candidatos = congelados.Select(c => new LlmCandidatePrompt(c.ErroCatalogoId, c.Codigo, c.Nome, c.Descricao)).ToArray();
+        var lacunasRouter = segmentos.Where(s => s.Tipo == TipoSegmento.Lacuna)
+            .Select(s => new LlmRouterLacuna(s.Id, respostas[s.Id].Single().RespostaEsperada ?? s.Conteudo)).ToArray();
+        var esperados = lacunasRouter.ToDictionary(l => l.SegmentoId, l => l.Esperado);
+        return new(blocos, candidatos)
+        {
+            Router = new(new(resposta.Ditado.Titulo, resposta.Ditado.Descricao,
+                string.Concat(segmentos.Select(s => esperados.TryGetValue(s.Id, out var esperado) ? $"[{esperado}]" : s.Conteudo)),
+                resposta.Ditado.DitadoCategorias.Select(c => c.Categoria.Nome).OrderBy(n => n, StringComparer.Ordinal).ToArray(),
+                lacunasRouter),
+                congelados.Select(c => new LlmRouterCandidato(c.ErroCatalogoId, c.Nome, c.Descricao,
+                    c.ExemploEsperado, c.ExemploResposta, c.ObservacaoPedagogica)).ToArray(),
+                lacunasRouter.Select(l =>
+                {
+                    var r = respostas[l.SegmentoId].Single();
+                    return new LlmRouterResposta(l.SegmentoId, r.RespostaAusente ? null : r.RespostaFornecida);
+                }).ToArray()),
+            RespostasInternas = lacunasRouter.ToDictionary(l => l.SegmentoId, l => respostas[l.SegmentoId].Single().Id)
+        };
     }
 
     private async Task ProcessarAsync(LlmAnaliseTarefa[] tarefas, LlmAttemptPrompt entrada, CancellationToken cancellationToken)
     {
         var cadeia = options.Value.Simulated
             ? [new LlmProviderOptions { Provider = "Simulado", Model = "fixture-v1" }]
-            : options.Value.Chain;
+            : new List<LlmProviderOptions> { new() { Provider = LlmOptions.RouterProvider, Model = LlmOptions.RouterModel } };
 
         // A menor tarefa ainda pendente guarda a trilha da chamada comum à tentativa.
         var primeira = tarefas[0];
@@ -146,21 +164,33 @@ public sealed class LlmAnalysisProcessor(
             var tentativa = new LlmTentativaProvedor
             {
                 Numero = ++primeira.Tentativas, Provedor = provider.Provider, Modelo = provider.Model,
-                PromptVersao = LlmOptions.PromptVersion, IniciadaEm = DateTime.UtcNow
+                PromptVersao = options.Value.VersaoAtiva, IniciadaEm = DateTime.UtcNow
             };
             primeira.TentativasProvedor.Add(tentativa);
             await context.SaveChangesAsync(cancellationToken);
 
-            var resultado = await providerClient.ClassificarAsync(provider, entrada, cancellationToken);
+            var chamada = entrada with
+            {
+                Correlacao = new(primeira.RespostaSegmento.RespostaDitadoId, primeira.Id, tentativa.Numero)
+            };
+            var resultado = await providerClient.ClassificarAsync(provider, chamada, cancellationToken);
+            var viaRouter = provider.Provider == LlmOptions.RouterProvider;
+            if (viaRouter && resultado.Outcome == LlmProviderOutcome.Sucesso &&
+                (resultado.ProvedorEfetivo is null || resultado.ModeloEfetivo is null))
+                resultado = resultado with { Outcome = LlmProviderOutcome.SaidaInvalida, Motivo = LlmMotivo.SaidaInvalida };
+
+            tentativa.Provedor = resultado.ProvedorEfetivo ?? provider.Provider;
+            tentativa.Modelo = resultado.ModeloEfetivo ?? provider.Model;
+            tentativa.TentativasRouter = resultado.TentativasRouter;
             tentativa.Desfecho = resultado.Outcome.ToString();
             tentativa.Motivo = resultado.Motivo?.ToString();
             tentativa.HttpStatus = resultado.HttpStatus;
             tentativa.EncerradaEm = DateTime.UtcNow;
             foreach (var tarefa in tarefas)
             {
-                tarefa.Provedor = provider.Provider;
-                tarefa.Modelo = provider.Model;
-                tarefa.Origem = i == 0 ? "Primario" : "Backup";
+                tarefa.Provedor = viaRouter ? resultado.ProvedorEfetivo : provider.Provider;
+                tarefa.Modelo = viaRouter ? resultado.ModeloEfetivo : provider.Model;
+                tarefa.Origem = viaRouter ? LlmOptions.RouterProvider : i == 0 ? "Primario" : "Backup";
                 tarefa.UltimoErro = tentativa.Motivo;
             }
 
@@ -241,7 +271,8 @@ public sealed class LlmAnalysisProcessor(
         }
         foreach (var tarefa in tarefas)
         {
-            tarefa.Estado = tarefa.Candidatos.Any(c => c.Estado == LlmCandidatoEstado.Inconclusivo)
+            tarefa.Estado = output.SegmentosInconclusivos.Contains(tarefa.RespostaSegmentoId) ||
+                tarefa.Candidatos.Any(c => c.Estado == LlmCandidatoEstado.Inconclusivo)
                 ? LlmAnaliseEstado.Revisao : LlmAnaliseEstado.Concluida;
             tarefa.ConcluidaEm = agora;
         }

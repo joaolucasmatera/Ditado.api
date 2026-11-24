@@ -1,5 +1,50 @@
 # Changelog da documentação
 
+## 23/11/2026 — Contrato do Router por segmento
+
+- A repetição híbrida no mesmo ditado confirmou cinco achados via LLM, classificações de Acentuação por código, um controle limpo, nota de 14,29 e releitura idêntica. A suíte final registrou 69 aprovações e um teste ignorado. [Retorno e comparação por lacuna](evidencias/per69-processo-e-validacao-2026-11-23.md#repetição-final-com-correção-híbrida-no-mesmo-ditado)
+
+- Registrados o fluxo interno da API, o teste com cinco erros publicados e o retorno real do Router. O teste releu os cinco achados e manteve o controle correto e a nota 16,67. Duas repetições com uma revisão experimental do prompt corrigiram a sinalização da ausência e repetiram o falso positivo de concordância. O contrato implementado mantém o prompt v5 original. [Processo, pedidos e resultados](evidencias/per69-processo-e-validacao-2026-11-23.md)
+
+- Dez sondas diretas, com as mesmas cinco definições e o mesmo prompt v5, retornaram JSON válido. O gabarito foi atendido integralmente em oito casos. Houve um falso positivo contextual e uma ausência sem sinalização de revisão. [Capturas e comparação por caso](evidencias/per69-dez-sondas-router-2026-11-23.md)
+
+- A API passou a enviar ditado, candidatos congelados e respostas, e a validar a cobertura por ID de segmento. A política de revisão preserva achados já indicados em segmentos inconclusivos. As sondas reais e a demonstração pela API usam dados sintéticos. [Evidências do novo contrato](evidencias/per69-contrato-segmentos-2026-11-23.md)
+
+## 22/11/2026 — Piloto local da PER-69
+
+- Após a recuperação do Docker Desktop, as rodadas G e H confirmaram o fluxo em Compose com MySQL 8.0.21. O banco registrou o modelo efetivo com o Router ativo. Com o Router parado, a releitura preservou a nota 20 e a acentuação por código. A validação independente segue pendente. [Capturas e trilha SQL](evidencias/per69-piloto-router-2026-11-22.md#g-e-h--repetição-no-docker-compose-após-recuperação-do-engine)
+
+- Registrados a configuração opt-in com revisão fixa, a trilha do modelo efetivo e a contingência da classificação híbrida. O histórico da PER-65 permanece referenciado. [Contrato do piloto](../epicos/per69-piloto-free-llm-router.md)
+- Adicionadas capturas sintéticas da rotação e do envio sem `response_format`, a sonda com Groq autenticado e a demonstração da submissão e releitura. Os controles negativos e a contagem de inconclusivos foram registrados por rodada. [Caderno de evidências](evidencias/per69-piloto-router-2026-11-22.md)
+- Atualizados o relatório vivo e o referencial do projeto com o escopo do piloto. O uso em ambiente escolar e o aceite independente continuam pendentes. [Relatório de ciclo](../relatorio-ciclo-per69-2026-11-22.md)
+
+## 21/11/2026 — Ensaio do Free-LLM Router em modo guest
+
+- Registrada a avaliação para o TCC com três amostras sintéticas do payload v4 e três repetições por amostra. O catálogo ao vivo e o snapshot não tinham entradas de acesso anônimo. O roteador devolveu HTTP 503 `no_providers` nas nove chamadas e a precisão ficou sem estimativa. O relatório vivo e o índice da PER-65 apontam para o método, as evidências e a reprodução. [Relatório do ensaio](evidencias/per65-free-llm-guest-2026-11-21.md)
+
+## 21/11/2026 — Retirada do GonkaBroker da cadeia
+
+- O usuário aprovou a retirada após falsos positivos nos controles e timeouts no lote longo. Groq, Cohere e OpenRouter ficam na cadeia acordada.
+- Especificação PG2, contrato COR-01, relatório vivo e índice atualizados. Os comparativos e rastros dos quatro provedores permanecem como evidência dos ensaios. [Índice de ensaios](evidencias/per65-indice-ensaios.md)
+
+## 21/11/2026 — Payload contextual e evidência da PER-65
+
+- Alinhadas a especificação PG2, a COR-01 e o relatório vivo com o envio em lote por tentativa implementado em `9846a43`. A trilha registra o status HTTP de sucesso e a persistência mantém os achados por lacuna.
+- Registradas a correção dos controles de concordância, a divergência lexical no lote longo e a repetição com teto de 6.144 tokens de saída. As evidências usam dados sintéticos e servem à avaliação do TCC. [Capturas do cliente v4](evidencias/per65-cliente-v4-2026-11-21.md)
+- Registrados o aceite do QA para a correção híbrida na API, o perfil sintético de 4.096 tokens e a comparação dos quatro provedores. Os resultados de estrutura, cobertura e acerto embasam a avaliação dos modelos de backup. [Comparação dos provedores](evidencias/per65-provedores-v4-2026-11-21.md)
+- Documentada a leitura dos blocos textuais no Cohere em `e6f2b8d`. Incluído o arquivo privado `.env.production` nas exclusões do Git e do contexto de build Docker. O modelo de configuração `.env.docker.example` permanece versionado.
+
+## 19/11/2026 — Evidências do benchmark de classificação em lote
+
+- Adicionado o [caderno de evidências do TCC](evidencias/per65-benchmark-llm-2026-11-19.md), com amostra rotulada, configuração dos ensaios, resultados dos quatro provedores e 29 registros de chamadas sanitizados. O experimento usa somente ditados sintéticos e mede tokens, cobertura e qualidade observada.
+- Incluídas referências no relatório de ciclo da PER-65 e no relatório vivo. A medição usa um modelo por provedor, com a exceção do roteamento dinâmico do OpenRouter. A estabilidade em lotes maiores permanece em aberto.
+- Adicionado o [ensaio de seguimento do Groq](evidencias/per65-groq-ab-2026-11-19.md) com corpos de request e resposta, validação de estrutura e verificação do par de controle de concordância. O modo estrito teve duas respostas utilizáveis para avaliação e o modo JSON falhou na validação local nas três tentativas concluídas pelo provedor.
+
+## 18/11/2026 — Papel do LLM na classificação do catálogo
+
+- Esclarecimento confirmado pelo usuário. O LLM classifica todos os erros selecionados sem regra programada, incluindo os publicados por professores. A submissão aciona essa análise independentemente dos achados por código.
+- A conferência de `DitadoService.SubmeterRespostaAsync` e `LlmAnalysisProcessor` confirmou o fluxo na implementação. A [especificação PG2](../../Ditado/docs/ESPECIFICACAO_PG2.md), o [contrato da PER-63](../epicos/cor-01-classificacao-hibrida.md) e o [relatório vivo](relatorio-aplicacao.md) foram alinhados com a decisão. A validação com provedores reais segue na PER-65.
+
 ## 18/11/2026 — Operação Docker da PER-65
 
 - Registrada a decisão de implantação inicial no servidor da faculdade: enviar a imagem sem credenciais e injetar chaves, modelos e limites por um `.env.production` privado no `docker compose`.

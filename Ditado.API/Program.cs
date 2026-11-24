@@ -15,7 +15,13 @@ var builder = WebApplication.CreateBuilder(args);
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("Llm"));
-builder.Services.PostConfigure<LlmOptions>(o => o.Simulated &= builder.Environment.IsEnvironment("Testing"));
+builder.Services.PostConfigure<LlmOptions>(o =>
+{
+    o.Simulated &= builder.Environment.IsEnvironment("Testing");
+    o.RouterLogBodies &= builder.Environment.IsDevelopment() &&
+        bool.TryParse(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), out var emContainer) && emContainer;
+});
+builder.Services.AddSingleton<LlmRouterDiagnostics>();
 builder.Services.AddHttpClient("Llm")
     .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
     .RedactLoggedHeaders(_ => true);
@@ -154,7 +160,7 @@ builder.Services.AddHostedService<LlmAnalysisWorker>();
 var app = builder.Build();
 var llmOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
 if (llmOptions.Enabled && !llmOptions.PodeEnfileirar)
-    app.Logger.LogWarning("Classificação LLM desabilitada. Verifique a ordem, os modelos de Groq, Cohere e OpenRouter e os limites.");
+    app.Logger.LogWarning("Classificação LLM desabilitada. Verifique o endereço do Router e os limites.");
 
 // APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODU��O - N�O EM DEVELOPMENT NEM TESTING)
 if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))

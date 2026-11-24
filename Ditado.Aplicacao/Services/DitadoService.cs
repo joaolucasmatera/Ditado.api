@@ -246,13 +246,16 @@ public class DitadoService
 				respostaSegmento.AnaliseLlm = new LlmAnaliseTarefa
 				{
 					RespostaSegmento = respostaSegmento,
-					PromptVersao = LlmOptions.PromptVersion,
+					PromptVersao = _llmOptions.VersaoAtiva,
 					Candidatos = candidatosLlm.Select(erro => new LlmAnaliseCandidato
 					{
 						ErroCatalogoId = erro.Id,
 						Codigo = erro.Codigo,
 						Nome = erro.Nome,
 						Descricao = erro.Descricao,
+						ExemploEsperado = erro.ExemploEsperado,
+						ExemploResposta = erro.ExemploResposta,
+						ObservacaoPedagogica = erro.ObservacaoPedagogica,
 						Versao = versoesCandidatos.GetValueOrDefault(erro.Id)
 					}).ToList()
 				};

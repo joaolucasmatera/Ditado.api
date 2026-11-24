@@ -10,6 +10,7 @@ public sealed class LlmTentativaProvedor
     public string Desfecho { get; set; } = "Iniciada";
     public string? Motivo { get; set; }
     public int? HttpStatus { get; set; }
+    public int? TentativasRouter { get; set; }
     public DateTime IniciadaEm { get; set; }
     public DateTime? EncerradaEm { get; set; }
 }

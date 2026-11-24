@@ -1,5 +1,9 @@
 # Ditado — Relatório vivo da aplicação
 
+> **Validação em Docker Compose.** Nas rodadas G e H, a API aplicou a migration no MySQL 8.0.21 e registrou `groq-cloud/openai/gpt-oss-120b` como destino efetivo nas cinco lacunas do lote concluído. Com o Router parado, a releitura preservou a nota objetiva de 20 e a acentuação por código. [Resultados e consulta SQL](evidencias/per69-piloto-router-2026-11-22.md#g-e-h--repetição-no-docker-compose-após-recuperação-do-engine)
+
+> **Adendo de 23/11/2026, PER-69.** O piloto passou a usar o contrato v5 por segmento com o Free-LLM Router. Dez chamadas diretas retornaram JSON válido e oito coincidiram integralmente com o gabarito. Houve um falso positivo de concordância e uma sinalização de ausência omitida. No teste híbrido, a API aplicou cinco definições cadastradas por meio do Router real, preservou os achados por código e confirmou a nota objetiva de 14,29 na releitura. Os dados são sintéticos. O falso positivo mantém pendente o gate pedagógico dos controles negativos. [Processo, método e resultados v5](evidencias/per69-processo-e-validacao-2026-11-23.md) · [Histórico v4](evidencias/per69-piloto-router-2026-11-22.md)
+
 - **Versão** V0.27
 - **Data** 18/11/2026
 - **Status** Revisão técnica para incorporação ao documento acadêmico
@@ -183,9 +187,9 @@ Os requisitos RF43 a RF49 e os casos CU15 a CU17 descrevem o plano aprovado em 1
 | ID | Requisito planejado e critério verificável | Caso de uso e entrega |
 |---|---|---|
 | RF43 | Registrar todas as lacunas apresentadas em cada tentativa, incluindo acertos e lacunas sem resposta, preservando a resposta original e as referências da coleta. | CU10, CU15 · PER-64 |
-| RF44 | Gravar com a tentativa a tarefa de análise e as referências versionadas dos candidatos selecionados sem executor. O processamento assíncrono deve permitir sugestões LLM e achados por código na mesma lacuna. | CU15 · PER-64 |
+| RF44 | Gravar com a tentativa a tarefa de análise e as referências versionadas dos erros selecionados sem regra programada, incluindo os cadastrados por professores. O LLM classifica todos esses candidatos por lacuna, independentemente do resultado das regras por código. | CU15 · PER-64 |
 | RF45 | Permitir consultar o resultado autorizado após recarregar a página, mostrando a nota objetiva, a origem dos achados e o estado da análise assíncrona. | CU11, CU15 · PER-64 |
-| RF46 | Processar os candidatos pela cadeia configurável de Groq, Cohere, Gonka Broker e OpenRouter. Acionar o próximo provedor em timeout, falha de rede, indisponibilidade ou limite informado pelo provedor, incluindo HTTP 429. | CU15 · PER-65 |
+| RF46 | Processar os candidatos pela cadeia configurável de Groq, Cohere e OpenRouter. Acionar o próximo provedor em timeout, falha de rede, indisponibilidade ou limite informado pelo provedor, incluindo HTTP 429. | CU15 · PER-65 |
 | RF47 | Validar integralmente a saída antes de gravar sugestões. Aceitar somente candidatos selecionados e recusar IDs desconhecidos ou duplicados e valores fora do contrato. Uma saída válida sem correspondência encerra a análise sem sugestão. | CU15 · PER-64, PER-65 |
 | RF48 | Permitir ao revisor autorizado registrar decisões humanas por amostra ou exceção, preservando sugestões automáticas, evidências e origem. O perfil e o alcance dessa autorização aguardam definição. | CU16 · PER-66 |
 | RF49 | Exportar, mediante autorização e auditoria, dois CSVs pseudonimizados ligados pelo ID da lacuna. O arquivo de respostas deve conter acertos e lacunas vazias. O arquivo de classificações deve indicar origem e versão aplicável. | CU17 · PER-66 |
@@ -201,6 +205,14 @@ Os requisitos RF43 a RF49 e os casos CU15 a CU17 descrevem o plano aprovado em 1
 | RNF18 | Verificação da entrega | Demonstrar a PER-64 com provedor simulado e dados sintéticos em MySQL isolado, incluindo origem, estado, recarga e isolamento entre escolas. Na PER-65, comparar os quatro modelos na mesma amostra rotulada, em avaliação separada da rotação operacional. Executar build, testes pertinentes e demonstração antes do QA independente e atualizar Swagger quando o contrato da API mudar. |
 
 Modelos, ordem por ambiente, limites, critério de aceite da amostra e dados permitidos para envio externo permanecem pendentes para ativação com respostas reais. Os critérios da amostra precisam ser definidos antes de afirmar qualidade de classificação. O feedback pedagógico sob demanda segue o planejamento específico da PG2. [Especificação PG2](../../Ditado/docs/ESPECIFICACAO_PG2.md) · [Contrato da classificação híbrida](../epicos/cor-01-classificacao-hibrida.md)
+
+O experimento exploratório de 19/11/2026 comparou chamadas por lacuna com uma chamada por tentativa e avaliou variantes com texto completo. A evidência reúne amostras sintéticas, parâmetros, contagem de tokens, classificações e falhas dos quatro provedores. Os resultados servem à análise do TCC e permanecem distintos dos critérios de ativação em produção. [Caderno de evidências do benchmark](evidencias/per65-benchmark-llm-2026-11-19.md)
+
+A implementação contextual envia a tentativa inteira em uma chamada por provedor acionado. Vincula cada lacuna ao trecho escrito e repete as definições do catálogo apenas entre tentativas. A saída agrupa achados por definição e é validada integralmente antes de persistir as classificações. O ensaio com Groq 120B obteve 23/24 lacunas exatas na amostra longa e 10/10 na inédita, preservando o par de concordância. Os corpos enviados, as respostas sanitizadas, o teto de tokens e as divergências observadas integram a evidência. [Estudo de variantes](evidencias/per65-contexto-lote-2026-11-19.md) · [Ensaio do cliente v4](evidencias/per65-cliente-v4-2026-11-21.md)
+
+A comparação v4 incluiu os quatro provedores na mesma amostra rotulada de dez lacunas. Os ensaios mediram cobertura, concordância com o gabarito, conclusão da resposta e uso de tokens. O parser do Cohere passou a aceitar respostas com raciocínio seguido de texto. A correção com Cohere Command A+ passou no fluxo HTTP e atingiu 10/10 no ensaio curto com teto de saída de 8.192 tokens. Ocorreram falhas de cobertura, truncamento e timeout em outras execuções. Os resultados por modelo e por configuração estão no [comparativo na mesma amostra](evidencias/per65-provedores-v4-2026-11-21.md).
+
+Em 21/11/2026, um ensaio complementar enviou o payload contextual v4 ao Free-LLM Router sem chaves de provedores. As nove chamadas, distribuídas em três amostras sintéticas de 8, 10 e 24 lacunas, retornaram HTTP 503 `no_providers`. O catálogo carregado não ofereceu rotas anônimas. A rodada mediu 0/9 chamadas com saída utilizável. A precisão pedagógica ficou sem estimativa porque nenhum modelo produziu classificações. [Relatório do ensaio em modo guest](evidencias/per65-free-llm-guest-2026-11-21.md)
 
 ## 9. Arquitetura e tecnologias
 
@@ -275,11 +287,11 @@ O [diagrama editável](diagramas/casos-de-uso.md) relaciona os atores aos casos 
 
 | ID e objetivo | Participantes e pré-condição planejados | Fluxo planejado e resultado | Alternativas ou exceções |
 |---|---|---|---|
-| CU15 — Consultar resultado com análise híbrida | Aluno ou pessoal autorizado no escopo escolar da tentativa. A submissão dispara o processamento de candidatos selecionados sem executor. | Registra todas as lacunas e a tarefa com os candidatos versionados. Retorna a nota objetiva. O worker processa a fila no MySQL e valida a saída antes de gravar sugestões. Ao consultar ou recarregar o resultado, o usuário acompanha o estado e a origem dos achados. | Falhas técnicas permitem avanço na cadeia configurada. Saída válida sem correspondência encerra sem sugestão. Saída inválida, autenticação ou erro de contrato são registrados para falha ou revisão. Nota e achados por código são preservados. |
+| CU15 — Consultar resultado com análise híbrida | Aluno ou pessoal autorizado no escopo escolar da tentativa. A submissão elegível dispara a classificação por LLM de todos os erros selecionados sem regra programada, mesmo quando o código identifica outro erro na lacuna. | Registra todas as lacunas e a tarefa com os candidatos versionados. Retorna a nota objetiva. O worker processa a fila no MySQL e valida a saída antes de gravar as classificações do LLM. Ao consultar ou recarregar o resultado, o usuário acompanha o estado e a origem dos achados. | Falhas técnicas permitem avanço na cadeia configurada. Saída válida sem correspondência encerra sem classificação para esses candidatos. Saída inválida, autenticação ou erro de contrato são registrados para falha ou revisão. Nota e achados por código são preservados. |
 | CU16 — Revisar classificações | Revisor com permissão e escopo ainda a definir para a PER-66. | Acessa uma amostra ou exceção autorizada, consulta sugestões e evidências e registra a decisão humana com sua origem, preservando as sugestões automáticas. | O acesso depende da definição das permissões. A liberação requer validação do escopo e da rastreabilidade da decisão. |
 | CU17 — Exportar dados de pesquisa | Operador de pesquisa com perfil, permissão e escopo ainda a definir para a PER-66. | Solicita a exportação autorizada. O sistema registra auditoria e gera os CSVs pseudonimizados de respostas e classificações ligados pelo ID da lacuna, incluindo acertos, lacunas vazias, origem e versão aplicável. | A liberação depende das definições de acesso de pesquisa. O envio a provedores externos depende das condições de ativação registradas na seção 8.6. |
 
-O fluxo de classificação será demonstrado primeiro com provedor simulado na PER-64 e validado com os quatro provedores na PER-65. Revisão e exportação seguem na PER-66. [Sequência e critérios de aceite](../epicos/cor-01-classificacao-hibrida.md#sequência-da-entrega)
+O fluxo de classificação foi demonstrado com provedor simulado na PER-64. A PER-65 avalia a cadeia e preserva o comparativo histórico, que inclui o GonkaBroker. Revisão e exportação seguem na PER-66. [Sequência e critérios de aceite](../epicos/cor-01-classificacao-hibrida.md#sequência-da-entrega)
 
 ## 12. Fundamentação pedagógica
 
@@ -409,7 +421,7 @@ A revisão documental conferiu o código e essas evidências de ciclo. A aplica�
 - Confirmar os dados acadêmicos e a composição atual da equipe.
 - Validar as diferenças de comportamento da seção 11.2 e as rotas legadas que permanecem em uso.
 - Concluir a homologação de navegadores, desempenho e disponibilidade.
-- A PER-18 prevê classificação assíncrona em duas fatias, primeiro o fluxo com provedor simulado (PER-64) e depois a validação da cadeia com Groq, Cohere, Gonka Broker e OpenRouter (PER-65). A PER-66 prevê revisão humana e exportação pseudonimizada para pesquisa. A ativação com dados reais depende de modelos, limites, critério de aceite da amostra e dados autorizados para envio externo. [Contrato e sequência da entrega](../epicos/cor-01-classificacao-hibrida.md)
+- A PER-18 prevê classificação assíncrona em duas fatias, primeiro o fluxo com provedor simulado (PER-64) e depois a validação da cadeia com Groq, Cohere e OpenRouter (PER-65). A PER-66 prevê revisão humana e exportação pseudonimizada para pesquisa. A ativação com dados reais depende de modelos, limites, critério de aceite da amostra e dados autorizados para envio externo. [Contrato e sequência da entrega](../epicos/cor-01-classificacao-hibrida.md)
 - Integrar a tela de importação JSON do catálogo com a API e definir a operação institucional de backup e restauração, conforme as histórias correspondentes.
 
 ### Riscos e dívida técnica

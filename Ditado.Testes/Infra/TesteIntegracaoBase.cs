@@ -48,6 +48,18 @@ public abstract class TesteIntegracaoBase : IClassFixture<CustomWebApplicationFa
         return escola.Id;
     }
 
+    protected async Task<(int Id, string Token)> CriarUsuarioSinteticoAsync(TipoUsuario tipo)
+    {
+        AdicionarTokenAutorizacao(await ObterTokenAdminAsync());
+        var login = $"teste-{Guid.NewGuid():N}@teste.invalid";
+        var senha = Guid.NewGuid().ToString("N");
+        var usuario = Assert.IsType<UsuarioResponse>(await PostAsync<UsuarioResponse>("/api/usuarios",
+            new CriarUsuarioRequest { Nome = "Usuário de teste", Login = login, Senha = senha, Tipo = tipo }));
+        var auth = Assert.IsType<LoginResponse>(await PostAsync<LoginResponse>("/api/usuarios/login",
+            new LoginRequest { Login = login, Senha = senha }));
+        return (usuario.Id, auth.Token);
+    }
+
     protected async Task<List<int>> GarantirRegrasPublicasAsync(params TipoErro[] regras)
     {
         using var scope = _factory.Services.CreateScope();

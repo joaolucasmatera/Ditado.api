@@ -1,12 +1,14 @@
 [CmdletBinding()]
 param(
-    [switch]$Test
+    [switch]$Test,
+    [string]$ArtifactsPath
 )
 
 $ErrorActionPreference = 'Stop'
 
 $dotnetCandidates = @(
     (Join-Path $env:LOCALAPPDATA 'dotnet-sdk-9\dotnet.exe'),
+    (Join-Path $env:USERPROFILE '.dotnet9\dotnet.exe'),
     'C:\Program Files\dotnet\dotnet.exe'
 )
 $dotnet = $dotnetCandidates | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -30,6 +32,7 @@ $restoreArgs = @(
     '-p:UseSharedCompilation=false',
     '-v:minimal'
 )
+if ($ArtifactsPath) { $restoreArgs += "-p:ArtifactsPath=$ArtifactsPath" }
 & $dotnet @restoreArgs
 if ($LASTEXITCODE -ne 0) { throw "Restore da API falhou (código $LASTEXITCODE)." }
 
@@ -42,6 +45,7 @@ $buildArgs = @(
     '-p:UseSharedCompilation=false',
     '-v:minimal'
 )
+if ($ArtifactsPath) { $buildArgs += "-p:ArtifactsPath=$ArtifactsPath" }
 & $dotnet @buildArgs
 if ($LASTEXITCODE -ne 0) { throw "Build da API falhou (código $LASTEXITCODE)." }
 

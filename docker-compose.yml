@@ -16,15 +16,9 @@ services:
       Llm__TimeoutSeconds: ${LLM_TIMEOUT_SECONDS:-15}
       Llm__MaxInputCharacters: ${LLM_MAX_INPUT_CHARACTERS:-8000}
       Llm__MaxOutputTokens: ${LLM_MAX_OUTPUT_TOKENS:-768}
-      Llm__Chain__0__Provider: ${LLM_CHAIN_0_PROVIDER:-}
-      Llm__Chain__0__Model: ${LLM_CHAIN_0_MODEL:-}
-      Llm__Chain__1__Provider: ${LLM_CHAIN_1_PROVIDER:-}
-      Llm__Chain__1__Model: ${LLM_CHAIN_1_MODEL:-}
-      Llm__Chain__2__Provider: ${LLM_CHAIN_2_PROVIDER:-}
-      Llm__Chain__2__Model: ${LLM_CHAIN_2_MODEL:-}
-      GROQ_API_KEY: ${GROQ_API_KEY:-}
-      COHERE_API_KEY: ${COHERE_API_KEY:-}
-      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+      Llm__RouterUrl: ${LLM_ROUTER_URL:-}
+      Llm__RouterLogBodies: ${LLM_ROUTER_LOG_BODIES:-false}
+      DITADO_LLM_ROUTER_KEY: ${DITADO_LLM_ROUTER_KEY:-}
     extra_hosts:
       - host.docker.internal:host-gateway
     ports:

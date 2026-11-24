@@ -413,6 +413,10 @@ namespace Ditado.Infra.Migrations
                         .HasMaxLength(2000)
                         .HasColumnType("varchar(2000)");
 
+                    b.Property<string>("ExemploEsperado").HasColumnType("longtext");
+                    b.Property<string>("ExemploResposta").HasColumnType("longtext");
+                    b.Property<string>("ObservacaoPedagogica").HasColumnType("longtext");
+
                     b.Property<int>("LlmAnaliseTarefaId")
                         .HasColumnType("int");
 
@@ -510,6 +514,9 @@ namespace Ditado.Infra.Migrations
                         .HasColumnType("datetime(6)");
 
                     b.Property<int?>("HttpStatus")
+                        .HasColumnType("int");
+
+                    b.Property<int?>("TentativasRouter")
                         .HasColumnType("int");
 
                     b.Property<DateTime>("IniciadaEm")

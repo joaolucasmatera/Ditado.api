@@ -11,23 +11,24 @@ namespace Ditado.Testes.Services;
 public sealed class LlmAnalysisProcessorTests
 {
     [Theory]
-    [InlineData("concordancia", "Groq", LlmAnaliseEstado.Concluida)]
-    [InlineData("inedito", "Groq", LlmAnaliseEstado.Concluida)]
-    [InlineData("pontuacao", "Groq", LlmAnaliseEstado.Concluida)]
-    [InlineData("historico", "Groq", LlmAnaliseEstado.Concluida)]
-    [InlineData("limite", "Groq,OpenRouter", LlmAnaliseEstado.Concluida)]
-    [InlineData("terceiro", "Groq,OpenRouter,Cohere", LlmAnaliseEstado.Concluida)]
-    [InlineData("todos", "Groq,OpenRouter,Cohere", LlmAnaliseEstado.Falha)]
-    [InlineData("vazio", "Groq", LlmAnaliseEstado.Concluida)]
-    [InlineData("fora", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("duplicado", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("sobreposto", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("cobertura", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("grupoAusente", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("confiança", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("permanente", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("malformado", "Groq", LlmAnaliseEstado.Revisao)]
-    [InlineData("nulo", "Groq", LlmAnaliseEstado.Revisao)]
+    [InlineData("concordancia", "Simulado", LlmAnaliseEstado.Concluida)]
+    [InlineData("inedito", "Simulado", LlmAnaliseEstado.Concluida)]
+    [InlineData("pontuacao", "Simulado", LlmAnaliseEstado.Concluida)]
+    [InlineData("historico", "Simulado", LlmAnaliseEstado.Concluida)]
+    [InlineData("vazio", "Simulado", LlmAnaliseEstado.Concluida)]
+    [InlineData("fora", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("duplicado", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("sobreposto", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("cobertura", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("grupoAusente", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("confiança", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("permanente", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("malformado", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("nulo", "Simulado", LlmAnaliseEstado.Revisao)]
+    [InlineData("router-alternativo", "FreeLlmRouter", LlmAnaliseEstado.Concluida)]
+    [InlineData("router-incompleto", "FreeLlmRouter", LlmAnaliseEstado.Revisao)]
+    [InlineData("router-sem-modelo", "FreeLlmRouter", LlmAnaliseEstado.Revisao)]
+    [InlineData("router-fora-do-ar", "FreeLlmRouter", LlmAnaliseEstado.Falha)]
     public async Task EnviaUmaVezPorProvedorEValidaTodasAsLacunasAntesDeGravar(string caso, string ordem, LlmAnaliseEstado estado)
     {
         await using var context = new DitadoDbContext(new DbContextOptionsBuilder<DitadoDbContext>()
@@ -78,7 +79,8 @@ public sealed class LlmAnalysisProcessorTests
         var fixture = new Fixture(caso);
         var processor = new LlmAnalysisProcessor(context, fixture, Options.Create(new LlmOptions
         {
-            Enabled = true,
+            Enabled = true, Simulated = !caso.StartsWith("router-"),
+            RouterUrl = caso.StartsWith("router-") ? "http://localhost:4000/v1" : null,
             Chain = [new() { Provider = "Groq", Model = "fixture" }, new() { Provider = "OpenRouter", Model = "fixture/backup" },
                 new() { Provider = "Cohere", Model = "fixture" }]
         }));
@@ -113,25 +115,23 @@ public sealed class LlmAnalysisProcessorTests
             Assert.Equal("Evidência histórica", anterior.Candidatos.Single(c => c.ErroCatalogoId == 31).Evidencia);
         }
         var trilha = tarefas.SelectMany(t => t.TentativasProvedor).OrderBy(a => a.Numero).ToArray();
-        Assert.Equal(ordem, string.Join(",", trilha.Select(a => a.Provedor)));
+        var provedorRegistrado = caso is "router-alternativo" or "router-incompleto" ? "provedor-alternativo" : ordem;
+        Assert.Equal(provedorRegistrado, string.Join(",", trilha.Select(a => a.Provedor)));
+        if (caso == "router-alternativo")
+        {
+            Assert.Equal(3, Assert.Single(trilha).TentativasRouter);
+            Assert.Equal("familia/modelo-alternativo:free", trilha[0].Modelo);
+            Assert.All(tarefas, tarefa =>
+            {
+                Assert.Equal(trilha[0].Modelo, tarefa.Modelo);
+                Assert.Equal(provedorRegistrado, tarefa.Provedor);
+            });
+        }
         Assert.All(trilha, a =>
         {
             Assert.NotNull(a.EncerradaEm);
-            Assert.Equal(LlmOptions.PromptVersion, a.PromptVersao);
+            Assert.Equal(caso.StartsWith("router-") ? LlmOptions.RouterPromptVersion : LlmOptions.PromptVersion, a.PromptVersao);
         });
-        if (caso == "limite")
-        {
-            Assert.Equal("LimiteProvedor", trilha[0].Motivo);
-            Assert.Equal(429, trilha[0].HttpStatus);
-        }
-        if (caso == "todos")
-            Assert.Equal(new[] { "LimiteProvedor", "Timeout", "Rede" }, trilha.Select(a => a.Motivo));
-        if (caso == "terceiro")
-        {
-            Assert.Equal(new[] { "LimiteProvedor", "Timeout", null }, trilha.Select(a => a.Motivo));
-            Assert.Equal(200, trilha[2].HttpStatus);
-            Assert.All(tarefas, tarefa => Assert.Equal("Cohere", tarefa.Provedor));
-        }
         if (caso == "vazio")
         {
             Assert.Equal("SemCorrespondencia", Assert.Single(trilha).Desfecho);
@@ -186,12 +186,17 @@ public sealed class LlmAnalysisProcessorTests
             if (caso == "sobreposto") grupos[0].Inconclusivas.Add(achado);
             if (caso == "cobertura") cobertura.RemoveAt(2);
             if (caso == "grupoAusente") grupos.RemoveAt(1);
+            if (caso == "router-incompleto") grupos.RemoveAt(1);
             if (caso == "confiança") grupos[1].Correspondentes.Add(new() { LacunaId = verboId, Confianca = 2 });
             return Task.FromResult(caso switch
             {
                 "permanente" => new LlmProviderResponse(LlmProviderOutcome.Permanente),
                 "malformado" => new LlmProviderResponse(LlmProviderOutcome.SaidaInvalida),
                 "nulo" => new LlmProviderResponse(LlmProviderOutcome.Sucesso, new() { Classificacoes = null! }),
+                "router-fora-do-ar" => new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.Rede),
+                "router-alternativo" or "router-incompleto" => new(LlmProviderOutcome.Sucesso,
+                    new() { LacunasAvaliadas = cobertura, Classificacoes = grupos }, HttpStatus: 200,
+                    ProvedorEfetivo: "provedor-alternativo", ModeloEfetivo: "familia/modelo-alternativo:free", TentativasRouter: 3),
                 "limite" or "terceiro" when provider.Provider == "Groq" =>
                     new(LlmProviderOutcome.Tecnica, Motivo: LlmMotivo.LimiteProvedor, HttpStatus: 429),
                 "terceiro" when provider.Provider == "OpenRouter" =>
