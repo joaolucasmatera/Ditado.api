@@ -52,6 +52,20 @@ public class DitadoServiceTests : IDisposable
 		return usuario;
 	}
 
+	private async Task<Escola> VincularAdministradorAsync(Usuario administrador)
+	{
+		var escola = new Escola { Nome = "Escola administrativa", Codigo = $"ESC-{Guid.NewGuid():N}"[..10] };
+		_context.VinculosEscolares.Add(new VinculoEscolar
+		{
+			UsuarioId = administrador.Id,
+			Escola = escola,
+			Papel = PapelEscolar.Administrador,
+			Ativo = true
+		});
+		await _context.SaveChangesAsync();
+		return escola;
+	}
+
 	private async Task<List<int>> CriarSelecaoAsync(Usuario professor)
 	{
 		var escola = new Escola { Nome = "Escola de teste", Codigo = "ESC-COR01" };
@@ -416,11 +430,13 @@ public class DitadoServiceTests : IDisposable
 		// Arrange
 		var professor = await CriarUsuarioTesteAsync();
 		var admin = await CriarUsuarioTesteAsync(TipoUsuario.Administrador);
+		var escola = await VincularAdministradorAsync(admin);
 		var ditado = new Dominio.Entidades.Ditado
 		{
 			Titulo = "Ditado Teste",
 			AudioLeitura = new byte[] { 1, 2, 3 },
-			AutorId = professor.Id
+			AutorId = professor.Id,
+			EscolaSelecaoErrosId = escola.Id
 		};
 		_context.Ditados.Add(ditado);
 		await _context.SaveChangesAsync();
@@ -462,11 +478,13 @@ public class DitadoServiceTests : IDisposable
 	{
 		// Arrange
 		var admin = await CriarUsuarioTesteAsync(TipoUsuario.Administrador);
+		var escola = await VincularAdministradorAsync(admin);
 		var ditado = new Dominio.Entidades.Ditado
 		{
 			Titulo = "Ditado Sem Autor",
 			AudioLeitura = new byte[] { 1, 2, 3 },
-			AutorId = null // Sem autor (professor foi excluído)
+			AutorId = null, // Sem autor (professor foi excluído)
+			EscolaSelecaoErrosId = escola.Id
 		};
 		_context.Ditados.Add(ditado);
 		await _context.SaveChangesAsync();
