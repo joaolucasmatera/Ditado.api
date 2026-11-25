@@ -8,6 +8,8 @@ public class ErroCatalogo
     public string Codigo { get; set; } = string.Empty;
     public string Nome { get; set; } = string.Empty;
     public string Descricao { get; set; } = string.Empty;
+    public string? CategoriaPedagogicaCodigo { get; set; }
+    public string? CategoriaPedagogicaNome { get; set; }
     public string? ExemploEsperado { get; set; }
     public string? ExemploResposta { get; set; }
     public string? ExemplosAdicionaisJson { get; set; }

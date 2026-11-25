@@ -15,6 +15,7 @@ namespace Ditado.Testes.Controllers;
 
 public class MarketplaceControllerTests : TesteIntegracaoBase
 {
+    private static readonly CategoriaPedagogicaRequest CategoriaOrtografica = new() { Codigo = "ORTOGRAFIA_CONTEXTUAL" };
     private readonly CustomWebApplicationFactory factory;
 
     public MarketplaceControllerTests(CustomWebApplicationFactory factory) : base(factory)
@@ -32,6 +33,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var response = await PostAsyncRaw("/api/ErrosCatalogo", new
         {
             nome = "Confusão de grafia",
+            categoriaPedagogica = CategoriaOrtografica,
             descricao = "Descrição da ocorrência",
             nivel,
             turmaIds = Array.Empty<int>()
@@ -91,6 +93,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         await AssertRecusadoSemGravar(new
         {
             nome = "Inválido",
+            categoriaPedagogica = CategoriaOrtografica,
             descricao = "Escopo inválido",
             nivel,
             escolaId = informarEscola ? escola : (int?)null,
@@ -123,7 +126,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var autorId = await AutenticarAsync(TipoUsuario.Professor);
         var escolaId = await GarantirEscolaEVinculoAsync(autorId);
         var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome = "Uso institucional", descricao = "Conteúdo da escola" }));
+            new { nome = "Uso institucional", descricao = "Conteúdo da escola", categoriaPedagogica = CategoriaOrtografica }));
 
         var atorId = await AutenticarAsync(tipo, administradorGeral: false);
         var papel = tipo == TipoUsuario.Professor ? PapelEscolar.Professor : PapelEscolar.Administrador;
@@ -164,7 +167,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var autorId = await AutenticarAsync(TipoUsuario.Professor);
         await GarantirEscolaEVinculoAsync(autorId);
         var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome = "Uso institucional", descricao = "Conteúdo da escola" }));
+            new { nome = "Uso institucional", descricao = "Conteúdo da escola", categoriaPedagogica = CategoriaOrtografica }));
 
         var atorId = autorId;
         if (tipo == TipoUsuario.Administrador)
@@ -200,7 +203,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var autorId = await AutenticarAsync(TipoUsuario.Professor);
         await GarantirEscolaEVinculoAsync(autorId);
         var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome = "Uso institucional", descricao = "Conteúdo da escola" }));
+            new { nome = "Uso institucional", descricao = "Conteúdo da escola", categoriaPedagogica = CategoriaOrtografica }));
         using var scope = factory.Services.CreateScope();
         var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
         var destino = new Escola { Nome = "Outro destino", Codigo = Guid.NewGuid().ToString("N") };
@@ -224,7 +227,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         const string nome = "Troca de M por N";
         const string descricao = "Troca de M por N antes de P ou B";
         var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome, descricao, exemplos = new[] { new ExemploErroDto(" campo ", " canpo "), segundo } }));
+            new { nome, descricao, categoriaPedagogica = CategoriaOrtografica, exemplos = new[] { new ExemploErroDto(" campo ", " canpo "), segundo } }));
         var url = $"/api/ErrosCatalogo/{criado.Id}";
         var esperado = new[] { new ExemploErroDto("campo", "canpo"), segundo };
         Assert.Equal(esperado, criado.Exemplos);
@@ -258,7 +261,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var autorId = await AutenticarAsync(TipoUsuario.Professor);
         await GarantirEscolaEVinculoAsync(autorId);
         using var legado = JsonDocument.Parse("""
-            {"nome":"Troca antes de P","descricao":"Exemplo de carga legada","exemploEsperado":"campo","exemploResposta":"canpo"}
+            {"nome":"Troca antes de P","descricao":"Exemplo de carga legada","categoriaPedagogica":{"codigo":"ORTOGRAFIA_CONTEXTUAL"},"exemploEsperado":"campo","exemploResposta":"canpo"}
             """);
         var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", legado.RootElement));
         var relido = (await GetAsync<ErroPublicadoResponse>($"/api/ErrosCatalogo/{criado.Id}"))!;
@@ -266,13 +269,13 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
 
         var rejeitado = await PostAsyncRaw("/api/ErrosCatalogo", new
         {
-            nome = "Definição inválida", descricao = "Par incompleto",
+            nome = "Definição inválida", descricao = "Par incompleto", categoriaPedagogica = CategoriaOrtografica,
             exemplos = new[] { new { esperado = "campo", resposta = " " } }
         });
         Assert.Equal(HttpStatusCode.BadRequest, rejeitado.StatusCode);
         rejeitado = await PostAsyncRaw("/api/ErrosCatalogo", new
         {
-            nome = "Definição inválida", descricao = "Par nulo",
+            nome = "Definição inválida", descricao = "Par nulo", categoriaPedagogica = CategoriaOrtografica,
             exemplos = new object?[] { null }
         });
         Assert.Equal(HttpStatusCode.BadRequest, rejeitado.StatusCode);
@@ -288,9 +291,9 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var seis = Enumerable.Range(1, 6).Select(i => new ExemploErroDto($"esperado {i}", $"resposta {i}")).ToArray();
         var cinco = seis[..5];
         var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome, descricao, exemplos = cinco }));
+            new { nome, descricao, categoriaPedagogica = CategoriaOrtografica, exemplos = cinco }));
         Assert.Equal(cinco, criado.Exemplos);
-        var excesso = new { nome, descricao, exemplos = seis };
+        var excesso = new { nome, descricao, categoriaPedagogica = CategoriaOrtografica, exemplos = seis };
         var post = await PostAsyncRaw("/api/ErrosCatalogo", excesso);
         Assert.Equal(HttpStatusCode.BadRequest, post.StatusCode);
         var url = $"/api/ErrosCatalogo/{criado.Id}";
@@ -299,6 +302,62 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Contains("Informe até 5 exemplos.", (await put.Content.ReadFromJsonAsync<JsonElement>())
             .GetProperty("errors").GetProperty("Exemplos")[0].GetString());
         Assert.Equal(cinco, (await GetAsync<ErroPublicadoResponse>(url))!.Exemplos);
+    }
+
+    [Fact]
+    public async Task CategoriaPedagogica_PublicaGealeEEditaParaCategoriaNaoOrtografica()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        var opcoes = (await GetAsync<List<CategoriaPedagogicaDto>>("/api/ErrosCatalogo/categorias-pedagogicas"))!;
+        Assert.Equal(7, opcoes.Count);
+        Assert.Equal(3, opcoes.Select(c => c.Familia).OfType<string>().Distinct().Count());
+        var categoriaGeale = Assert.Single(opcoes, c => c.Codigo == "HIBRIDO_ACENTUACAO");
+        Assert.Equal(("Acentuação", "Híbrida"), (categoriaGeale.Nome, categoriaGeale.Familia));
+        var criado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome = "Acento gráfico", descricao = "Definição de teste", categoriaPedagogica = new { categoriaGeale.Codigo } }));
+        var url = $"/api/ErrosCatalogo/{criado.Id}";
+        Assert.Equal(categoriaGeale, criado.CategoriaPedagogica);
+        Assert.Equal(categoriaGeale, (await GetAsync<ErroPublicadoResponse>(url))!.CategoriaPedagogica);
+
+        var atualizado = await PutAsync<ErroPublicadoResponse>(url, new
+        {
+            nome = "Concordância", descricao = "Definição de teste",
+            categoriaPedagogica = new { codigo = "NAO_ORTOGRAFICO", nome = " Concordância verbal " }
+        });
+        var naoOrtografica = new CategoriaPedagogicaDto("NAO_ORTOGRAFICO", "Concordância verbal", null);
+        Assert.Equal(naoOrtografica, atualizado!.CategoriaPedagogica);
+        var lista = (await GetAsync<List<ErroPublicadoResponse>>("/api/ErrosCatalogo"))!;
+        Assert.Equal(naoOrtografica, Assert.Single(lista, e => e.Id == criado.Id).CategoriaPedagogica);
+    }
+
+    [Theory]
+    [InlineData(null, null)]
+    [InlineData("INEXISTENTE", null)]
+    [InlineData("NAO_ORTOGRAFICO", " ")]
+    [InlineData("ORTOGRAFIA_CONTEXTUAL", "Rótulo diferente")]
+    public async Task CategoriaPedagogica_RejeitaCategoriaAusenteOuInvalida(string? codigo, string? nomeCategoria)
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        var categoriaPedagogica = codigo is null ? null : new { codigo, nome = nomeCategoria };
+        await AssertRecusadoSemGravar(new { nome = "Erro inválido", descricao = "Definição de teste", categoriaPedagogica });
+    }
+
+    [Fact]
+    public async Task CategoriaPedagogica_PreservaRegistroLegadoSemInferirPeloNome()
+    {
+        var autorId = await AutenticarAsync(TipoUsuario.Professor);
+        await GarantirEscolaEVinculoAsync(autorId);
+        using var scope = factory.Services.CreateScope();
+        var db = scope.ServiceProvider.GetRequiredService<DitadoDbContext>();
+        var legado = new ErroCatalogo { Codigo = "PER70-LEGADO", Nome = "Acentuação legada", AutorId = autorId };
+        db.ErrosCatalogo.Add(legado);
+        await db.SaveChangesAsync();
+        var url = $"/api/ErrosCatalogo/{legado.Id}";
+        Assert.Null((await GetAsync<ErroPublicadoResponse>(url))!.CategoriaPedagogica);
+        var atualizado = await PutAsync<ErroPublicadoResponse>(url, new { nome = legado.Nome, descricao = "Descrição revisada" });
+        Assert.Null(atualizado!.CategoriaPedagogica);
     }
 
     [Fact]
@@ -314,8 +373,11 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Equal("#/components/schemas/PublicarErroRequest", corpo.GetProperty("schema").GetProperty("$ref").GetString());
         Assert.Contains(documento.GetProperty("security").EnumerateArray(), item => item.TryGetProperty("Bearer", out _));
         var esquemas = documento.GetProperty("components").GetProperty("schemas");
+        var categorias = documento.GetProperty("paths").GetProperty("/api/ErrosCatalogo/categorias-pedagogicas").GetProperty("get");
+        Assert.True(categorias.GetProperty("responses").TryGetProperty("403", out _));
         foreach (var esquema in new[] { "PublicarErroRequest", "ErroPublicadoResponse" })
         {
+            Assert.True(esquemas.GetProperty(esquema).GetProperty("properties").TryGetProperty("categoriaPedagogica", out _));
             var exemplos = esquemas.GetProperty(esquema).GetProperty("properties").GetProperty("exemplos");
             Assert.Equal("array", exemplos.GetProperty("type").GetString());
             Assert.Equal("#/components/schemas/ExemploErroDto", exemplos.GetProperty("items").GetProperty("$ref").GetString());
@@ -341,6 +403,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var response = await PostAsyncRaw("/api/ErrosCatalogo", new PublicarErroRequest
         {
             Nome = " Troca de M por N ", Descricao = " Descrição pedagógica ",
+            CategoriaPedagogica = CategoriaOrtografica,
             ExemploEsperado = " também ", ExemploResposta = " tanbém ",
             ObservacaoPedagogica = " Retomar a regularidade. ", SerieAno = " 3º ano "
         });
@@ -382,7 +445,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_ObrigatoriosInvalidosNaoGravam(string? nome, string? descricao)
     {
         await AutenticarAsync(TipoUsuario.Administrador);
-        await AssertRecusadoSemGravar(new { nome, descricao });
+        await AssertRecusadoSemGravar(new { nome, descricao, categoriaPedagogica = CategoriaOrtografica });
     }
 
     [Theory]
@@ -393,7 +456,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_ExemploIncompletoNaoGrava(string? esperado, string? resposta)
     {
         await AutenticarAsync(TipoUsuario.Administrador);
-        await AssertRecusadoSemGravar(new { nome = "Nome", descricao = "Descrição", exemploEsperado = esperado, exemploResposta = resposta });
+        await AssertRecusadoSemGravar(new { nome = "Nome", descricao = "Descrição", categoriaPedagogica = CategoriaOrtografica,
+            exemploEsperado = esperado, exemploResposta = resposta });
     }
 
     [Theory]
@@ -406,6 +470,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         var criado = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", new
         {
             nome = "Opcionais", descricao = "Sem opcionais", exemploEsperado = valor,
+            categoriaPedagogica = CategoriaOrtografica,
             exemploResposta = valor, observacaoPedagogica = valor, serieAno = valor,
             nivel = NivelVisibilidade.PublicoGeral
         });
@@ -420,7 +485,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_NomeRepetidoPermitidoIdentidadesDistintasEOpcionaisOmitidos()
     {
         await AutenticarAsync(TipoUsuario.Administrador);
-        var request = new { nome = "Mesmo nome", descricao = "Nenhuma unicidade de nome", nivel = NivelVisibilidade.PublicoGeral };
+        var request = new { nome = "Mesmo nome", descricao = "Nenhuma unicidade de nome",
+            categoriaPedagogica = CategoriaOrtografica, nivel = NivelVisibilidade.PublicoGeral };
         var a = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", request);
         var b = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", request);
         Assert.NotNull(a); Assert.NotNull(b);
@@ -434,7 +500,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     {
         var autorId = await AutenticarAsync(TipoUsuario.Professor);
         await GarantirEscolaEVinculoAsync(autorId);
-        var criado = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", new { nome = "Antes", descricao = "Descrição antes" });
+        var criado = await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
+            new { nome = "Antes", descricao = "Descrição antes", categoriaPedagogica = CategoriaOrtografica });
         Assert.NotNull(criado);
 
         var response = await Client.PutAsJsonAsync($"/api/ErrosCatalogo/{criado.Id}", new { nome = "Depois", descricao = "Descrição depois" });
@@ -442,6 +509,7 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
         Assert.Equal(HttpStatusCode.OK, response.StatusCode);
         var atualizado = await response.Content.ReadFromJsonAsync<ErroPublicadoResponse>();
         Assert.Equal("Depois", atualizado!.Nome);
+        Assert.Equal(criado.CategoriaPedagogica, atualizado.CategoriaPedagogica);
     }
 
     [Theory]
@@ -458,7 +526,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_CamposNaoPermitidosSaoRejeitados(string campo, object valor)
     {
         await AutenticarAsync(TipoUsuario.Administrador);
-        await AssertRecusadoSemGravar(new Dictionary<string, object> { ["nome"] = "Nome", ["descricao"] = "Descrição", [campo] = valor });
+        await AssertRecusadoSemGravar(new Dictionary<string, object>
+            { ["nome"] = "Nome", ["descricao"] = "Descrição", ["categoriaPedagogica"] = CategoriaOrtografica, [campo] = valor });
     }
 
     [Fact]
@@ -491,7 +560,8 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     public async Task Publicar_LimitesTecnicosValidamAntesDaGravacao(string campo, int tamanho)
     {
         await AutenticarAsync(TipoUsuario.Administrador);
-        var dados = new Dictionary<string, object> { ["nome"] = "Nome", ["descricao"] = "Descrição", [campo] = new string('a', tamanho) };
+        var dados = new Dictionary<string, object>
+            { ["nome"] = "Nome", ["descricao"] = "Descrição", ["categoriaPedagogica"] = CategoriaOrtografica, [campo] = new string('a', tamanho) };
         await AssertRecusadoSemGravar(dados);
     }
 

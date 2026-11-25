@@ -7,6 +7,8 @@ public record ErroPublicadoResponse(
     string? AutorNome = null, string? NivelVisibilidade = null)
 {
     public bool TemRegraExecutavel { get; init; }
+    /// <summary>Categoria pedagógica do erro. Nula nos registros legados ainda sem mapeamento.</summary>
+    public CategoriaPedagogicaDto? CategoriaPedagogica { get; init; }
     /// <summary>Pares em ordem de exibição. Os campos exemploEsperado e exemploResposta espelham o primeiro par.</summary>
     public IReadOnlyList<ExemploErroDto> Exemplos { get; init; } = [];
 }

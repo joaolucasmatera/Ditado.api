@@ -231,7 +231,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
 
         AdicionarTokenAutorizacao(professor.Token);
         var semExecutor = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome = "Omissão", descricao = "Definição para revisão", nivel = 1 }));
+            new { nome = "Omissão", descricao = "Definição para revisão", nivel = 1,
+                categoriaPedagogica = new { codigo = "FONOLOGIA_SILABA" } }));
         Assert.False(semExecutor.TemRegraExecutavel);
         var criacao = await PostAsyncRaw("/api/Ditados", Pedido([regras[0], regras[2], semExecutor.Id]));
         Assert.Equal(HttpStatusCode.Created, criacao.StatusCode);
@@ -335,7 +336,8 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
 
         AdicionarTokenAutorizacao(professor.Token);
         var erro = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo",
-            new { nome = "Escopo por turma", descricao = "Definição restrita", nivel = 3, turmaIds = new[] { destino.Id } }));
+            new { nome = "Escopo por turma", descricao = "Definição restrita", nivel = 3, turmaIds = new[] { destino.Id },
+                categoriaPedagogica = new { codigo = "NAO_ORTOGRAFICO", nome = "Concordância verbal" } }));
         var ditado = Assert.IsType<DitadoResponse>(await PostAsync<DitadoResponse>("/api/Ditados", Pedido([erro.Id])));
         Assert.Equal(HttpStatusCode.NoContent, (await PostAsyncRaw($"/api/Ditados/{ditado.Id}/visibilidade", new { nivel = 1 })).StatusCode);
 

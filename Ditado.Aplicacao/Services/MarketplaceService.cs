@@ -26,6 +26,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         if (!administradorGeral && escolasAtivas.Count == 0)
             throw new UnauthorizedAccessException("Ator sem vínculo escolar ativo.");
 
+        var categoria = CategoriasPedagogicas.Validar(request.CategoriaPedagogica);
         var escolaId = request.EscolaId;
         if (request.Nivel is NivelVisibilidade.Instituicao or NivelVisibilidade.Turmas)
         {
@@ -42,6 +43,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         {
             Codigo = $"ERR_{Guid.NewGuid():N}",
             Nome = request.Nome.Trim(), Descricao = request.Descricao.Trim(),
+            CategoriaPedagogicaCodigo = categoria.Codigo, CategoriaPedagogicaNome = categoria.Nome,
             ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica),
             SerieAno = NormalizarOpcional(request.SerieAno),
             AutorId = autorId, Autor = ator, Ativo = true, DataCriacao = agora, DataAlteracao = agora
@@ -70,6 +72,9 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
             throw new InvalidOperationException("Este erro já foi utilizado em um ditado e não pode mais ser editado.");
 
         Validator.ValidateObject(request, new ValidationContext(request), validateAllProperties: true);
+        if (request.CategoriaPedagogica is not null)
+            (erro.CategoriaPedagogicaCodigo, erro.CategoriaPedagogicaNome) =
+                CategoriasPedagogicas.Validar(request.CategoriaPedagogica);
         erro.Nome = request.Nome.Trim();
         erro.Descricao = request.Descricao.Trim();
         AtualizarExemplos(erro, request);
@@ -144,6 +149,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString())
     {
         TemRegraExecutavel = erro.RegraClassificacao.HasValue,
+        CategoriaPedagogica = CategoriasPedagogicas.Obter(erro.CategoriaPedagogicaCodigo, erro.CategoriaPedagogicaNome),
         Exemplos = ExemploErroDto.Ler(erro.ExemploEsperado, erro.ExemploResposta, erro.ExemplosAdicionaisJson)
     };
 }

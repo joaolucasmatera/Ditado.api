@@ -52,9 +52,11 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
         foreach (var (nome, descricao, exemploEsperado, exemploResposta) in definicoes)
         {
             object request = ids.Count == 0
-                ? new { nome, descricao, exemplos = new[] { new ExemploErroDto(exemploEsperado, exemploResposta),
+                ? new { nome, descricao, categoriaPedagogica = new { codigo = "NAO_ORTOGRAFICO", nome = "Concordância verbal" },
+                    exemplos = new[] { new ExemploErroDto(exemploEsperado, exemploResposta),
                     new ExemploErroDto("Os pássaros voaram", "Os pássaros voou") }, nivel = 1 }
-                : new { nome, descricao, exemploEsperado, exemploResposta, nivel = 1 };
+                : new { nome, descricao, exemploEsperado, exemploResposta, nivel = 1,
+                    categoriaPedagogica = new { codigo = "ORTOGRAFIA_CONTEXTUAL" } };
             var publicado = Assert.IsType<ErroPublicadoResponse>(await PostAsync<ErroPublicadoResponse>("/api/ErrosCatalogo", request));
             Assert.False(publicado.TemRegraExecutavel);
             ids.Add(publicado.Id);
@@ -143,6 +145,7 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
         {
             nome = "Concordância verbal sintética",
             descricao = "Marque somente o verbo que não concorda com o sujeito escrito na mesma frase.",
+            categoriaPedagogica = new { codigo = "NAO_ORTOGRAFICO", nome = "Concordância verbal" },
             nivel = 1
         }));
         Assert.False(docente.TemRegraExecutavel);

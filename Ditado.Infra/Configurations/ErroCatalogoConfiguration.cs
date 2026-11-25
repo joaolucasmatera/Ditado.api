@@ -17,6 +17,8 @@ public class ErroCatalogoConfiguration : IEntityTypeConfiguration<ErroCatalogo>
         builder.Property(e => e.UtilizadoEm).IsConcurrencyToken();
         builder.Property(e => e.Nome).IsRequired().HasMaxLength(200);
         builder.Property(e => e.Descricao).IsRequired().HasMaxLength(10000).HasColumnType("text");
+        builder.Property(e => e.CategoriaPedagogicaCodigo).HasMaxLength(40);
+        builder.Property(e => e.CategoriaPedagogicaNome).HasMaxLength(200);
         builder.Property(e => e.ExemploEsperado).HasMaxLength(2000);
         builder.Property(e => e.ExemploResposta).HasMaxLength(2000);
         builder.Property(e => e.ObservacaoPedagogica).HasMaxLength(10000).HasColumnType("text");

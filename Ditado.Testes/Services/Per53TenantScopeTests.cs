@@ -12,6 +12,7 @@ namespace Ditado.Testes.Services;
 
 public sealed class Per53TenantScopeTests : IDisposable
 {
+    private static readonly CategoriaPedagogicaRequest CategoriaOrtografica = new() { Codigo = "ORTOGRAFIA_CONTEXTUAL" };
     private readonly DitadoDbContext _context;
     private readonly DitadoService _ditados;
     private readonly UsuarioService _usuarios;
@@ -143,7 +144,8 @@ public sealed class Per53TenantScopeTests : IDisposable
         await _context.SaveChangesAsync();
         var request = new PublicarErroRequest
         {
-            Nome = "Erro", Descricao = "Definição", Nivel = NivelVisibilidade.Turmas, TurmaIds = [turma.Id]
+            Nome = "Erro", Descricao = "Definição", CategoriaPedagogica = CategoriaOrtografica,
+            Nivel = NivelVisibilidade.Turmas, TurmaIds = [turma.Id]
         };
 
         if (mesmaEscola)
@@ -239,7 +241,8 @@ public sealed class Per53TenantScopeTests : IDisposable
     public async Task ProfessorPodeAtualizarErroProprioEOutroProfessorNaoPode()
     {
         var (professorA, escolaA, _) = await CriarCenarioAsync();
-        var erro = await _marketplace.PublicarAsync(new PublicarErroRequest { Nome = "Original", Descricao = "Descrição" }, professorA.Id);
+        var erro = await _marketplace.PublicarAsync(new PublicarErroRequest
+            { Nome = "Original", Descricao = "Descrição", CategoriaPedagogica = CategoriaOrtografica }, professorA.Id);
         var atualizado = await _marketplace.AtualizarAsync(new PublicarErroRequest { Nome = "Atualizado", Descricao = "Descrição nova" }, erro.Id, professorA.Id, TipoUsuario.Professor);
         Assert.Equal("Atualizado", atualizado!.Nome);
 
@@ -257,7 +260,8 @@ public sealed class Per53TenantScopeTests : IDisposable
     public async Task ErroUsadoEmDitadoFicaImutavel()
     {
         var (professor, escolaA, _) = await CriarCenarioAsync();
-        var erro = await _marketplace.PublicarAsync(new PublicarErroRequest { Nome = "Usado", Descricao = "Descrição" }, professor.Id);
+        var erro = await _marketplace.PublicarAsync(new PublicarErroRequest
+            { Nome = "Usado", Descricao = "Descrição", CategoriaPedagogica = CategoriaOrtografica }, professor.Id);
         var aplicacao = new AplicacaoDitado { EscolaId = escolaA.Id, TurmaId = 1, DitadoId = 1 };
         _context.AplicacoesDitados.Add(aplicacao);
         await _context.SaveChangesAsync();
@@ -272,8 +276,10 @@ public sealed class Per53TenantScopeTests : IDisposable
     public async Task CatalogoDoAutorIncluiErroSemPublicacaoESeparaArquivadosComAutoriaEPrivacidade()
     {
         var (professor, _, _) = await CriarCenarioAsync();
-        var ativo = await _marketplace.PublicarAsync(new PublicarErroRequest { Nome = "Ativo", Descricao = "Descrição" }, professor.Id);
-        var arquivado = await _marketplace.PublicarAsync(new PublicarErroRequest { Nome = "Arquivado", Descricao = "Descrição" }, professor.Id);
+        var ativo = await _marketplace.PublicarAsync(new PublicarErroRequest
+            { Nome = "Ativo", Descricao = "Descrição", CategoriaPedagogica = CategoriaOrtografica }, professor.Id);
+        var arquivado = await _marketplace.PublicarAsync(new PublicarErroRequest
+            { Nome = "Arquivado", Descricao = "Descrição", CategoriaPedagogica = CategoriaOrtografica }, professor.Id);
         var entidadeArquivada = await _context.ErrosCatalogo.SingleAsync(e => e.Id == arquivado.Id);
         entidadeArquivada.Ativo = false;
         entidadeArquivada.ArquivadoEm = DateTime.UtcNow;

@@ -315,6 +315,14 @@ namespace Ditado.Infra.Migrations
 
                     b.Property<string>("ExemplosAdicionaisJson").HasColumnType("longtext");
 
+                    b.Property<string>("CategoriaPedagogicaCodigo")
+                        .HasMaxLength(40)
+                        .HasColumnType("varchar(40)");
+
+                    b.Property<string>("CategoriaPedagogicaNome")
+                        .HasMaxLength(200)
+                        .HasColumnType("varchar(200)");
+
                     b.Property<string>("Nome")
                         .IsRequired()
                         .HasMaxLength(200)

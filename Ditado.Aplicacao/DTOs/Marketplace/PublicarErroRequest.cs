@@ -11,6 +11,8 @@ public class PublicarErroRequest : IValidatableObject
     public string Nome { get; set; } = string.Empty;
     [Required(ErrorMessage = "Informe a descrição do erro."), StringLength(10000)]
     public string Descricao { get; set; } = string.Empty;
+    /// <summary>Obrigatória na publicação. Na edição, a omissão preserva a categoria gravada.</summary>
+    public CategoriaPedagogicaRequest? CategoriaPedagogica { get; set; }
     [StringLength(2000)]
     public string? ExemploEsperado { get; set; }
     [StringLength(2000)]

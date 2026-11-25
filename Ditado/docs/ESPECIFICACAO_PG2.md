@@ -85,9 +85,9 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 ## 5. Modelo de dados conceitual inicial
 
-Os nomes abaixo são conceituais. No produto, cada erro cadastrado tem um nome que identifica o tipo do erro; não haverá uma categoria adicional separada. As distinções encontradas na literatura servem como referência para nomear e descrever erros, sem exigir dimensões ou categorias independentes no catálogo. A lista inicial também deve considerar erros morfossintáticos, como concordância.
+Os nomes abaixo são conceituais. No produto, o nome identifica o erro, e a categoria pedagógica identifica o grupo a que ele pertence. A PER-70 define o uso de categorias para erros ortográficos e não ortográficos na seção 10.1.
 
-- **ErroCatalogo:** identificador, nome do erro (também seu tipo), descrição, regra executável opcional, exemplos/orientação, observação pedagógica em texto livre, série/ano opcional, autor, ativo/arquivado, criação/alteração.
+- **ErroCatalogo:** identificador, nome do erro, descrição, categoria pedagógica, regra executável opcional, exemplos/orientação, observação pedagógica em texto livre, série/ano opcional, autor, ativo/arquivado, criação/alteração. Registros legados podem estar sem categoria até a revisão pedagógica.
 - **DitadoErro:** associação do ditado aos erros selecionados.
 - **RespostaSegmento/ClassificacaoErro:** tentativa, segmento, resposta e palavra esperada existentes; zero ou mais tipos identificados por código ou LLM, com cada nome de erro como tipo; método/confiança/estado classificado-não classificado e dados de recorrência derivados ou consultáveis. Uma ocorrência pode corresponder a vários tipos sem eleger um principal.
 - **FeedbackGerado:** público/alvo, escopo (aluno/turma), referência da tentativa/sessão, conteúdo, modelo/provedor, data de geração e expiração.
@@ -109,7 +109,7 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 
 - Provedor/modelo LLM e estratégia de configuração de credenciais. Critérios: custo prioritário, latência secundária, resposta estruturada, disponibilidade e tratamento de dados de menores.
 - Para a análise posterior por LLM, definir critérios de aceitação em amostra rotulada, limites de custo, tempo e volume e dados autorizados para envio externo.
-- Correspondência entre os resultados do classificador técnico existente (`TipoErro`) e os nomes de erros cadastrados no catálogo, quando necessária para integrar os dados históricos. Essa correspondência não cria categorias adicionais; decisões sobre regras de identificação e uso de LLM devem ser tratadas separadamente.
+- Revisão pedagógica do mapeamento de regras programadas e definições legadas para as categorias da PER-70, com rastreabilidade dos achados históricos.
 - Semântica da ocorrência: contar respostas erradas por palavra submetidas em cada sessão; cada envio iniciado pelo aluno é uma ocorrência, sem deduplicação de reenvios na interface, que bloqueia novo acionamento enquanto aguarda resposta.
 - Contrato e versionamento do JSON do Catálogo de erros, incluindo validações e resposta de importação; papéis e rejeição de códigos duplicados estão definidos.
 - Comportamento de regeneração de feedback já armazenado e limite de chamadas simultâneas/em lote.
@@ -143,7 +143,17 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 
 ### 10.1 Taxonomia com foco no português brasileiro
 
-Estudos de aquisição da escrita em crianças brasileiras usam termos como erros fonológicos, ortográficos e fonográficos, e analisam operações como transposições. Esses conceitos servem como referência acadêmica para definir nomes, descrições e exemplos dos erros no catálogo; não serão campos/categorias separados no produto. Incluir erros como concordância quando fizer sentido. “Escrita fonética” deve receber definição e exemplos próprios; não presumir que variação dialetal seja erro.
+A [PER-70](https://linear.app/joaomoutinho/issue/PER-70/aplicar-a-taxonomia-do-geale-a-todos-os-erros) fixa a categoria pedagógica no erro. Para ortografia, o catálogo adota a adaptação do GEALE apresentada por Fernanda Luiz Saggiomo (2018), orientada por Ana Ruth Moresco Miranda, nas seções 3.3.2.1 a 3.3.2.3 e no Quadro 16. [Dissertação, PDF pp. 49–54](../../docs/referencias/Tipo_Erros_Ortograficos_2_251127_114445.pdf#page=49)
+
+| Família | Subdivisões |
+| --- | --- |
+| Fonologia da língua | Segmento, sílaba |
+| Sistema ortográfico | Arbitrariedade, regras contextuais |
+| Híbrida | Acentuação, supergeneralização |
+
+Para um erro fora do escopo da taxonomia ortográfica, o professor informa o nome da categoria, por exemplo, concordância verbal. A categoria é independente da origem da correção. Um ditado pode usar erros de várias categorias. As associações legadas entre ditado e categoria são preservadas, incluindo seus contratos técnicos, sem servir de base para mapear categorias pedagógicas.
+
+Nesta etapa, a publicação e a edição do catálogo apresentam as categorias e a interface de ditados retira sua associação manual. A migração mantém erros existentes sem categoria até a revisão do mapeamento. A etapa seguinte cobre categoria nos achados de Código e LLM, rastreabilidade de reclassificações, agregações e exportação.
 
 Referências iniciais: [estudo sobre erros gráficos nos anos iniciais (SciELO)](https://www.scielo.br/j/edur/a/Z3trLgDyBBZWB466FLHFXtz/?lang=pt), [estudo sobre transposições na escrita infantil](https://revistas.gel.org.br/estudos-linguisticos/article/view/3307) e [avaliação ortográfica de escolares do 2º ao 5º ano](https://www.scielo.br/j/jsbf/a/Y68KLnGKkVvCBmPvckWnwbj/?lang=pt).
 
@@ -291,7 +301,7 @@ Esta seção registra as decisões humanas consolidadas após a revisão do épi
 - O cadastro é aberto: qualquer pessoa pode se cadastrar como professor e criar ditados; ao criar uma escola, torna-se seu Administrador da Escola. O Administrador Geral administra os Administradores da Escola.
 - No cadastro, o professor escolhe uma escola existente ou cria uma nova; não há conta de professor sem escola.
 - Uma escola deve manter ao menos um Administrador da Escola ativo; a substituição do último exige promoção ou criação do substituto pelo Administrador Geral na mesma operação.
-- Alunos pertencem a uma única escola por conta. Ditados e categorias são exclusivos da escola.
+- Alunos pertencem a uma única escola por conta. As regras de escopo e visibilidade dos ditados continuam vinculadas à escola e às turmas. A categoria pedagógica acompanha as permissões da definição de erro.
 - O Administrador Geral pode editar, arquivar e restaurar erros de qualquer autor, respeitando a imutabilidade após primeira associação a ditado. O Administrador da Escola administra os erros dos professores de sua escola.
 - O Administrador Geral consulta a auditoria global; o Administrador da Escola consulta apenas a auditoria da própria escola.
 - Administrador Geral possui escopo global de consulta e exportação, sempre com escola ou conjunto de escolas-alvo identificados e auditoria completa.
