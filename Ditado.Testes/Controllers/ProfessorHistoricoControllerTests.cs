@@ -41,8 +41,10 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         var segmento = new DitadoSegmento { Ditado = ditado, Tipo = TipoSegmento.Lacuna, Ordem = 1, Conteudo = "café" };
         var segundoSegmento = new DitadoSegmento { Ditado = ditado, Tipo = TipoSegmento.Lacuna, Ordem = 2, Conteudo = "quente" };
         var terceiroSegmento = new DitadoSegmento { Ditado = ditado, Tipo = TipoSegmento.Lacuna, Ordem = 3, Conteudo = "chegaram" };
-        var regra = new ErroCatalogo { Codigo = "HIST-CODIGO", Nome = "Acentuação", AutorId = professor.Id };
-        var analise = new ErroCatalogo { Codigo = "HIST-LLM", Nome = "Definição docente", AutorId = professor.Id };
+        var regra = new ErroCatalogo { Codigo = "HIST-CODIGO", Nome = "Acentuação", AutorId = professor.Id,
+            CategoriaPedagogicaCodigo = "HIBRIDO_ACENTUACAO" };
+        var analise = new ErroCatalogo { Codigo = "HIST-LLM", Nome = "Definição docente", AutorId = professor.Id,
+            CategoriaPedagogicaCodigo = "FONOLOGIA_SILABA" };
         var dataBase = new DateTime(2026, 11, 20, 12, 0, 0, DateTimeKind.Utc);
         var aplicacao = new AplicacaoDitado { Ditado = ditado, Turma = turma, EscolaId = escolaId, DataAtribuicao = dataBase };
         aplicacao.Participacoes.Add(new() { AlunoId = aluno.Id, ConcedidaEm = dataBase, RevogadaEm = dataBase.AddDays(3) });
@@ -93,6 +95,7 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         var detalhe = historico[0].Resultado.Detalhes[0];
         Assert.Equal(("Café", "cafe", "Revisao"), (detalhe.RespostaEsperada, detalhe.RespostaFornecida, detalhe.EstadoAnaliseLlm));
         Assert.Equal(new[] { "Codigo", "LLM" }, detalhe.Classificacoes.Select(c => c.Origem));
+        Assert.All(detalhe.Classificacoes, c => Assert.Null(c.CategoriaPedagogica));
         Assert.Null(Assert.Single(detalhe.Classificacoes, c => c.Origem == "Codigo").ModeloLlm);
         Assert.Equal("modelo-efetivo-do-teste", Assert.Single(detalhe.Classificacoes, c => c.Origem == "LLM").ModeloLlm);
         var legado = Assert.Single(historico[1].Resultado.Detalhes);
@@ -124,6 +127,7 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         var operacao = swagger.RootElement.GetProperty("paths")
             .GetProperty("/api/Professores/turmas/{turmaId}/alunos/{alunoId}/ditados/{ditadoId}/tentativas").GetProperty("get");
         Assert.Equal(3, operacao.GetProperty("parameters").GetArrayLength());
+        Assert.Contains("categoriaPedagogica", operacao.GetProperty("description").GetString());
         Assert.True(operacao.GetProperty("responses").TryGetProperty("404", out _));
         var schemas = swagger.RootElement.GetProperty("components").GetProperty("schemas");
         Assert.True(schemas.GetProperty("ClassificacaoCatalogoDto").GetProperty("properties")

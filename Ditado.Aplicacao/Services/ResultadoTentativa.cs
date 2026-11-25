@@ -1,4 +1,5 @@
 using Ditado.Aplicacao.DTOs;
+using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
 using Ditado.Dominio.Extensions;
@@ -17,9 +18,18 @@ internal static class ResultadoTentativa
 
     public static IEnumerable<ClassificacaoCatalogoDto> Classificacoes(RespostaSegmento resposta) =>
         resposta.TiposErro.Where(t => t.ErroCatalogo != null)
-            .Select(t => new ClassificacaoCatalogoDto(t.ErroCatalogoId!.Value, t.ErroCatalogo!.Codigo, t.ErroCatalogo.Nome, (int)t.TipoErro))
+            .Select(t => new ClassificacaoCatalogoDto(t.ErroCatalogoId!.Value, t.ErroCatalogo!.Codigo, t.ErroCatalogo.Nome, (int)t.TipoErro)
+            {
+                CategoriaPedagogica = LerCategoriaGravada(t.CategoriaPedagogicaCodigo, t.CategoriaPedagogicaNome, t.CategoriaPedagogicaFamilia)
+            })
             .Concat(resposta.AnaliseLlm?.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
-                .Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")) ?? []);
+                .Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")
+                {
+                    CategoriaPedagogica = LerCategoriaGravada(c.CategoriaPedagogicaCodigo, c.CategoriaPedagogicaNome, c.CategoriaPedagogicaFamilia)
+                }) ?? []);
+
+    private static CategoriaPedagogicaDto? LerCategoriaGravada(string? codigo, string? nome, string? familia) =>
+        codigo != null && nome != null ? new(codigo, nome, familia) : null;
 
     public static ResultadoDitadoResponse Mapear(RespostaDitado tentativa, bool incluirModeloLlm = false)
     {

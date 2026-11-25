@@ -1,5 +1,9 @@
 # Changelog da documentação
 
+## 25/11/2026 — Categoria pedagógica por achado
+
+- Registrados na especificação o contrato da PER-78, o mapeamento da PER-79 e a preservação da categoria gravada nos achados de Código e LLM. A versão foi validada com testes de API e uma migração em schema MySQL isolado. [Mapeamento, arquivos e validação](../relatorio-ciclo-per77-base-2026-11-25.md)
+
 ## 24/11/2026 — Categoria pedagógica dos erros
 
 - Atualizadas a especificação e a referência do projeto para a PER-70. O catálogo usa as subdivisões ortográficas do GEALE descritas por Saggiomo e aceita nome próprio de categoria para definições não ortográficas. A primeira fatia cobre a API, o catálogo e a retirada da associação de categorias na interface dos ditados. [Relatório de ciclo](../relatorio-ciclo-per70-categorias-2026-11-24.md)

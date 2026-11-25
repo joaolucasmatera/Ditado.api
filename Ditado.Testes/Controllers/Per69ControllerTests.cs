@@ -3,6 +3,7 @@ using System.Net.Http.Json;
 using System.Text.Json;
 using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.DTOs.Marketplace;
+using Ditado.Aplicacao.DTOs.Professores;
 using Ditado.Aplicacao.DTOs.Turmas;
 using Ditado.Aplicacao.Llm;
 using Ditado.Dominio.Entidades;
@@ -169,8 +170,21 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
         var inicial = Assert.IsType<ResultadoDitadoResponse>(
             await PostAsync<ResultadoDitadoResponse>($"{url}/submeter", new { respostas }));
         Assert.Equal(33.33m, inicial.Nota);
-        Assert.Equal("Codigo", Assert.Single(inicial.Detalhes[0].Classificacoes).Origem);
+        var achadoTradicional = Assert.Single(inicial.Detalhes[0].Classificacoes);
+        Assert.Equal(("Codigo", (int?)TipoErro.Acentuacao), (achadoTradicional.Origem, achadoTradicional.TipoErro));
+        Assert.Equal(new CategoriaPedagogicaDto("HIBRIDO_ACENTUACAO", "Acentuação", "Híbrida"), achadoTradicional.CategoriaPedagogica);
         Assert.All(inicial.Detalhes, d => Assert.Equal("Pendente", d.EstadoAnaliseLlm));
+        Assert.Empty(inicial.Detalhes[1].Classificacoes);
+
+        var definicaoTradicional = await db.ErrosCatalogo.SingleAsync(e => e.Id == acentuacao);
+        if (caso == "valido")
+        {
+            var definicaoDocente = await db.ErrosCatalogo.SingleAsync(e => e.Id == docente.Id);
+            definicaoDocente.CategoriaPedagogicaCodigo = "ORTOGRAFIA_CONTEXTUAL";
+            definicaoDocente.CategoriaPedagogicaNome = null;
+            definicaoTradicional.CategoriaPedagogicaCodigo = "FONOLOGIA_SEGMENTO";
+            await db.SaveChangesAsync();
+        }
 
         var chamadasAntes = factory.Router.Chamadas;
         var processor = scope.ServiceProvider.GetRequiredService<LlmAnalysisProcessor>();
@@ -188,6 +202,8 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
         {
             var achado = Assert.Single(final.Detalhes[1].Classificacoes);
             Assert.Equal(("LLM", docente.Id), (achado.Origem, achado.ErroCatalogoId));
+            Assert.Null(achado.TipoErro);
+            Assert.Equal(new CategoriaPedagogicaDto("NAO_ORTOGRAFICO", "Concordância verbal", null), achado.CategoriaPedagogica);
             Assert.All(final.Detalhes, d => Assert.Equal("Concluida", d.EstadoAnaliseLlm));
         }
         else
@@ -195,6 +211,18 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
             Assert.Empty(final.Detalhes[1].Classificacoes);
             var estados = caso == "indisponivel" ? new[] { "Falha", "Falha", "Falha" } : ["Concluida", "Revisao", "Concluida"];
             Assert.Equal(estados, final.Detalhes.Select(d => d.EstadoAnaliseLlm));
+        }
+
+        AdicionarTokenAutorizacao(professor.Token);
+        var historicoUrl = $"/api/Professores/turmas/{turma.Id}/alunos/{aluno.Id}/ditados/{ditado.Id}/tentativas";
+        var historico = Assert.Single(Assert.IsType<List<TentativaAlunoProfessorDto>>(
+            await GetAsync<List<TentativaAlunoProfessorDto>>(historicoUrl)));
+        Assert.Equal(final.Detalhes.SelectMany(d => d.Classificacoes).Select(c => (c.Origem, c.CategoriaPedagogica)),
+            historico.Resultado.Detalhes.SelectMany(d => d.Classificacoes).Select(c => (c.Origem, c.CategoriaPedagogica)));
+        if (caso == "valido")
+        {
+            definicaoTradicional.CategoriaPedagogicaCodigo = null;
+            await db.SaveChangesAsync();
         }
 
         var trilha = await db.Set<LlmTentativaProvedor>().AsNoTracking()

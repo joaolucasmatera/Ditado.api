@@ -12,7 +12,11 @@ namespace Ditado.API.Controllers;
 public sealed class ResultadoAlunoController(AlunoService alunoService) : ControllerBase
 {
     /// <summary>Consulta a correção de uma tentativa do aluno autenticado.</summary>
-    /// <remarks>Inclui nota, gabarito, respostas originais, estado da análise LLM e origem de cada achado. Requer vínculo ativo na escola da tentativa quando houver escola registrada.</remarks>
+    /// <remarks>
+    /// Requer vínculo ativo na escola registrada na tentativa. Inclui nota, respostas e estado da análise LLM.
+    /// Cada achado inclui categoriaPedagogica (codigo, nome e familia) gravada na correção.
+    /// A categoria é nula para achados sem mapeamento ou sem registro histórico. A família é nula em categorias não ortográficas.
+    /// </remarks>
     /// <param name="tentativaId">Identificador retornado na submissão ou no histórico.</param>
     /// <response code="200">Resultado da tentativa.</response>
     /// <response code="401">Token ausente ou inválido.</response>

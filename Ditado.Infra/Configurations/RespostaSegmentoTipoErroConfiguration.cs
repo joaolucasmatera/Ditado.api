@@ -10,6 +10,9 @@ public class RespostaSegmentoTipoErroConfiguration : IEntityTypeConfiguration<Re
     {
         builder.ToTable("RespostaSegmentoTiposErro");
         builder.HasKey(x => new { x.RespostaSegmentoId, x.TipoErro });
+        builder.Property(x => x.CategoriaPedagogicaCodigo).HasMaxLength(40);
+        builder.Property(x => x.CategoriaPedagogicaNome).HasMaxLength(200);
+        builder.Property(x => x.CategoriaPedagogicaFamilia).HasMaxLength(100);
         builder.Property(x => x.TipoErro).HasConversion<int>();
         builder.HasOne(x => x.ErroCatalogo).WithMany().HasForeignKey(x => x.ErroCatalogoId)
             .OnDelete(DeleteBehavior.Restrict);

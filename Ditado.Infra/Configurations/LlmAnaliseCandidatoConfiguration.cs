@@ -12,6 +12,9 @@ public sealed class LlmAnaliseCandidatoConfiguration : IEntityTypeConfiguration<
         builder.HasKey(x => x.Id);
         builder.Property(x => x.Codigo).IsRequired().HasMaxLength(40);
         builder.Property(x => x.Nome).IsRequired().HasMaxLength(200);
+        builder.Property(x => x.CategoriaPedagogicaCodigo).HasMaxLength(40);
+        builder.Property(x => x.CategoriaPedagogicaNome).HasMaxLength(200);
+        builder.Property(x => x.CategoriaPedagogicaFamilia).HasMaxLength(100);
         builder.Property(x => x.Descricao).IsRequired().HasMaxLength(10000).HasColumnType("text");
         builder.Property(x => x.Estado).HasConversion<int>().IsRequired();
         builder.Property(x => x.Confianca).HasPrecision(5, 4);

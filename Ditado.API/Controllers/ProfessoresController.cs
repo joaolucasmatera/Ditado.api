@@ -187,6 +187,8 @@ public class ProfessoresController : ControllerBase
     /// <remarks>
     /// O professor responsável com vínculo na escola consulta as tentativas em ordem da mais recente para a
     /// mais antiga. Cada item traz a data e o resultado com nota, lacunas e classificações por origem.
+    /// Cada achado traz categoriaPedagogica (codigo, nome e familia) preservada no histórico, ou nula
+    /// quando ausente. Exemplo de categoria: {"codigo":"HIBRIDO_ACENTUACAO","nome":"Acentuação","familia":"Híbrida"}.
     /// Quando registrado, cada achado LLM inclui modeloLlm, o identificador efetivo da classificacao.
     /// Exemplo de item: {"dataRealizacao":"2026-11-23T14:30:00Z","resultado":{"respostaDitadoId":12,"nota":80,"totalLacunas":5,"acertos":4,"erros":1}}.
     /// </remarks>

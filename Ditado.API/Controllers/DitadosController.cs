@@ -1,4 +1,4 @@
-﻿using Ditado.Aplicacao.DTOs;
+using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
@@ -309,6 +309,8 @@ public class DitadosController : ControllerBase
 	/// - Segmentos tipo "TextoFixo" serão ignorados
 	/// - A ordem das respostas não importa (usa `segmentoId` para mapear)
 	/// - A classificação por código usa os vínculos programados da seleção. A nota continua objetiva.
+	/// - Cada classificação inclui categoriaPedagogica (codigo, nome e familia), ou nula quando ausente.
+	/// - Durante a análise LLM pendente, a resposta já inclui os achados produzidos pelo Código.
 	/// - Em novas tentativas de ditados legados sem seleção, uma resposta incorreta fica não classificada e revisável.
 	/// - Resultados legados mantêm `tiposErro`. Classificações de catálogo incluem ID, código e nome.
 	/// - Ditado com seleção exige participação vigente ou permissão administrativa sobre o ditado.

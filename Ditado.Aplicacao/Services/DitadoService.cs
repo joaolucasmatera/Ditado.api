@@ -207,7 +207,6 @@ public class DitadoService
 			DataRealizacao = DateTime.UtcNow
 		};
 
-		var detalhes = new List<DetalheRespostaDto>();
 		int acertos = 0;
 		int totalLacunas = 0;
 
@@ -225,6 +224,7 @@ public class DitadoService
 
 			var respostaSegmento = new RespostaSegmento
 			{
+				Segmento = segmento,
 				SegmentoId = segmento.Id,
 				RespostaFornecida = resposta,
 				RespostaAusente = !presente,
@@ -233,10 +233,19 @@ public class DitadoService
 				EstadoClassificacao = correto ? EstadoClassificacao.NaoSeAplica :
 					(tiposErro.Count > 0 ? EstadoClassificacao.Classificado : EstadoClassificacao.NaoClassificado),
 				MetodoClassificacao = tiposErro.Count > 0 ? MetodoClassificacao.Codigo : null,
-				TiposErro = tiposErro.Select(tipo => new RespostaSegmentoTipoErro
+				TiposErro = tiposErro.Select(tipo =>
 				{
-					TipoErro = tipo,
-					ErroCatalogoId = regrasSelecionadas.GetValueOrDefault(tipo)?.Id
+					var erro = regrasSelecionadas[tipo];
+					var categoria = CategoriasPedagogicas.DaDefinicao(erro);
+					return new RespostaSegmentoTipoErro
+					{
+						TipoErro = tipo,
+						ErroCatalogoId = erro.Id,
+						ErroCatalogo = erro,
+						CategoriaPedagogicaCodigo = categoria?.Codigo,
+						CategoriaPedagogicaNome = categoria?.Nome,
+						CategoriaPedagogicaFamilia = categoria?.Familia
+					};
 				}).ToList()
 			};
 
@@ -247,38 +256,27 @@ public class DitadoService
 				{
 					RespostaSegmento = respostaSegmento,
 					PromptVersao = _llmOptions.VersaoAtiva,
-					Candidatos = candidatosLlm.Select(erro => new LlmAnaliseCandidato
+					Candidatos = candidatosLlm.Select(erro =>
 					{
-						ErroCatalogoId = erro.Id,
-						Codigo = erro.Codigo,
-						Nome = erro.Nome,
-						Descricao = erro.Descricao,
-						ExemploEsperado = erro.ExemploEsperado,
-						ExemploResposta = erro.ExemploResposta,
-						ExemplosAdicionaisJson = erro.ExemplosAdicionaisJson,
-						ObservacaoPedagogica = erro.ObservacaoPedagogica,
-						Versao = versoesCandidatos.GetValueOrDefault(erro.Id)
+						var categoria = CategoriasPedagogicas.DaDefinicao(erro);
+						return new LlmAnaliseCandidato
+						{
+							ErroCatalogoId = erro.Id,
+							Codigo = erro.Codigo,
+							Nome = erro.Nome,
+							CategoriaPedagogicaCodigo = categoria?.Codigo,
+							CategoriaPedagogicaNome = categoria?.Nome,
+							CategoriaPedagogicaFamilia = categoria?.Familia,
+							Descricao = erro.Descricao,
+							ExemploEsperado = erro.ExemploEsperado,
+							ExemploResposta = erro.ExemploResposta,
+							ExemplosAdicionaisJson = erro.ExemplosAdicionaisJson,
+							ObservacaoPedagogica = erro.ObservacaoPedagogica,
+							Versao = versoesCandidatos.GetValueOrDefault(erro.Id)
+						};
 					}).ToList()
 				};
 			}
-
-			detalhes.Add(new DetalheRespostaDto
-			{
-				SegmentoId = segmento.Id,
-				RespostaFornecida = resposta,
-				RespostaAusente = !presente,
-				EstadoAnaliseLlm = respostaSegmento.AnaliseLlm?.Estado.ToString(),
-				RespostaEsperada = segmento.Conteudo,
-				Correto = correto,
-				EstadoClassificacao = respostaSegmento.EstadoClassificacao.ToString(),
-				MetodoClassificacao = respostaSegmento.MetodoClassificacao?.ToString(),
-				TiposErro = tiposErro.Select(tipo => tipo.ObterDescricao()).ToList(),
-				Classificacoes = tiposErro.Where(regrasSelecionadas.ContainsKey).Select(tipo =>
-				{
-					var erro = regrasSelecionadas[tipo];
-					return new ClassificacaoCatalogoDto(erro.Id, erro.Codigo, erro.Nome, (int)tipo);
-				}).ToList()
-			});
 		}
 
 		respostaDitado.Nota = totalLacunas > 0
@@ -290,15 +288,7 @@ public class DitadoService
 		if (transacao != null)
 			await transacao.CommitAsync();
 
-		return new ResultadoDitadoResponse
-		{
-			RespostaDitadoId = respostaDitado.Id,
-			Nota = respostaDitado.Nota,
-			TotalLacunas = totalLacunas,
-			Acertos = acertos,
-			Erros = totalLacunas - acertos,
-			Detalhes = detalhes
-		};
+		return ResultadoTentativa.Mapear(respostaDitado);
 	}
 
 	public async Task<List<DitadoResponse>> ListarDitadosAsync(int? usuarioId = null, TipoUsuario? tipoUsuario = null)

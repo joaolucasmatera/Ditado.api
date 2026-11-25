@@ -9,6 +9,9 @@ public class LlmAnaliseCandidato
     public int ErroCatalogoId { get; set; }
     public string Codigo { get; set; } = string.Empty;
     public string Nome { get; set; } = string.Empty;
+    public string? CategoriaPedagogicaCodigo { get; set; }
+    public string? CategoriaPedagogicaNome { get; set; }
+    public string? CategoriaPedagogicaFamilia { get; set; }
     public string Descricao { get; set; } = string.Empty;
     public string? ExemploEsperado { get; set; }
     public string? ExemploResposta { get; set; }

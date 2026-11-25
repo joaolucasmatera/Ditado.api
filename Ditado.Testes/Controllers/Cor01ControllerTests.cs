@@ -485,7 +485,15 @@ public class Cor01ControllerTests(CustomWebApplicationFactory factory) : TesteIn
         Assert.True(schemas.GetProperty("CriarDitadoRequest").GetProperty("properties").TryGetProperty("erroCatalogoIds", out _));
         Assert.True(schemas.GetProperty("DitadoCompletoDto").GetProperty("properties").TryGetProperty("possuiRespostas", out _));
         Assert.True(schemas.GetProperty("DetalheRespostaDto").GetProperty("properties").TryGetProperty("classificacoes", out _));
-        var submissao = swagger.GetProperty("paths").GetProperty("/api/Ditados/{id}/submeter").GetProperty("post");
+        var classificacao = schemas.GetProperty("ClassificacaoCatalogoDto").GetProperty("properties");
+        Assert.Contains("#/components/schemas/CategoriaPedagogicaDto", classificacao.GetProperty("categoriaPedagogica").GetRawText());
+        var categoria = schemas.GetProperty("CategoriaPedagogicaDto").GetProperty("properties");
+        Assert.Equal(new[] { "codigo", "familia", "nome" }, categoria.EnumerateObject().Select(p => p.Name).Order());
+        var paths = swagger.GetProperty("paths");
+        var submissao = paths.GetProperty("/api/Ditados/{id}/submeter").GetProperty("post");
+        var resultado = paths.GetProperty("/api/Alunos/tentativas/{tentativaId}/resultado").GetProperty("get");
+        Assert.Contains("categoriaPedagogica", submissao.GetProperty("description").GetString());
+        Assert.Contains("categoriaPedagogica", resultado.GetProperty("description").GetString());
         Assert.Contains("legados sem seleção", submissao.GetProperty("description").GetString());
         var cadastro = swagger.GetProperty("paths").GetProperty("/api/Usuarios/alunos-manual").GetProperty("post");
         Assert.Contains("E12-T34-N003", cadastro.GetProperty("description").GetString());

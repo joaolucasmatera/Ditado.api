@@ -1,5 +1,7 @@
 using System.ComponentModel.DataAnnotations;
 using Ditado.Aplicacao.DTOs.Marketplace;
+using Ditado.Dominio.Entidades;
+using Ditado.Dominio.Enums;
 
 namespace Ditado.Aplicacao.Services;
 
@@ -18,6 +20,20 @@ public static class CategoriasPedagogicas
         new("ORTOGRAFIA_CONTEXTUAL", "Regras contextuais", "Sistema ortográfico"),
         new(NaoOrtografico, "Não ortográfico", null)
     ]);
+
+    internal static CategoriaPedagogicaDto? DaDefinicao(ErroCatalogo erro)
+    {
+        var codigo = erro.CategoriaPedagogicaCodigo ?? (erro.RegraClassificacao switch
+        {
+            TipoErro.Acentuacao => "HIBRIDO_ACENTUACAO",
+            TipoErro.TrocaGrafemasSurdaSonora => "FONOLOGIA_SEGMENTO",
+            TipoErro.ComplexidadeSilabica => "FONOLOGIA_SILABA",
+            TipoErro.RegraContextual => "ORTOGRAFIA_CONTEXTUAL",
+            TipoErro.GrafiaArbitrariaIrregular => "ORTOGRAFIA_ARBITRARIA",
+            _ => null
+        });
+        return Obter(codigo, erro.CategoriaPedagogicaNome);
+    }
 
     internal static (string Codigo, string? Nome) Validar(CategoriaPedagogicaRequest? categoria)
     {

@@ -153,7 +153,9 @@ A [PER-70](https://linear.app/joaomoutinho/issue/PER-70/aplicar-a-taxonomia-do-g
 
 Para um erro fora do escopo da taxonomia ortográfica, o professor informa o nome da categoria, por exemplo, concordância verbal. A categoria é independente da origem da correção. Um ditado pode usar erros de várias categorias. As associações legadas entre ditado e categoria são preservadas, incluindo seus contratos técnicos, sem servir de base para mapear categorias pedagógicas.
 
-Nesta etapa, a publicação e a edição do catálogo apresentam as categorias e a interface de ditados retira sua associação manual. A migração mantém erros existentes sem categoria até a revisão do mapeamento. A etapa seguinte cobre categoria nos achados de Código e LLM, rastreabilidade de reclassificações, agregações e exportação.
+A publicação e a edição do catálogo apresentam as categorias e a interface de ditados retira sua associação manual. A PER-78 registra código, nome e família em cada novo achado de Código e congela os mesmos valores na fila LLM para expor nas correspondências validadas. A API devolve `categoriaPedagogica` separada do tipo e da origem. A releitura usa os valores gravados. Achados anteriores à migração continuam com a categoria nula, e a análise LLM conserva seus estados.
+
+A PER-79 aplica o mapeamento das regras programadas ao gravar novos achados. A categoria explícita da definição tem prioridade. Definições legadas sem correspondência segura podem continuar sem categoria. A apresentação em tela, as agregações e o CSV são etapas da PER-77. [Mapeamento e validação da base da PER-77](../../docs/relatorio-ciclo-per77-base-2026-11-25.md)
 
 Referências iniciais: [estudo sobre erros gráficos nos anos iniciais (SciELO)](https://www.scielo.br/j/edur/a/Z3trLgDyBBZWB466FLHFXtz/?lang=pt), [estudo sobre transposições na escrita infantil](https://revistas.gel.org.br/estudos-linguisticos/article/view/3307) e [avaliação ortográfica de escolares do 2º ao 5º ano](https://www.scielo.br/j/jsbf/a/Y68KLnGKkVvCBmPvckWnwbj/?lang=pt).
 
