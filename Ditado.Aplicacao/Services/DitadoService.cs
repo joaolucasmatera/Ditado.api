@@ -29,7 +29,7 @@ public class DitadoService
 		var segmentos = ParsearTextoComLacunas(request.TextoComMarcacoes);
 		var audioDados = ExtrairAudioDeBase64(request.AudioBase64);
 		if (request.ErroCatalogoIds is not { Count: > 0 })
-			throw new InvalidOperationException("Selecione pelo menos um erro do catálogo.");
+			throw new InvalidOperationException("Selecione pelo menos um erro do catÃ¡logo.");
 		var (escolaId, professorId) = await ResolverContextoSelecaoAsync(autorId, null);
 		var errosSelecionados = await ObterNovosErrosAsync(request.ErroCatalogoIds, escolaId, professorId);
 		var agora = DateTime.UtcNow;
@@ -95,7 +95,7 @@ public class DitadoService
 	}
 
 	/// <summary>
-	/// Obtém os metadados, áudio e segmentos completos de um ditado ativo para visualização por staff.
+	/// ObtÃ©m os metadados, Ã¡udio e segmentos completos de um ditado ativo para visualizaÃ§Ã£o por staff.
 	/// </summary>
 	public async Task<DitadoCompletoDto?> ObterDitadoCompletoPorIdAsync(int id)
 	{
@@ -344,7 +344,7 @@ public class DitadoService
 			.FirstOrDefaultAsync(d => d.Id == ditadoId);
 
 		if (ditado == null)
-			throw new InvalidOperationException("Ditado n�o encontrado.");
+			throw new InvalidOperationException("Ditado nï¿½o encontrado.");
 
 		return new DitadoResponse
 		{
@@ -375,15 +375,15 @@ public class DitadoService
 		if (ditado == null)
 			return null;
 		if (usuarioId.HasValue && !await PodeAdministrarDitadoAsync(ditado, usuarioId.Value, tipoUsuario))
-			throw new InvalidOperationException("Usuário sem escopo para este ditado.");
+			throw new InvalidOperationException("UsuÃ¡rio sem escopo para este ditado.");
 
 		// Validar categorias
 		await _categoriaService.ValidarCategoriasAsync(categoriaIds);
 
-		// Remover associa��es antigas
+		// Remover associaï¿½ï¿½es antigas
 		_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
 
-		// Adicionar novas associa��es
+		// Adicionar novas associaï¿½ï¿½es
 		foreach (var categoriaId in categoriaIds.Distinct())
 		{
 			_context.DitadoCategorias.Add(new DitadoCategoria
@@ -412,7 +412,7 @@ public class DitadoService
 		if (ditado == null)
 			return null;
 		if (usuarioId.HasValue && !await PodeAdministrarDitadoAsync(ditado, usuarioId.Value, tipoUsuario))
-			throw new InvalidOperationException("Usuário sem escopo para este ditado.");
+			throw new InvalidOperationException("UsuÃ¡rio sem escopo para este ditado.");
 
 		if (request.CategoriaIds is { Count: > 0 })
 			await _categoriaService.ValidarCategoriasAsync(request.CategoriaIds);
@@ -422,7 +422,7 @@ public class DitadoService
 		if (!string.IsNullOrWhiteSpace(request.Titulo))
 			ditado.Titulo = request.Titulo;
 
-		// Atualizar descri��o se fornecido (permite limpar)
+		// Atualizar descriï¿½ï¿½o se fornecido (permite limpar)
 		if (request.Descricao != null)
 			ditado.Descricao = string.IsNullOrWhiteSpace(request.Descricao) ? null : request.Descricao;
 
@@ -433,10 +433,10 @@ public class DitadoService
 		// Atualizar categorias se fornecido (permite 0 categorias)
 		if (request.CategoriaIds != null)
 		{
-			// Remover associa��es antigas
+			// Remover associaï¿½ï¿½es antigas
 			_context.DitadoCategorias.RemoveRange(ditado.DitadoCategorias);
 
-			// Adicionar novas associa��es (pode ser lista vazia)
+			// Adicionar novas associaï¿½ï¿½es (pode ser lista vazia)
 			foreach (var categoriaId in request.CategoriaIds.Distinct())
 			{
 				_context.DitadoCategorias.Add(new DitadoCategoria
@@ -458,9 +458,9 @@ public class DitadoService
 	private async Task AtualizarSelecaoAsync(Dominio.Entidades.Ditado ditado, List<int> erroIds, int atorId)
 	{
 		if (await _context.RespostaDitados.AnyAsync(r => r.DitadoId == ditado.Id))
-			throw new InvalidOperationException("Não é possível alterar a seleção depois da primeira resposta.");
+			throw new InvalidOperationException("NÃ£o Ã© possÃ­vel alterar a seleÃ§Ã£o depois da primeira resposta.");
 		if (erroIds.Count == 0)
-			throw new InvalidOperationException("Selecione pelo menos um erro do catálogo.");
+			throw new InvalidOperationException("Selecione pelo menos um erro do catÃ¡logo.");
 
 		var atorDoDitado = ditado.AutorId;
 		var escolaOrigem = ditado.EscolaSelecaoErrosId ?? await _context.PublicacoesDitados
@@ -505,13 +505,13 @@ public class DitadoService
 	{
 		var ator = await _context.Usuarios.SingleOrDefaultAsync(u => u.Id == atorId && u.Ativo);
 		if (ator == null || ator.Tipo is not (TipoUsuario.Administrador or TipoUsuario.Professor))
-			throw new UnauthorizedAccessException("Perfil sem permissão para selecionar erros.");
+			throw new UnauthorizedAccessException("Perfil sem permissÃ£o para selecionar erros.");
 
 		var escolas = _context.VinculosEscolares.Where(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa);
 		escolaId ??= await escolas.Select(v => (int?)v.EscolaId).FirstOrDefaultAsync();
 		if (!(ator.Tipo == TipoUsuario.Administrador && ator.AdministradorGeral) &&
 			(!escolaId.HasValue || !await escolas.AnyAsync(v => v.EscolaId == escolaId)))
-			throw new UnauthorizedAccessException("É necessário vínculo ativo na escola da seleção.");
+			throw new UnauthorizedAccessException("Ã‰ necessÃ¡rio vÃ­nculo ativo na escola da seleÃ§Ã£o.");
 
 		return (escolaId, ator.Tipo == TipoUsuario.Professor ? atorId : null);
 	}
@@ -524,7 +524,7 @@ public class DitadoService
 		var erros = await SelecaoErrosCatalogo.Disponiveis(_context, escolaId, professorId: professorId)
 			.Where(e => ids.Contains(e.Id)).ToListAsync();
 		if (erros.Count != ids.Length)
-			throw new InvalidOperationException("A seleção contém erros inexistentes, arquivados ou fora do escopo.");
+			throw new InvalidOperationException("A seleÃ§Ã£o contÃ©m erros inexistentes, arquivados ou fora do escopo.");
 		return erros;
 	}
 
@@ -559,7 +559,7 @@ public class DitadoService
 			return false;
 
 		if (!await PodeAdministrarDitadoAsync(ditado, usuarioLogadoId, tipoUsuarioLogado))
-			throw new InvalidOperationException("Apenas o autor do ditado ou um administrador podem exclu�-lo.");
+			throw new InvalidOperationException("Apenas o autor do ditado ou um administrador podem excluí-lo.");
 
 		_context.Ditados.Remove(ditado);
 		await _context.SaveChangesAsync();
@@ -576,10 +576,10 @@ public class DitadoService
 
 		foreach (Match match in regex.Matches(texto))
 		{
-			// Extrai o conte�do dentro dos colchetes (pode ter espa�os/pontua��o)
+			// Extrai o conteï¿½do dentro dos colchetes (pode ter espaï¿½os/pontuaï¿½ï¿½o)
 			var conteudoBruto = match.Groups[1].Value;
 
-			// Separa palavra limpa de prefixo/sufixo (espa�os e pontua��o)
+			// Separa palavra limpa de prefixo/sufixo (espaï¿½os e pontuaï¿½ï¿½o)
 			var (prefixo, palavraLimpa, sufixo) = ExtrairPalavraComContexto(conteudoBruto);
 
 			// Adiciona texto ANTES da lacuna (incluindo o que estava antes dos colchetes + prefixo)
@@ -595,7 +595,7 @@ public class DitadoService
 				});
 			}
 
-			// Adiciona a LACUNA com apenas a palavra limpa (preserva mai�scula/min�scula original)
+			// Adiciona a LACUNA com apenas a palavra limpa (preserva maiï¿½scula/minï¿½scula original)
 			segmentos.Add(new DitadoSegmento
 			{
 				Ordem = ordem++,
@@ -603,13 +603,13 @@ public class DitadoService
 				Conteudo = palavraLimpa
 			});
 
-			// Atualiza �ndice
+			// Atualiza ï¿½ndice
 			ultimoIndice = match.Index + match.Length;
 
-			// Se tem sufixo, ele ser� o in�cio do pr�ximo segmento de texto
+			// Se tem sufixo, ele serï¿½ o inï¿½cio do prï¿½ximo segmento de texto
 			if (!string.IsNullOrEmpty(sufixo))
 			{
-				// Guarda o sufixo para concatenar com o pr�ximo texto
+				// Guarda o sufixo para concatenar com o prï¿½ximo texto
 				var proximoTextoInicio = ultimoIndice;
 				var proximoTextoFim = ultimoIndice < texto.Length ?
 					(regex.Match(texto, ultimoIndice).Success ? regex.Match(texto, ultimoIndice).Index : texto.Length)
@@ -629,7 +629,7 @@ public class DitadoService
 						Conteudo = textoComSufixo
 					});
 
-					// Atualiza �ndice para pular o texto j� processado
+					// Atualiza ï¿½ndice para pular o texto jï¿½ processado
 					ultimoIndice = proximoTextoFim;
 				}
 				else if (!string.IsNullOrEmpty(sufixo))
@@ -645,7 +645,7 @@ public class DitadoService
 			}
 		}
 
-		// Adiciona texto restante ap�s a �ltima lacuna
+		// Adiciona texto restante apï¿½s a ï¿½ltima lacuna
 		if (ultimoIndice < texto.Length)
 		{
 			segmentos.Add(new DitadoSegmento
@@ -660,19 +660,19 @@ public class DitadoService
 	}
 
 	/// <summary>
-	/// Extrai a palavra limpa e separa prefixo/sufixo (espa�os e pontua��o).
-	/// Preserva a capitaliza��o original da palavra.
+	/// Extrai a palavra limpa e separa prefixo/sufixo (espaï¿½os e pontuaï¿½ï¿½o).
+	/// Preserva a capitalizaï¿½ï¿½o original da palavra.
 	/// Exemplo: ", Gato. " > (", ", "Gato", ". ")
 	/// </summary>
 	private (string prefixo, string palavra, string sufixo) ExtrairPalavraComContexto(string conteudo)
 	{
 		// Regex que captura: (prefixo) (palavra) (sufixo)
-		// Prefixo: espa�os e pontua��o (incluindo ponto) no in�cio
-		// Palavra: letras (com acentos), n�meros, ap�strofo e h�fen
-		// Sufixo: espa�os e pontua��o (incluindo ponto) no fim
+		// Prefixo: espaï¿½os e pontuaï¿½ï¿½o (incluindo ponto) no inï¿½cio
+		// Palavra: letras (com acentos), nï¿½meros, apï¿½strofo e hï¿½fen
+		// Sufixo: espaï¿½os e pontuaï¿½ï¿½o (incluindo ponto) no fim
 		var match = Regex.Match(
 			conteudo,
-			@"^([\s,\.;:!?\-�'""��]*)([a-zA-Z����������������������������������������������'\-]+)([\s,\.;:!?\-�'""��]*)$"
+			@"^([\s,\.;:!?\-ï¿½'""ï¿½ï¿½]*)([a-zA-Zï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½ï¿½'\-]+)([\s,\.;:!?\-ï¿½'""ï¿½ï¿½]*)$"
 		);
 
 		if (match.Success)
@@ -680,7 +680,7 @@ public class DitadoService
 			return (match.Groups[1].Value, match.Groups[2].Value, match.Groups[3].Value);
 		}
 
-		// Fallback: Se n�o conseguiu fazer match, tenta pelo menos separar espa�os
+		// Fallback: Se nï¿½o conseguiu fazer match, tenta pelo menos separar espaï¿½os
 		var trimmed = conteudo.Trim();
 		var prefixoEspacos = conteudo.Substring(0, conteudo.IndexOf(trimmed[0]));
 		var sufixoEspacos = conteudo.Substring(conteudo.LastIndexOf(trimmed[^1]) + 1);

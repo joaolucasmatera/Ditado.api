@@ -71,8 +71,8 @@ public class DitadoServiceTests : IDisposable
 		var request = new CriarDitadoRequest
 		{
 			Titulo = "Ditado Teste",
-			Descricao = "DescriÁ„o teste",
-			TextoComMarcacoes = "O [gato] È bonito.",
+			Descricao = "Descri√ß√£o teste",
+			TextoComMarcacoes = "O [gato] √© bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
 			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int>()
@@ -102,7 +102,7 @@ public class DitadoServiceTests : IDisposable
 		var request = new CriarDitadoRequest
 		{
 			Titulo = "Ditado Teste",
-			TextoComMarcacoes = "O [gato] È bonito.",
+			TextoComMarcacoes = "O [gato] √© bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
 			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { categoria.Id }
@@ -124,15 +124,15 @@ public class DitadoServiceTests : IDisposable
 		// Arrange
 		var professor = await CriarUsuarioTesteAsync();
 		var cat1 = new Categoria { Nome = "Ortografia" };
-		var cat2 = new Categoria { Nome = "PontuaÁ„o" };
-		var cat3 = new Categoria { Nome = "AcentuaÁ„o" };
+		var cat2 = new Categoria { Nome = "Pontua√ß√£o" };
+		var cat3 = new Categoria { Nome = "Acentua√ß√£o" };
 		_context.Categorias.AddRange(cat1, cat2, cat3);
 		await _context.SaveChangesAsync();
 
 		var request = new CriarDitadoRequest
 		{
 			Titulo = "Ditado Completo",
-			TextoComMarcacoes = "O [gato] È bonito.",
+			TextoComMarcacoes = "O [gato] √© bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
 			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { cat1.Id, cat2.Id, cat3.Id }
@@ -145,8 +145,8 @@ public class DitadoServiceTests : IDisposable
 		Assert.NotNull(resultado);
 		Assert.Equal(3, resultado.Categorias.Count);
 		Assert.Contains(resultado.Categorias, c => c.Nome == "Ortografia");
-		Assert.Contains(resultado.Categorias, c => c.Nome == "PontuaÁ„o");
-		Assert.Contains(resultado.Categorias, c => c.Nome == "AcentuaÁ„o");
+		Assert.Contains(resultado.Categorias, c => c.Nome == "Pontua√ß√£o");
+		Assert.Contains(resultado.Categorias, c => c.Nome == "Acentua√ß√£o");
 	}
 
 	[Fact]
@@ -161,7 +161,7 @@ public class DitadoServiceTests : IDisposable
 		var request = new CriarDitadoRequest
 		{
 			Titulo = "Ditado Teste",
-			TextoComMarcacoes = "O [gato] È bonito.",
+			TextoComMarcacoes = "O [gato] √© bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
 			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { categoria.Id, categoria.Id, categoria.Id }
@@ -183,7 +183,7 @@ public class DitadoServiceTests : IDisposable
 		var request = new CriarDitadoRequest
 		{
 			Titulo = "Ditado Teste",
-			TextoComMarcacoes = "O [gato] È bonito.",
+			TextoComMarcacoes = "O [gato] √© bonito.",
 			AudioBase64 = GerarAudioBase64Valido(),
 			ErroCatalogoIds = await CriarSelecaoAsync(professor),
 			CategoriaIds = new List<int> { 999 }
@@ -194,7 +194,7 @@ public class DitadoServiceTests : IDisposable
 			() => _ditadoService.CriarDitadoAsync(request, professor.Id)
 		);
 
-		Assert.Contains("Categorias n„o encontradas", exception.Message);
+		Assert.Contains("Categorias n√£o encontradas", exception.Message);
 	}
 
 	[Fact]
@@ -271,7 +271,7 @@ public class DitadoServiceTests : IDisposable
 		// Arrange
 		var professor = await CriarUsuarioTesteAsync();
 		var cat1 = new Categoria { Nome = "Ortografia" };
-		var cat2 = new Categoria { Nome = "PontuaÁ„o" };
+		var cat2 = new Categoria { Nome = "Pontua√ß√£o" };
 		var ditado = new Dominio.Entidades.Ditado
 		{
 			Titulo = "Ditado Original",
@@ -300,7 +300,7 @@ public class DitadoServiceTests : IDisposable
 		// Assert
 		Assert.NotNull(resultado);
 		Assert.Single(resultado.Categorias);
-		Assert.Equal("PontuaÁ„o", resultado.Categorias[0].Nome);
+		Assert.Equal("Pontua√ß√£o", resultado.Categorias[0].Nome);
 		Assert.DoesNotContain(resultado.Categorias, c => c.Nome == "Ortografia");
 	}
 
@@ -329,7 +329,7 @@ public class DitadoServiceTests : IDisposable
 
 		var request = new AtualizarDitadoRequest
 		{
-			Titulo = "TÌtulo Atualizado"
+			Titulo = "T√≠tulo Atualizado"
 		};
 
 		// Act
@@ -337,7 +337,7 @@ public class DitadoServiceTests : IDisposable
 
 		// Assert
 		Assert.NotNull(resultado);
-		Assert.Equal("TÌtulo Atualizado", resultado.Titulo);
+		Assert.Equal("T√≠tulo Atualizado", resultado.Titulo);
 		Assert.Single(resultado.Categorias);
 		Assert.Equal("Ortografia", resultado.Categorias[0].Nome);
 	}
@@ -348,7 +348,7 @@ public class DitadoServiceTests : IDisposable
 		// Arrange
 		var professor = await CriarUsuarioTesteAsync();
 		var cat1 = new Categoria { Nome = "Ortografia" };
-		var cat2 = new Categoria { Nome = "PontuaÁ„o" };
+		var cat2 = new Categoria { Nome = "Pontua√ß√£o" };
 		var ditado1 = new Dominio.Entidades.Ditado 
 		{ 
 			Titulo = "Ditado 1", 
@@ -453,8 +453,8 @@ public class DitadoServiceTests : IDisposable
 			() => _ditadoService.DeletarDitadoAsync(ditado.Id, outroProfessor.Id, TipoUsuario.Professor)
 		);
 
-		Assert.Equal("Apenas o autor do ditado ou um administrador podem excluÌ-lo.", exception.Message);
-		Assert.NotEmpty(await _context.Ditados.ToListAsync()); // Ditado n„o foi excluÌdo
+		Assert.Equal("Apenas o autor do ditado ou um administrador podem exclu√≠-lo.", exception.Message);
+		Assert.NotEmpty(await _context.Ditados.ToListAsync()); // Ditado n√£o foi exclu√≠do
 	}
 
 	[Fact]
@@ -466,7 +466,7 @@ public class DitadoServiceTests : IDisposable
 		{
 			Titulo = "Ditado Sem Autor",
 			AudioLeitura = new byte[] { 1, 2, 3 },
-			AutorId = null // Sem autor (professor foi excluÌdo)
+			AutorId = null // Sem autor (professor foi exclu√≠do)
 		};
 		_context.Ditados.Add(ditado);
 		await _context.SaveChangesAsync();
@@ -498,7 +498,7 @@ public class DitadoServiceTests : IDisposable
 			() => _ditadoService.DeletarDitadoAsync(ditado.Id, professor.Id, TipoUsuario.Professor)
 		);
 
-		Assert.Equal("Apenas o autor do ditado ou um administrador podem excluÌ-lo.", exception.Message);
+		Assert.Equal("Apenas o autor do ditado ou um administrador podem exclu√≠-lo.", exception.Message);
 	}
 
 	[Fact]
@@ -514,7 +514,7 @@ public class DitadoServiceTests : IDisposable
 		Assert.False(resultado);
 	}
 
-	// Atualizar o teste de submiss„o de resposta:
+	// Atualizar o teste de submiss√£o de resposta:
 
 	[Fact]
 	public async Task SubmeterResposta_ComRespostasValidas_DeveCalcularNotaCorretamente()
