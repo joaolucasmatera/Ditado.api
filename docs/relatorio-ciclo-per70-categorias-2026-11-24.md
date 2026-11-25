@@ -36,3 +36,9 @@ Os registros do ciclo ficam em `work/logs/per70-categorias-build-api.log`, `per7
 O Router continua recebendo os nomes antigos em `ditado.categorias` como contexto legado. Esta fatia conserva esse contrato e não usa o campo para atribuir categorias pedagógicas. A classificação e a exportação ainda não recebem a categoria pedagógica.
 
 Seguem pendentes a revisão pedagógica das regras programadas e das definições antigas, a categoria nos achados de Código e LLM, a estratégia de preservação histórica em reclassificações, as agregações e a exportação para pesquisa. A fatia foi preparada em ambiente isolado para revisão da coordenação e QA.
+
+## Publicação local em 25/11/2026
+
+O frontend `a387dcd` e a API `4cc1fb0` passaram a atender o catálogo no localhost. A migração aditiva da categoria pedagógica foi registrada no MySQL local. A conferência obteve as mesmas 24 sessões ativas, sete tentativas do cenário acompanhado e 15 definições antes e depois da troca. A configuração da API e o contêiner MySQL foram preservados.
+
+Os builds das duas imagens passaram. O Playwright confirmou no formulário servido em `http://localhost:5173/catalogo-erros/publicar` a exigência de categoria, o envio e a releitura de uma categoria GEALE e a edição para uma categoria não ortográfica. O formulário servido no localhost usou a API e o banco sintéticos para as gravações do teste. Os exemplos continuaram disponíveis até o limite de cinco. Evidências em `work/logs/per70-publicacao-localhost.log` e `work/logs/per70-publicacao-localhost-playwright.log`.
