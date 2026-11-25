@@ -204,6 +204,7 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
             Assert.Equal(("LLM", docente.Id), (achado.Origem, achado.ErroCatalogoId));
             Assert.Null(achado.TipoErro);
             Assert.Equal(new CategoriaPedagogicaDto("NAO_ORTOGRAFICO", "Concordância verbal", null), achado.CategoriaPedagogica);
+            Assert.Null(achado.ModeloLlm);
             Assert.All(final.Detalhes, d => Assert.Equal("Concluida", d.EstadoAnaliseLlm));
         }
         else
@@ -221,6 +222,27 @@ public sealed class Per69ControllerTests(Per69Factory factory, ITestOutputHelper
             historico.Resultado.Detalhes.SelectMany(d => d.Classificacoes).Select(c => (c.Origem, c.CategoriaPedagogica)));
         if (caso == "valido")
         {
+            Assert.NotNull(Assert.Single(historico.Resultado.Detalhes[1].Classificacoes).ModeloLlm);
+            var resumo = Assert.IsType<DitadoAtribuidoDetalheDto>(await GetAsync<DitadoAtribuidoDetalheDto>(
+                $"/api/Professores/turmas/{turma.Id}/ditados/{ditado.Id}/resultados"));
+            Assert.Equal(new[] { ("HIBRIDO_ACENTUACAO", 1), ("NAO_ORTOGRAFICO", 1) },
+                resumo.ErrosPorCategoria.Select(c => (c.CategoriaPedagogica!.Codigo, c.Quantidade)));
+
+            var exportacao = await GetAsyncRaw($"/api/exportacoes/respostas?escolas={escolaId}&cursor={inicial.RespostaDitadoId - 1}&limiteLinhas=1");
+            Assert.Equal(HttpStatusCode.OK, exportacao.StatusCode);
+            Assert.Equal("text/csv", exportacao.Content.Headers.ContentType?.MediaType);
+            var linhas = (await exportacao.Content.ReadAsStringAsync()).Split('\n', StringSplitOptions.RemoveEmptyEntries);
+            Assert.Equal("id,ditadoId,alunoId,escolaId,dataRealizacao,nota,classificacoes", linhas[0]);
+            var celula = Assert.Single(linhas.Skip(1)).Split(',', 7)[6];
+            using var achadosCsv = JsonDocument.Parse(celula[1..^1].Replace("\"\"", "\""));
+            var achados = achadosCsv.RootElement.EnumerateArray().ToArray();
+            Assert.Equal(new[] { "Codigo", "LLM" }, achados.Select(a => a.GetProperty("origem").GetString()));
+            Assert.Equal(new[] { "HIBRIDO_ACENTUACAO", "NAO_ORTOGRAFICO" },
+                achados.Select(a => a.GetProperty("categoriaPedagogicaCodigo").GetString()));
+            Assert.Equal(new[] { "Acentuação", "Concordância verbal" },
+                achados.Select(a => a.GetProperty("categoriaPedagogicaNome").GetString()));
+            Assert.Equal(new[] { "Híbrida", "" }, achados.Select(a => a.GetProperty("categoriaPedagogicaFamilia").GetString()));
+
             definicaoTradicional.CategoriaPedagogicaCodigo = null;
             await db.SaveChangesAsync();
         }

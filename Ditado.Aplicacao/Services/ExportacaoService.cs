@@ -1,5 +1,6 @@
 using System.Diagnostics;
 using System.Text;
+using System.Text.Json;
 using Ditado.Dominio.Enums;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
@@ -33,15 +34,42 @@ public sealed class ExportacaoService(DitadoDbContext context)
             if (bytes > opcoes.LimiteBytes) throw new InvalidOperationException("Exportação excedeu o limite de tamanho; reduza os filtros.");
             await destino.WriteAsync(dados, cancellationToken);
         }
-        await EscreverAsync("id,ditadoId,alunoId,escolaId,dataRealizacao,nota\n");
+        await EscreverAsync("id,ditadoId,alunoId,escolaId,dataRealizacao,nota,classificacoes\n");
         var query = context.RespostaDitados.AsNoTracking().Where(r => r.AplicacaoDitadoId.HasValue && r.AplicacaoDitado != null && escolaIds.Contains(r.AplicacaoDitado.EscolaId));
         if (opcoes.CursorId.HasValue) query = query.Where(r => r.Id > opcoes.CursorId.Value);
         try
         {
-            await foreach (var resposta in query.OrderBy(r => r.Id).Take(opcoes.LimiteLinhas).Select(r => new { r.Id, r.DitadoId, r.AlunoId, EscolaId = r.AplicacaoDitado!.EscolaId, r.DataRealizacao, r.Nota }).AsAsyncEnumerable().WithCancellation(cancellationToken))
+            var pagina = query.OrderBy(r => r.Id).Take(opcoes.LimiteLinhas).Select(r => new
+            {
+                r.Id, r.DitadoId, r.AlunoId, EscolaId = r.AplicacaoDitado!.EscolaId, r.DataRealizacao, r.Nota,
+                Lacunas = r.RespostasSegmentos.OrderBy(s => s.Id).Select(s => new
+                {
+                    s.Id,
+                    s.TipoErro,
+                    Codigo = s.TiposErro.OrderBy(t => t.TipoErro).Select(t => new AchadoCsv(
+                        s.Id, "Codigo", (int)t.TipoErro, t.ErroCatalogoId,
+                        t.CategoriaPedagogicaCodigo ?? "", t.CategoriaPedagogicaNome ?? "", t.CategoriaPedagogicaFamilia ?? "")).ToList(),
+                    Llm = s.AnaliseLlm!.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
+                        .OrderBy(c => c.Id).Select(c => new AchadoCsv(
+                            s.Id, "LLM", null, c.ErroCatalogoId,
+                            c.CategoriaPedagogicaCodigo ?? "", c.CategoriaPedagogicaNome ?? "", c.CategoriaPedagogicaFamilia ?? "")).ToList()
+                }).ToList()
+            }).AsSplitQuery();
+            await foreach (var resposta in pagina.AsAsyncEnumerable().WithCancellation(cancellationToken))
             {
                 if (cronometro.ElapsedMilliseconds > opcoes.TempoMaximoMs) throw new InvalidOperationException("Exportação excedeu o limite de tempo; reduza os filtros.");
-                await EscreverAsync($"{resposta.Id},{resposta.DitadoId},{resposta.AlunoId},{resposta.EscolaId},{resposta.DataRealizacao:O},{resposta.Nota}\n");
+                var achados = new List<AchadoCsv>();
+                foreach (var lacuna in resposta.Lacunas)
+                {
+                    achados.AddRange(lacuna.Codigo);
+                    if (lacuna.TipoErro is { } legado && legado != TipoErro.Nenhum &&
+                        lacuna.Codigo.All(c => c.TipoErro != (int)legado))
+                        achados.Add(new AchadoCsv(lacuna.Id, "Codigo", (int)legado, null, "", "", ""));
+                    achados.AddRange(lacuna.Llm);
+                }
+                var json = JsonSerializer.Serialize(achados, JsonSerializerOptions.Web).Replace("\"", "\"\"");
+                await EscreverAsync(FormattableString.Invariant(
+                    $"{resposta.Id},{resposta.DitadoId},{resposta.AlunoId},{resposta.EscolaId},{resposta.DataRealizacao:O},{resposta.Nota},\"{json}\"\n"));
                 linhas++;
                 cursor = resposta.Id;
             }
@@ -89,6 +117,9 @@ public sealed class ExportacaoService(DitadoDbContext context)
             if (vinculadas.Count != escolaIds.Distinct().Count()) throw new InvalidOperationException("Escopo contém escola sem vínculo ativo.");
         }
     }
+
+    private sealed record AchadoCsv(int LacunaId, string Origem, int? TipoErro, int? ErroCatalogoId,
+        string CategoriaPedagogicaCodigo, string CategoriaPedagogicaNome, string CategoriaPedagogicaFamilia);
 }
 
 public sealed class ExportacaoOpcoes

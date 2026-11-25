@@ -139,6 +139,13 @@ public class ProfessoresController : ControllerBase
     ///           "quantidade": 8
     ///         }
     ///       ],
+    ///       "errosPorCategoria": [
+    ///         {
+    ///           "categoriaPedagogica": { "codigo": "HIBRIDO_ACENTUACAO", "nome": "Acentuação", "familia": "Híbrida" },
+    ///           "quantidade": 12
+    ///         },
+    ///         { "categoriaPedagogica": null, "quantidade": 1 }
+    ///       ],
     ///       "errosPorPalavra": [
     ///         {
     ///           "palavra": "cachorro",

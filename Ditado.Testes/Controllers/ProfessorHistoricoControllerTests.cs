@@ -109,6 +109,9 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         Assert.Equal(2, Assert.Single(resumo.Alunos).NumeroTentativas);
         Assert.Equal(50m, resumo.NotaMedia);
         Assert.Equal(2, resumo.ErrosPorTipo.Count);
+        var categoriaAusente = Assert.Single(resumo.ErrosPorCategoria);
+        Assert.Null(categoriaAusente.CategoriaPedagogica);
+        Assert.Equal(2, categoriaAusente.Quantidade);
         var codigo = Assert.Single(resumo.ErrosPorTipo, e => e.Origem == "Codigo");
         var llm = Assert.Single(resumo.ErrosPorTipo, e => e.Origem == "LLM");
         Assert.Equal(((int)TipoErro.Acentuacao, regra.Id, 1), (codigo.TipoErroId, codigo.ErroCatalogoId!.Value, codigo.Quantidade));
@@ -137,6 +140,11 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         Assert.True(schemas.GetProperty("ErrosPorTipoDto").GetProperty("properties").TryGetProperty("origem", out _));
         Assert.True(schemas.GetProperty("DitadoAtribuidoDetalheDto").GetProperty("properties")
             .TryGetProperty("lacunasIncorretasAguardandoLlm", out _));
+        Assert.True(schemas.GetProperty("DitadoAtribuidoDetalheDto").GetProperty("properties")
+            .TryGetProperty("errosPorCategoria", out _));
+        var exportacaoSwagger = swagger.RootElement.GetProperty("paths").GetProperty("/api/exportacoes/respostas").GetProperty("get");
+        Assert.Contains("categoriaPedagogicaCodigo", exportacaoSwagger.GetProperty("description").GetString());
+        Assert.True(exportacaoSwagger.GetProperty("responses").GetProperty("200").GetProperty("content").TryGetProperty("text/csv", out _));
 
         db.TurmaDitados.Add(new() { TurmaId = outraTurma.Id, DitadoId = ditado.Id,
             DataAtribuicao = dataBase, DataLimite = dataBase.AddDays(10) });

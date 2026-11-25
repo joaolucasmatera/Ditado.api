@@ -3,6 +3,7 @@
 ## 25/11/2026 — Categoria pedagógica por achado
 
 - Registrados na especificação o contrato da PER-78, o mapeamento da PER-79 e a preservação da categoria gravada nos achados de Código e LLM. A versão foi validada com testes de API e uma migração em schema MySQL isolado. [Mapeamento, arquivos e validação](../relatorio-ciclo-per77-base-2026-11-25.md)
+- Registradas as telas de aluno e professor, a agregação pela melhor tentativa e a coluna de classificações no CSV operacional, conforme as PER-80 a PER-83. [Contrato e validação dos resultados e do CSV](../relatorio-ciclo-per77-base-2026-11-25.md#resultados-e-csv)
 
 ## 24/11/2026 — Categoria pedagógica dos erros
 

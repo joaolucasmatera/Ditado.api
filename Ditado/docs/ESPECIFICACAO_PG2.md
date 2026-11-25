@@ -155,7 +155,9 @@ Para um erro fora do escopo da taxonomia ortográfica, o professor informa o nom
 
 A publicação e a edição do catálogo apresentam as categorias e a interface de ditados retira sua associação manual. A PER-78 registra código, nome e família em cada novo achado de Código e congela os mesmos valores na fila LLM para expor nas correspondências validadas. A API devolve `categoriaPedagogica` separada do tipo e da origem. A releitura usa os valores gravados. Achados anteriores à migração continuam com a categoria nula, e a análise LLM conserva seus estados.
 
-A PER-79 aplica o mapeamento das regras programadas ao gravar novos achados. A categoria explícita da definição tem prioridade. Definições legadas sem correspondência segura podem continuar sem categoria. A apresentação em tela, as agregações e o CSV são etapas da PER-77. [Mapeamento e validação da base da PER-77](../../docs/relatorio-ciclo-per77-base-2026-11-25.md)
+A PER-79 aplica o mapeamento das regras programadas ao gravar novos achados. A categoria explícita da definição tem prioridade. Definições legadas sem correspondência segura podem continuar sem categoria. [Mapeamento e validação da PER-77](../../docs/relatorio-ciclo-per77-base-2026-11-25.md)
+
+No resultado do aluno e no histórico do professor, a interface identifica a categoria de cada achado. Um achado legado sem categoria aparece como “Categoria não registrada”. O resumo do professor agrega categorias a partir da melhor tentativa de cada aluno e reúne os achados sem categoria em um grupo próprio. O CSV operacional inclui a coluna `classificacoes` com achados por lacuna e campos de categoria vazios quando ausentes. A exportação pseudonimizada para pesquisa está especificada na PER-66.
 
 Referências iniciais: [estudo sobre erros gráficos nos anos iniciais (SciELO)](https://www.scielo.br/j/edur/a/Z3trLgDyBBZWB466FLHFXtz/?lang=pt), [estudo sobre transposições na escrita infantil](https://revistas.gel.org.br/estudos-linguisticos/article/view/3307) e [avaliação ortográfica de escolares do 2º ao 5º ano](https://www.scielo.br/j/jsbf/a/Y68KLnGKkVvCBmPvckWnwbj/?lang=pt).
 

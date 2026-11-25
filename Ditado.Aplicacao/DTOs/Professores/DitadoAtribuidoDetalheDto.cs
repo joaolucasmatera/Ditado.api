@@ -1,3 +1,5 @@
+using Ditado.Aplicacao.DTOs.Marketplace;
+
 namespace Ditado.Aplicacao.DTOs.Professores;
 
 public class DitadoAtribuidoDetalheDto
@@ -28,9 +30,12 @@ public class DitadoAtribuidoDetalheDto
     
     // Gráfico de Erros por Tipo
     public List<ErrosPorTipoDto> ErrosPorTipo { get; set; } = new();
+    public List<ErrosPorCategoriaDto> ErrosPorCategoria { get; set; } = new();
     public int LacunasIncorretasSemClassificacao { get; set; }
     public int LacunasIncorretasAguardandoLlm { get; set; }
     
     // Gráfico de Erros por Palavra (1ª tentativa)
     public List<ErrosPorPalavraDto> ErrosPorPalavra { get; set; } = new();
 }
+
+public record ErrosPorCategoriaDto(CategoriaPedagogicaDto? CategoriaPedagogica, int Quantidade);

@@ -266,8 +266,14 @@ public class ProfessorService
             });
         }
 
-        // Calcular erros por tipo usando o resultado principal de cada aluno.
-        var todosErros = AgruparErros(classificacoes.SelectMany(r => r.Erros));
+        var achados = classificacoes.SelectMany(r => r.Erros);
+        var todosErros = AgruparErros(achados);
+        var errosPorCategoria = achados.GroupBy(e => e.CategoriaPedagogica)
+            .Select(g => new ErrosPorCategoriaDto(g.Key, g.Count()))
+            .OrderBy(g => g.CategoriaPedagogica is null)
+            .ThenByDescending(g => g.Quantidade)
+            .ThenBy(g => g.CategoriaPedagogica?.Nome)
+            .ToList();
 
         // Calcular erros por palavra usando o resultado principal de cada aluno.
         var lacunas = atribuicao.Ditado.Segmentos
@@ -321,6 +327,7 @@ public class ProfessorService
             NotaMedia = notaMedia,
             Alunos = alunosResultado.OrderBy(a => a.Nome).ToList(),
             ErrosPorTipo = todosErros,
+            ErrosPorCategoria = errosPorCategoria,
             LacunasIncorretasSemClassificacao = semClassificacao.Length,
             LacunasIncorretasAguardandoLlm = semClassificacao.Count(r =>
                 r.Segmento.AnaliseLlm?.Estado is LlmAnaliseEstado.Pendente or LlmAnaliseEstado.Processando),

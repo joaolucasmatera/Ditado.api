@@ -32,4 +32,17 @@ Fontes do mapeamento na [taxonomia da PER-70](../Ditado/docs/ESPECIFICACAO_PG2.m
 - A suíte completa registrou 350 aprovados, um ignorado e as mesmas 17 falhas do commit-base, comparadas pelo nome no TRX.
 - No MySQL 8, a migração foi aplicada ao schema isolado `ditado_per77_validacao_20261125` com um achado legado de Código e um de LLM. As seis colunas opcionais ficaram nulas nos dois achados e as duas categorias correntes do catálogo foram preservadas.
 
-Telas do aluno e do professor, agregação por categoria e CSV seguem nas PER-80 a PER-83. A validação independente de QA e a publicação continuam pendentes.
+## Resultados e CSV
+
+As PER-80 a PER-83 usam o mesmo contrato de categoria histórica nas branches `codex/per-77` do backend e do frontend. A branch frontend parte de `a387dcd`.
+
+- PER-80. O endpoint `GET /api/exportacoes/respostas?escolas={ids}` acrescenta a coluna `classificacoes` ao CSV operacional. A coluna contém um array JSON com `lacunaId`, `origem`, `tipoErro`, `erroCatalogoId`, `categoriaPedagogicaCodigo`, `categoriaPedagogicaNome` e `categoriaPedagogicaFamilia` por achado. Valores de categoria ausentes são strings vazias. O CSV mantém a escola autorizada, a auditoria, as seis colunas existentes, uma linha por tentativa e o cursor por ID. Os dois CSVs pseudonimizados de pesquisa, a revisão humana e a liberação de dados ficam na PER-66.
+- PER-81. `ProfessorService.cs` preenche `errosPorCategoria` no DTO do resumo e `ResultadoDitado.vue` exibe a contagem da melhor tentativa de cada aluno. O grupo `Categoria não registrada` reúne achados sem categoria. As lacunas apenas pendentes ou inconclusivas continuam representadas pelo estado da análise.
+- PER-82 e PER-83. `ResultadoAluno.vue` e `ResultadoDitado.vue` mostram a categoria ao lado do erro e da origem, inclusive a partir do botão **Resultados**. O modelo efetivo do achado de IA fica disponível apenas no histórico do professor. Os resultados legados distinguem achado sem categoria de lacuna com análise pendente ou em revisão.
+
+### Verificação da entrega
+
+- Build oficial da API e `npm run build` do frontend aprovados. Testes focados de categoria, COR-01, análise híbrida, histórico e exportação passaram em 38 casos. A suíte completa teve as mesmas 17 falhas do commit-base, 350 aprovações e um teste ignorado.
+- Playwright validou `resultados-cartao-aluno.e2e.js` e `historico-professor.e2e.js` com o frontend compilado. No cenário com MySQL isolado e IA simulada, duas tentativas exibiram Acentuação por Código e Concordância verbal por IA. O melhor resultado alimentou os grupos do professor. O CSV incluiu as duas categorias e outra escola teve a exportação recusada. Fixtures de tela cobriram categoria ausente, análise pendente e revisão.
+
+A publicação e a validação independente de QA seguem pendentes.

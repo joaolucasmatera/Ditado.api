@@ -10,7 +10,32 @@ namespace Ditado.API.Controllers;
 [Authorize(Roles = "Administrador,Professor")]
 public sealed class ExportacoesController(ExportacaoService exportacao) : ControllerBase
 {
+    /// <summary>Exporta o CSV operacional de tentativas das escolas autorizadas.</summary>
+    /// <remarks>
+    /// Exige perfil de Administrador ou Professor e o escopo escolar é validado e auditado.
+    /// A última coluna, classificacoes, é um array JSON com cada achado identificado por lacunaId,
+    /// origem, tipoErro e erroCatalogoId. A categoria gravada aparece nos campos
+    /// categoriaPedagogicaCodigo, categoriaPedagogicaNome e categoriaPedagogicaFamilia.
+    /// Os campos de categoria ausentes são strings vazias e tentativas sem achados têm um array vazio.
+    /// Use o cabeçalho X-Proximo-Cursor para avançar a partir do ID da última tentativa.
+    /// </remarks>
+    /// <param name="escolas">IDs das escolas separados por vírgula, como 1,2.</param>
+    /// <param name="cursor">ID da última tentativa exportada na página anterior.</param>
+    /// <param name="limiteLinhas">Máximo de tentativas por página, entre 1 e 10000.</param>
+    /// <param name="limiteBytes">Limite de bytes da página, entre 1024 e 20000000.</param>
+    /// <param name="tempoMaximoMs">Limite de tempo em milissegundos, entre 100 e 30000.</param>
+    /// <param name="cancellationToken">Cancelamento da requisição.</param>
+    /// <response code="200">CSV de tentativas com achados de Código e LLM.</response>
+    /// <response code="400">Filtros inválidos, escopo escolar negado ou limites de exportação excedidos.</response>
+    /// <response code="401">Autenticação necessária.</response>
+    /// <response code="403">Perfil sem acesso à exportação operacional.</response>
+    /// <response code="499">O cliente cancelou a transferência.</response>
     [HttpGet("respostas")]
+    [ProducesResponseType(typeof(FileResult), StatusCodes.Status200OK, "text/csv")]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status499ClientClosedRequest)]
     public async Task<IActionResult> ExportarRespostas([FromQuery] string escolas, [FromQuery] int? cursor, [FromQuery] int limiteLinhas = 1000, [FromQuery] int limiteBytes = 5_000_000, [FromQuery] int tempoMaximoMs = 3000, CancellationToken cancellationToken = default)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var atorId)) return Unauthorized();
