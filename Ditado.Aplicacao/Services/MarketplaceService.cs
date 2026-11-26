@@ -149,7 +149,7 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
         erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString())
     {
         TemRegraExecutavel = erro.RegraClassificacao.HasValue,
-        CategoriaPedagogica = CategoriasPedagogicas.Obter(erro.CategoriaPedagogicaCodigo, erro.CategoriaPedagogicaNome),
+        CategoriaPedagogica = CategoriasPedagogicas.DaDefinicao(erro),
         Exemplos = ExemploErroDto.Ler(erro.ExemploEsperado, erro.ExemploResposta, erro.ExemplosAdicionaisJson)
     };
 }

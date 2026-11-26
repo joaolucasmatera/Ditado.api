@@ -345,6 +345,17 @@ public class MarketplaceControllerTests : TesteIntegracaoBase
     }
 
     [Fact]
+    public async Task CategoriaPedagogica_ConsultaMesmaCategoriaUsadaNaCorrecaoTradicional()
+    {
+        AdicionarTokenAutorizacao(await ObterTokenAdminAsync());
+        var regras = await GarantirRegrasPublicasAsync(TipoErro.Acentuacao, TipoErro.Nasalizacao);
+        var acentuacao = Assert.IsType<ErroPublicadoResponse>(await GetAsync<ErroPublicadoResponse>($"/api/ErrosCatalogo/{regras[0]}"));
+        Assert.Equal(new CategoriaPedagogicaDto("HIBRIDO_ACENTUACAO", "Acentuação", "Híbrida"), acentuacao.CategoriaPedagogica);
+        var nasalizacao = Assert.IsType<ErroPublicadoResponse>(await GetAsync<ErroPublicadoResponse>($"/api/ErrosCatalogo/{regras[1]}"));
+        Assert.Null(nasalizacao.CategoriaPedagogica);
+    }
+
+    [Fact]
     public async Task CategoriaPedagogica_PreservaRegistroLegadoSemInferirPeloNome()
     {
         var autorId = await AutenticarAsync(TipoUsuario.Professor);

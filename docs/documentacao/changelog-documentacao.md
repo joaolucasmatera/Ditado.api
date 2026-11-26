@@ -2,6 +2,7 @@
 
 ## 25/11/2026 — Categoria pedagógica por achado
 
+- Corrigida a leitura de achados de Código com categoria gravada e sem vínculo de catálogo. O catálogo passa a usar o mesmo mapeamento de categoria das regras programadas. A tela do professor chama a lista de classificações específicas de **Erros identificados**. [Correção, validação e roteiro de QA](../relatorio-ciclo-per77-base-2026-11-25.md#correção-da-exibição-de-categorias)
 - Registrados na especificação o contrato da PER-78, o mapeamento da PER-79 e a preservação da categoria gravada nos achados de Código e LLM. A versão foi validada com testes de API e uma migração em schema MySQL isolado. [Mapeamento, arquivos e validação](../relatorio-ciclo-per77-base-2026-11-25.md)
 - Registradas as telas de aluno e professor, a agregação pela melhor tentativa e a coluna de classificações no CSV operacional, conforme as PER-80 a PER-83. [Contrato e validação dos resultados e do CSV](../relatorio-ciclo-per77-base-2026-11-25.md#resultados-e-csv)
 

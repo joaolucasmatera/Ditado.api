@@ -1,5 +1,7 @@
 using System.Net;
 using System.Text.Json;
+using Ditado.Aplicacao.DTOs;
+using Ditado.Aplicacao.DTOs.Marketplace;
 using Ditado.Aplicacao.DTOs.Professores;
 using Ditado.Dominio.Entidades;
 using Ditado.Dominio.Enums;
@@ -79,6 +81,8 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         recente.RespostasSegmentos.Add(new()
         {
             SegmentoId = terceiroSegmento.Id, RespostaFornecida = "chegou",
+            TiposErro = [new() { TipoErro = TipoErro.ConcordanciaFlexao,
+                CategoriaPedagogicaCodigo = "NAO_ORTOGRAFICO", CategoriaPedagogicaNome = "Concordância verbal" }],
             AnaliseLlm = new() { Estado = LlmAnaliseEstado.Concluida,
                 Candidatos = [new() { ErroCatalogoId = analise.Id, Estado = LlmCandidatoEstado.NaoCorrespondente }] }
         });
@@ -98,6 +102,10 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         Assert.All(detalhe.Classificacoes, c => Assert.Null(c.CategoriaPedagogica));
         Assert.Null(Assert.Single(detalhe.Classificacoes, c => c.Origem == "Codigo").ModeloLlm);
         Assert.Equal("modelo-efetivo-do-teste", Assert.Single(detalhe.Classificacoes, c => c.Origem == "LLM").ModeloLlm);
+        var categoriaGravada = new CategoriaPedagogicaDto("NAO_ORTOGRAFICO", "Concordância verbal", null);
+        var achadoSemVinculo = Assert.Single(historico[0].Resultado.Detalhes[2].Classificacoes);
+        Assert.Equal(("Codigo", (int?)TipoErro.ConcordanciaFlexao, categoriaGravada),
+            (achadoSemVinculo.Origem, achadoSemVinculo.TipoErro, achadoSemVinculo.CategoriaPedagogica));
         var legado = Assert.Single(historico[1].Resultado.Detalhes);
         Assert.Equal("café", legado.RespostaEsperada);
         Assert.Single(legado.TiposErro);
@@ -108,22 +116,25 @@ public sealed class ProfessorHistoricoControllerTests : TesteIntegracaoBase
         Assert.Equal(50m, Assert.Single(resumo.Alunos).Nota);
         Assert.Equal(2, Assert.Single(resumo.Alunos).NumeroTentativas);
         Assert.Equal(50m, resumo.NotaMedia);
-        Assert.Equal(2, resumo.ErrosPorTipo.Count);
-        var categoriaAusente = Assert.Single(resumo.ErrosPorCategoria);
-        Assert.Null(categoriaAusente.CategoriaPedagogica);
+        Assert.Equal(3, resumo.ErrosPorTipo.Count);
+        var categoriaAusente = Assert.Single(resumo.ErrosPorCategoria, g => g.CategoriaPedagogica == null);
         Assert.Equal(2, categoriaAusente.Quantidade);
-        var codigo = Assert.Single(resumo.ErrosPorTipo, e => e.Origem == "Codigo");
+        Assert.Equal(1, Assert.Single(resumo.ErrosPorCategoria, g => g.CategoriaPedagogica == categoriaGravada).Quantidade);
+        var codigo = Assert.Single(resumo.ErrosPorTipo, e => e.Origem == "Codigo" && e.ErroCatalogoId == regra.Id);
         var llm = Assert.Single(resumo.ErrosPorTipo, e => e.Origem == "LLM");
         Assert.Equal(((int)TipoErro.Acentuacao, regra.Id, 1), (codigo.TipoErroId, codigo.ErroCatalogoId!.Value, codigo.Quantidade));
         Assert.Equal((0, analise.Id, 1), (llm.TipoErroId, llm.ErroCatalogoId!.Value, llm.Quantidade));
         Assert.All(resumo.ErrosPorPalavra, palavra => Assert.Equal(1, palavra.QuantidadeErros));
-        Assert.Equal(2, resumo.LacunasIncorretasSemClassificacao);
+        Assert.Equal(1, resumo.LacunasIncorretasSemClassificacao);
         Assert.Equal(1, resumo.LacunasIncorretasAguardandoLlm);
 
         AdicionarTokenAutorizacao(professorExterno.Token);
         Assert.Equal(HttpStatusCode.NotFound, (await GetAsyncRaw(url)).StatusCode);
         AdicionarTokenAutorizacao(aluno.Token);
         Assert.Equal(HttpStatusCode.Forbidden, (await GetAsyncRaw(url)).StatusCode);
+        var resultadoAluno = Assert.IsType<ResultadoDitadoResponse>(await GetAsync<ResultadoDitadoResponse>(
+            $"/api/Alunos/tentativas/{recente.Id}/resultado"));
+        Assert.Equal(categoriaGravada, Assert.Single(resultadoAluno.Detalhes[2].Classificacoes).CategoriaPedagogica);
         RemoverTokenAutorizacao();
         Assert.Equal(HttpStatusCode.Unauthorized, (await GetAsyncRaw(url)).StatusCode);
         using var swagger = JsonDocument.Parse(await Client.GetStringAsync("/swagger/v1/swagger.json"));

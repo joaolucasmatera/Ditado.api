@@ -46,3 +46,13 @@ As PER-80 a PER-83 usam o mesmo contrato de categoria histórica nas branches `c
 - Playwright validou `resultados-cartao-aluno.e2e.js` e `historico-professor.e2e.js` com o frontend compilado. No cenário com MySQL isolado e IA simulada, duas tentativas exibiram Acentuação por Código e Concordância verbal por IA. O melhor resultado alimentou os grupos do professor. O CSV incluiu as duas categorias e outra escola teve a exportação recusada. Fixtures de tela cobriram categoria ausente, análise pendente e revisão.
 
 A publicação e a validação independente de QA seguem pendentes.
+
+## Correção da exibição de categorias
+
+Em 25/11/2026, a revisão encontrou que `ResultadoTentativa.cs` descartava achados de Código sem vínculo com o catálogo antes de ler a categoria gravada. O resumo do professor recebia apenas o tipo de erro e o agrupava como categoria ausente. Agora a leitura mantém a categoria do achado no resumo, no histórico e no resultado do aluno. Achados antigos sem categoria gravada mantêm a indicação **Categoria não registrada**, inclusive se a definição atual já tiver uma categoria.
+
+`MarketplaceService.cs` usa a mesma resolução que a correção para apresentar categorias das regras programadas com mapeamento da PER-79. Nasalização e outras regras sem mapeamento padrão dependem de categoria explícita da definição. `ResultadoDitado.vue` chama a lista de classificações específicas de **Erros identificados**. O agrupamento pedagógico mantém o título **Erros por categoria**. A API mantém as chaves JSON e a categoria continua associada ao erro do catálogo e ao achado gravado.
+
+O build da API e o build Vite passaram. Os 94 testes focados exercitaram catálogo, correção híbrida, resultado e histórico via API com EF InMemory. O Playwright validou o frontend compilado com dados sintéticos em `categorias-resultados.e2e.js` e `resultados-cartao-aluno.e2e.js`, incluindo o cadastro e a edição de ditado sem categoria. Esta rodada usou preview isolado porque o Docker local estava indisponível. A publicação no serviço compartilhado segue pendente.
+
+Para o QA, com os dois builds de correção em um ambiente de validação, abra o resumo de uma turma com uma tentativa recente que tenha achados de Código e IA categorizados e uma tentativa legada sem categoria. Confira o agrupamento da melhor tentativa, abra o histórico e consulte o resultado do mesmo aluno pelo botão **Resultados**. Confira que a categoria gravada aparece em ambos, que o valor ausente permanece explícito e que o cadastro e a edição de ditado apresentam o seletor de erros.
