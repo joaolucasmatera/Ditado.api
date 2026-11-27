@@ -10,7 +10,7 @@ services:
       Llm__Enabled: "true"
       Llm__RouterUrl: http://router:4000/v1
       Llm__TimeoutSeconds: "60"
-      Llm__MaxOutputTokens: "6144"
+      Llm__MaxOutputTokens: ${LLM_MAX_OUTPUT_TOKENS:-0}
       DITADO_LLM_ROUTER_KEY: ${PER69_ROUTER_KEY:?}
     ports:
       - "127.0.0.1:5069:8080"

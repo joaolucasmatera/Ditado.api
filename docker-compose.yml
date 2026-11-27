@@ -15,7 +15,7 @@ services:
       Llm__Enabled: ${LLM_ENABLED:-false}
       Llm__TimeoutSeconds: ${LLM_TIMEOUT_SECONDS:-15}
       Llm__MaxInputCharacters: ${LLM_MAX_INPUT_CHARACTERS:-8000}
-      Llm__MaxOutputTokens: ${LLM_MAX_OUTPUT_TOKENS:-768}
+      Llm__MaxOutputTokens: ${LLM_MAX_OUTPUT_TOKENS:-0}
       Llm__RouterUrl: ${LLM_ROUTER_URL:-}
       Llm__RouterLogBodies: ${LLM_ROUTER_LOG_BODIES:-false}
       DITADO_LLM_ROUTER_KEY: ${DITADO_LLM_ROUTER_KEY:-}

@@ -56,9 +56,10 @@ public sealed class LlmProviderClient(
             },
             ["response_format"] = isRouter ? new { type = "json_object" } : isCohere
                 ? new { type = "json_object", schema = BuildSchema() }
-                : new { type = "json_schema", json_schema = new { name = "classificacao_ditado", strict = true, schema = BuildSchema() } },
-            [isGroq ? "max_completion_tokens" : "max_tokens"] = options.Value.MaxOutputTokens
+                : new { type = "json_schema", json_schema = new { name = "classificacao_ditado", strict = true, schema = BuildSchema() } }
         };
+        if (!isRouter || options.Value.MaxOutputTokens > 0)
+            payload[isGroq ? "max_completion_tokens" : "max_tokens"] = options.Value.MaxOutputTokens;
         if (isOpenRouter)
             payload["provider"] = new { require_parameters = true, allow_fallbacks = false };
 

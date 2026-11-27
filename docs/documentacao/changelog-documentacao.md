@@ -1,5 +1,9 @@
 # Changelog da documentação
 
+## 26/11/2026 — Limite de saída da API no Router
+
+- Registrado que `Llm__MaxOutputTokens=0` omite o limite de geração imposto pela API ao Free-LLM Router. O Router e o modelo mantêm seus limites. A leitura limitada e o tratamento de truncamento foram validados por testes focados. [Configuração e validação](../epicos/per69-piloto-free-llm-router.md#limite-de-saída-no-router)
+
 ## 25/11/2026 — Categoria pedagógica por achado
 
 - Corrigida a leitura de achados de Código com categoria gravada e sem vínculo de catálogo. O catálogo passa a usar o mesmo mapeamento de categoria das regras programadas. A tela do professor chama a lista de classificações específicas de **Erros identificados**. [Correção, validação e roteiro de QA](../relatorio-ciclo-per77-base-2026-11-25.md#correção-da-exibição-de-categorias)

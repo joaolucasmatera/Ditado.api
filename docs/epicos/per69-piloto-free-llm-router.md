@@ -14,6 +14,14 @@ Piloto opt-in em `codex/per-69-free-llm-router`, com dados sintéticos e revisã
 
 Para executar a API no mesmo host que o Router configurado, injete `Llm__Enabled=true`, `Llm__RouterUrl=http://127.0.0.1:4270/v1` e `DITADO_LLM_ROUTER_KEY` a partir da configuração local. Em Docker, use o endereço acessível a partir do contêiner da API. Em uma rede Compose compartilhada, use o nome do serviço Router. O Compose principal lê `LLM_ENABLED`, `LLM_ROUTER_URL` e `DITADO_LLM_ROUTER_KEY` e mapeia para as opções da API.
 
+### Limite de saída no Router
+
+`Llm__MaxOutputTokens=0` omite `max_tokens` e `max_completion_tokens` no payload da API para o Free-LLM Router. O Router e o modelo continuam aplicando seus próprios limites. A configuração de desenvolvimento e os dois arquivos Compose usam `0` por padrão. Para impor um limite, configure de 16 a 8192 tokens. Em Docker, defina `LLM_MAX_OUTPUT_TOKENS`.
+
+A leitura da resposta da API continua limitada a 100.000 bytes. Corpos maiores são tratados como saída inválida. Os indicadores de término `length` e `MAX_TOKENS` continuam produzindo o motivo `SaidaTruncada`.
+
+Na validação de 26/11/2026, o build oficial e os 62 testes focados passaram. Os testes de `LlmProviderClient.cs` e `LlmOptions.cs` exercitaram a fila com zero, o formato do payload, um limite positivo, o truncamento e a leitura limitada. O fluxo HTTP da PER-69 usou um Router simulado. A resolução dos dois arquivos Compose confirmou os valores `0` e `4096` sem iniciar serviços. A instância compartilhada permanece com a configuração anterior até a publicação.
+
 ## Histórico do piloto v4
 
 - Com `Llm__RouterUrl` configurado, o worker envia um POST compatível com OpenAI por processamento de tentativa, com `model=auto`, payload `per18-v4-contextual` e `response_format=json_schema`. Rotações e repetições de compatibilidade acontecem no Router. A API não aciona a cadeia direta diante de falha no Router.

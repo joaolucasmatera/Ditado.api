@@ -64,6 +64,42 @@ public sealed class LlmProviderClientTests
     }
 
     [Theory]
+    [InlineData(0, "stop", false, null)]
+    [InlineData(768, "stop", false, null)]
+    [InlineData(0, "length", false, LlmMotivo.SaidaTruncada)]
+    [InlineData(0, "MAX_TOKENS", false, LlmMotivo.SaidaTruncada)]
+    [InlineData(0, "stop", true, LlmMotivo.SaidaInvalida)]
+    public async Task RouterTrataZeroComoAusenciaDeLimiteNoPayload(int tokens, string fim,
+        bool excedeBuffer, LlmMotivo? motivo)
+    {
+        var options = new LlmOptions { Enabled = true, RouterUrl = "http://localhost:4000/v1", MaxOutputTokens = tokens };
+        Assert.True(options.PodeEnfileirar);
+        var resultado = await ExecutarAsync(LlmOptions.RouterProvider, async (req, ct) =>
+        {
+            using var payload = JsonDocument.Parse(await req.Content!.ReadAsStringAsync(ct));
+            Assert.False(payload.RootElement.TryGetProperty("max_completion_tokens", out _));
+            Assert.Equal(tokens > 0, payload.RootElement.TryGetProperty("max_tokens", out var limite));
+            if (tokens > 0)
+                Assert.Equal(tokens, limite.GetInt32());
+
+            const string saida = """{"segmentos":[{"segmentoId":101,"candidatosCorrespondentes":[]},{"segmentoId":103,"candidatosCorrespondentes":[]}]}""";
+            var corpo = JsonSerializer.Serialize(new
+            {
+                model = "fixture/modelo",
+                choices = new[] { new { finish_reason = fim, message = new { content = saida } } }
+            });
+            var response = Resposta(200, excedeBuffer ? corpo + new string(' ', 100_001) : corpo);
+            response.Headers.Add("x-free-llm-provider", "fixture");
+            response.Headers.Add("x-free-llm-model", "modelo");
+            return response;
+        }, options);
+
+        Assert.Equal(motivo is null ? LlmProviderOutcome.Sucesso : LlmProviderOutcome.SaidaInvalida, resultado.Outcome);
+        if (motivo is not null)
+            Assert.Equal(motivo, resultado.Motivo);
+    }
+
+    [Theory]
     [InlineData(false, false, 200)]
     [InlineData(true, false, 200)]
     [InlineData(true, true, 200)]

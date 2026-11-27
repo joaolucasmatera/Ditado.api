@@ -284,7 +284,7 @@ public sealed class Per69Factory : CustomWebApplicationFactory
                 o.Enabled = true;
                 o.RouterUrl = "http://127.0.0.1:4270/v1";
                 o.TimeoutSeconds = 60;
-                o.MaxOutputTokens = 4096;
+                o.MaxOutputTokens = 0;
             });
             var worker = services.Single(s => s.ServiceType == typeof(IHostedService) &&
                 s.ImplementationType == typeof(LlmAnalysisWorker));

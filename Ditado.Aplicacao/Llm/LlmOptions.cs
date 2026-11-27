@@ -27,14 +27,14 @@ public sealed class LlmOptions
 
     private bool LimitesValidos =>
         TimeoutSeconds is >= 1 and <= 60 && MaxInputCharacters is >= 128 and <= 64000 &&
-        MaxOutputTokens is >= 16 and <= 8192;
+        MaxOutputTokens is 0 or (>= 16 and <= 8192);
 
     public bool RouterConfigurado => LimitesValidos &&
         Uri.TryCreate(RouterUrl, UriKind.Absolute, out var uri) &&
         uri.Scheme is "http" or "https" && uri.UserInfo.Length == 0 &&
         uri.Fragment.Length == 0 && uri.Query.Length == 0;
 
-    public bool CadeiaCompleta => LimitesValidos &&
+    public bool CadeiaCompleta => LimitesValidos && MaxOutputTokens > 0 &&
         Chain.Count == Endpoints.Count &&
         Chain.Select(p => p.Provider).Distinct(StringComparer.OrdinalIgnoreCase).Count() == Endpoints.Count &&
         Chain.All(p => Endpoints.ContainsKey(p.Provider) && p.Model.Length is > 0 and <= 200 &&
