@@ -3,10 +3,9 @@
 
 name: Build and deploy ASP.Net Core app to Azure Web App - api-ditado
 
+# Publicação automática desativada até a pipeline ser corrigida.
+# A execução manual permanece disponível para diagnóstico controlado.
 on:
-  push:
-    branches:
-      - master
   workflow_dispatch:
 
 jobs:
