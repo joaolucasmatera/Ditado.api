@@ -1,5 +1,9 @@
 # Changelog da documentação
 
+## 27/11/2026 — Controles de áudio do ditado
+
+- Registrada na branch de entrega a melhoria do player da tela de realização. O botão alterna entre tocar e pausar, e o seletor oferece três velocidades. O build e o teste em navegador com áudio sintético e teclado foram aprovados. [Relatório de ciclo](../relatorio-ciclo-player-audio-2026-11-27.md)
+
 ## 25/11/2026 — Categoria pedagógica por achado
 
 - Corrigida a leitura de achados de Código com categoria gravada e sem vínculo de catálogo. O catálogo passa a usar o mesmo mapeamento de categoria das regras programadas. A tela do professor chama a lista de classificações específicas de **Erros identificados**. [Correção, validação e roteiro de QA](../relatorio-ciclo-per77-base-2026-11-25.md#correção-da-exibição-de-categorias)
