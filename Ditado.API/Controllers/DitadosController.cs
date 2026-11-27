@@ -1,7 +1,8 @@
-﻿using Ditado.Aplicacao.DTOs;
+using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.Services;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.EntityFrameworkCore;
 
 namespace Ditado.API.Controllers;
 
@@ -77,24 +78,33 @@ public class DitadosController : ControllerBase
 	/// - Mantenha pontuação e espaços fora dos colchetes
 	/// - O áudio deve ser o ditado completo (não apenas as palavras isoladas)
 	/// - Formatos de áudio recomendado: Opus
+	/// - Envie `erroCatalogoIds` com pelo menos um ID de erro ativo acessível no contexto escolar.
 	/// </remarks>
 	/// <param name="request">Dados do ditado a ser criado</param>
 	/// <returns>Ditado criado</returns>
 	/// <response code="201">Ditado criado com sucesso</response>
-	/// <response code="400">Dados inválidos (texto vazio, áudio inválido, etc.)</response>
+	/// <response code="400">Dados inválidos, seleção vazia ou erro indisponível para o contexto escolar.</response>
 	/// <response code="401">Não autenticado</response>
 	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
+	/// <response code="409">A seleção foi registrada em outra operação simultânea. Tente salvar novamente.</response>
 	[HttpPost]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(DitadoResponse), StatusCodes.Status201Created)]
 	[ProducesResponseType(StatusCodes.Status400BadRequest)]
 	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 	[ProducesResponseType(StatusCodes.Status403Forbidden)]
+	[ProducesResponseType(StatusCodes.Status409Conflict)]
 	public async Task<ActionResult<DitadoResponse>> CriarDitado([FromBody] CriarDitadoRequest request)
 	{
 		var usuarioId = int.Parse(User.FindFirst(System.Security.Claims.ClaimTypes.NameIdentifier)?.Value ?? "0");
-		var resultado = await _ditadoService.CriarDitadoAsync(request, usuarioId);
-		return CreatedAtAction(nameof(ObterDitadoParaRealizar), new { id = resultado.Id }, resultado);
+		try
+		{
+			var resultado = await _ditadoService.CriarDitadoAsync(request, usuarioId);
+			return CreatedAtAction(nameof(ObterDitadoParaRealizar), new { id = resultado.Id }, resultado);
+		}
+		catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
+		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+		catch (DbUpdateConcurrencyException) { return Conflict(new { mensagem = "A seleção mudou durante a gravação. Tente novamente." }); }
 	}
 
 	/// <summary>
@@ -200,7 +210,7 @@ public class DitadosController : ControllerBase
 	/// Disponível somente para professores e administradores. O conteúdo esperado das lacunas
 	/// não é retornado ao aluno; para realização, use o endpoint /realizar, que as mantém ocultas.
 	/// Professores e administradores podem visualizar qualquer ditado ativo, conforme a política
-	/// atual de listagem e realização.
+	/// atual de publicação. Quem pode administrar recebe também os erros selecionados e o indicador de respostas.
 	/// </remarks>
 	/// <param name="id">ID do ditado</param>
 	/// <returns>Metadados, áudio e segmentos completos do ditado</returns>
@@ -229,7 +239,10 @@ public class DitadosController : ControllerBase
 	/// Submete as respostas de um ditado
 	/// </summary>
 	/// <remarks>
-	/// Após o aluno preencher todas as lacunas, este endpoint:
+	/// A submissão registra todas as lacunas apresentadas, inclusive as omitidas.
+	/// A nota e os achados por código retornam imediatamente. Quando habilitada, a análise LLM
+	/// fica pendente e seu resultado pode ser consultado em GET /api/Alunos/tentativas/{tentativaId}/resultado.
+	/// Etapas da correção:
 	/// 1. Recebe as respostas do aluno (apenas para os segmentos tipo "Lacuna")
 	/// 2. Compara com as respostas esperadas (palavras que estavam entre colchetes)
 	/// 3. Classifica os erros
@@ -276,7 +289,8 @@ public class DitadosController : ControllerBase
 	///              "respostaFornecida": "cachoro",
 	///              "respostaEsperada": "cachorro",
 	///              "correto": false,
-	///              "tipoErro": "Ortografico"
+	///              "tiposErro": ["Regra contextual"],
+	///              "classificacoes": [{"erroCatalogoId": 41, "codigo": "COR01_REGRA_CONTEXTUAL", "nome": "Regra contextual", "tipoErro": 20}]
 	///           },
 	///           {
 	///              "segmentoId": 4,
@@ -284,7 +298,8 @@ public class DitadosController : ControllerBase
 	///              "respostaFornecida": "gata",
 	///              "respostaEsperada": "gata",
 	///              "correto": true,
-	///              "tipoErro": null
+	///              "tiposErro": [],
+	///              "classificacoes": []
 	///           }
 	///        ]
 	///     }
@@ -293,7 +308,12 @@ public class DitadosController : ControllerBase
 	/// - Apenas segmentos tipo "Lacuna" precisam ser enviados
 	/// - Segmentos tipo "TextoFixo" serão ignorados
 	/// - A ordem das respostas não importa (usa `segmentoId` para mapear)
-	/// - Se uma lacuna não for enviada, conta como "Omissão"
+	/// - A classificação por código usa os vínculos programados da seleção. A nota continua objetiva.
+	/// - Cada classificação inclui categoriaPedagogica (codigo, nome e familia), ou nula quando ausente.
+	/// - Durante a análise LLM pendente, a resposta já inclui os achados produzidos pelo Código.
+	/// - Em novas tentativas de ditados legados sem seleção, uma resposta incorreta fica não classificada e revisável.
+	/// - Resultados legados mantêm `tiposErro`. Classificações de catálogo incluem ID, código e nome.
+	/// - Ditado com seleção exige participação vigente ou permissão administrativa sobre o ditado.
 	/// </remarks>
 	/// <param name="id">ID do ditado</param>
 	/// <param name="request">Respostas do aluno (apenas para lacunas)</param>
@@ -302,7 +322,7 @@ public class DitadosController : ControllerBase
 	/// <response code="400">Dados inválidos (segmento não existe, etc.)</response>
 	/// <response code="401">Não autenticado</response>
 	/// <response code="403">Aluno tentando submeter ditado não atribuído à sua turma</response>
-	/// <response code="404">Ditado não encontrado</response>
+	/// <response code="404">Ditado inexistente ou participação indisponível para a submissão.</response>
 	[HttpPost("{id}/submeter")]
 	[Authorize(Roles = "Administrador,Professor,Aluno")]
 	[ProducesResponseType(typeof(ResultadoDitadoResponse), StatusCodes.Status200OK)]
@@ -325,7 +345,8 @@ public class DitadosController : ControllerBase
 	/// Atualiza um ditado
 	/// </summary>
 	/// <remarks>
-	/// Permite atualizar informações do ditado, incluindo suas categorias.
+	/// Permite atualizar informações e categorias. Omitir `erroCatalogoIds` preserva a seleção.
+	/// Uma seleção informada exige ao menos um ID válido e pode ser alterada antes da primeira resposta.
 	/// Apenas Administradores e Professores podem atualizar recursos dentro do próprio escopo escolar;
 	/// Administrador Geral possui escopo global e o professor pode atualizar o próprio ditado.
 	/// 
@@ -347,6 +368,7 @@ public class DitadosController : ControllerBase
 	/// <response code="401">Não autenticado</response>
 	/// <response code="403">Sem permissão (apenas Admin e Professor)</response>
 	/// <response code="404">Ditado não encontrado</response>
+	/// <response code="409">A seleção foi registrada em outra operação simultânea. Tente salvar novamente.</response>
 	[HttpPut("{id}")]
 	[Authorize(Roles = "Administrador,Professor")]
 	[ProducesResponseType(typeof(DitadoResponse), StatusCodes.Status200OK)]
@@ -354,6 +376,7 @@ public class DitadosController : ControllerBase
 	[ProducesResponseType(StatusCodes.Status401Unauthorized)]
 	[ProducesResponseType(StatusCodes.Status403Forbidden)]
 	[ProducesResponseType(StatusCodes.Status404NotFound)]
+	[ProducesResponseType(StatusCodes.Status409Conflict)]
 	public async Task<ActionResult<DitadoResponse>> AtualizarDitado(int id, [FromBody] AtualizarDitadoRequest request)
 	{
 		try
@@ -366,6 +389,14 @@ public class DitadosController : ControllerBase
 				return NotFound(new { mensagem = "Ditado não encontrado." });
 
 			return Ok(ditado);
+		}
+		catch (UnauthorizedAccessException ex)
+		{
+			return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message });
+		}
+		catch (DbUpdateConcurrencyException)
+		{
+			return Conflict(new { mensagem = "A seleção mudou durante a gravação. Tente novamente." });
 		}
 		catch (InvalidOperationException ex)
 		{

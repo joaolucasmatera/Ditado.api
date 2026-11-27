@@ -87,7 +87,10 @@ public class ProfessoresController : ControllerBase
     /// **2. Gr�fico de Erros por Tipo:**
     /// - Agrega��o de todos os erros da turma
     /// - Considera o melhor resultado de cada aluno
-    /// - Formato: `[{ tipoErroId, descricao, descricaoCurta, quantidade }]`
+    /// - Inclui achados por Código e LLM com a origem e o ID do catálogo quando disponível.
+    /// - Cada categoria conta uma vez por lacuna. Para LLM, tipoErroId é 0.
+    /// - Os contadores de lacunas incorretas sem classificação e aguardando LLM distinguem ausência de achados de ausência de erros.
+    /// - Exemplo: `[{ tipoErroId: 0, erroCatalogoId: 31, origem: "LLM", descricaoCurta: "Concordância verbal", quantidade: 1 }]`
     /// 
     /// **3. Gr�fico de Erros por Palavra:**
     /// - Lista de palavras (lacunas) do ditado
@@ -117,6 +120,7 @@ public class ProfessoresController : ControllerBase
     ///           "fez": true,
     ///           "dataEntrega": "2024-12-08T14:30:00Z",
     ///           "nota": 85.5,
+    ///           "numeroTentativas": 3,
     ///           "erroMaisComum": "Erro de acentua��o",
     ///           "atrasado": false
     ///         }
@@ -134,6 +138,13 @@ public class ProfessoresController : ControllerBase
     ///           "descricaoCurta": "Ortografia",
     ///           "quantidade": 8
     ///         }
+    ///       ],
+    ///       "errosPorCategoria": [
+    ///         {
+    ///           "categoriaPedagogica": { "codigo": "HIBRIDO_ACENTUACAO", "nome": "Acentuação", "familia": "Híbrida" },
+    ///           "quantidade": 12
+    ///         },
+    ///         { "categoriaPedagogica": null, "quantidade": 1 }
     ///       ],
     ///       "errosPorPalavra": [
     ///         {
@@ -175,6 +186,39 @@ public class ProfessoresController : ControllerBase
             return NotFound(new { mensagem = "Atribui��o n�o encontrada ou voc� n�o tem permiss�o para visualiz�-la." });
 
         return Ok(resultado);
+    }
+
+    /// <summary>
+    /// Lista o histórico de tentativas de um aluno em um ditado atribuído à turma.
+    /// </summary>
+    /// <remarks>
+    /// O professor responsável com vínculo na escola consulta as tentativas em ordem da mais recente para a
+    /// mais antiga. Cada item traz a data e o resultado com nota, lacunas e classificações por origem.
+    /// Cada achado traz categoriaPedagogica (codigo, nome e familia) preservada no histórico, ou nula
+    /// quando ausente. Exemplo de categoria: {"codigo":"HIBRIDO_ACENTUACAO","nome":"Acentuação","familia":"Híbrida"}.
+    /// Quando registrado, cada achado LLM inclui modeloLlm, o identificador efetivo da classificacao.
+    /// Exemplo de item: {"dataRealizacao":"2026-11-23T14:30:00Z","resultado":{"respostaDitadoId":12,"nota":80,"totalLacunas":5,"acertos":4,"erros":1}}.
+    /// </remarks>
+    /// <param name="turmaId">ID da turma do professor responsável.</param>
+    /// <param name="ditadoId">ID do ditado atribuído à turma.</param>
+    /// <param name="alunoId">ID do aluno vinculado à atribuição.</param>
+    /// <response code="200">Histórico do aluno no ditado da turma.</response>
+    /// <response code="401">Autenticação necessária.</response>
+    /// <response code="403">Papel de professor ou administrador necessário.</response>
+    /// <response code="404">Histórico indisponível para a turma, o aluno ou o ditado informados.</response>
+    [HttpGet("turmas/{turmaId:int}/alunos/{alunoId:int}/ditados/{ditadoId:int}/tentativas")]
+    [ProducesResponseType(typeof(List<TentativaAlunoProfessorDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult<List<TentativaAlunoProfessorDto>>> ListarTentativasAluno(
+        int turmaId, int ditadoId, int alunoId)
+    {
+        var professorId = int.Parse(User.FindFirst(ClaimTypes.NameIdentifier)?.Value ?? "0");
+        var tentativas = await _professorService.ListarTentativasAlunoAsync(turmaId, ditadoId, alunoId, professorId);
+        return tentativas is null
+            ? NotFound(new { mensagem = "Histórico indisponível para esta turma, aluno e ditado." })
+            : Ok(tentativas);
     }
 }
 

@@ -352,9 +352,16 @@ public class UsuariosController : ControllerBase
 	}
 
 	/// <summary>Cadastra manualmente um aluno em uma turma.</summary>
-	/// <remarks>Gera código escola-turma-chamada; o PIN será criado pelo aluno no primeiro acesso.</remarks>
+	/// <remarks>
+	/// Gera código com IDs estáveis da escola e turma e o número da chamada, como <c>E12-T34-N003</c>,
+	/// e vínculo escolar ativo. Códigos já emitidos continuam válidos. Requer professor responsável com
+	/// vínculo ativo, administrador com vínculo ativo na escola da turma (inclusive conta de tipo Professor)
+	/// ou Administrador Geral. Concede participação nas
+	/// aplicações ativas da turma, inclusive para ingresso posterior à atribuição.
+	/// O PIN será criado pelo aluno no primeiro acesso.
+	/// </remarks>
 	/// <param name="request">Nome, número de chamada, matrícula opcional e turma.</param>
-	/// <response code="200">Aluno cadastrado e convite retornado.</response>
+	/// <response code="200">Aluno cadastrado com vínculo, participações e código para criar o PIN.</response>
 	/// <response code="400">Dados inválidos, turma inativa ou aluno duplicado.</response>
 	/// <response code="401">Token ausente ou inválido.</response>
 	/// <response code="403">Usuário sem permissão para a turma.</response>
@@ -368,6 +375,7 @@ public class UsuariosController : ControllerBase
 	{
 		var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
 		try { return Ok(await _usuarioService.CadastrarAlunoManualAsync(request, atorId)); }
+		catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
 		catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
 	}
 

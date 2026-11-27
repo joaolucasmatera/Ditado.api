@@ -152,20 +152,37 @@ public class UsuarioService
     {
         var ator = await _context.Usuarios.FindAsync(atorId);
         if (ator is null || !ator.Ativo || (ator.Tipo != TipoUsuario.Professor && ator.Tipo != TipoUsuario.Administrador))
-            throw new InvalidOperationException("Apenas professor ou administrador pode cadastrar alunos.");
+            throw new UnauthorizedAccessException("Apenas professor ou administrador pode cadastrar alunos.");
+        await using var transacao = _context.Database.IsRelational()
+            ? await _context.Database.BeginTransactionAsync()
+            : null;
+        if (transacao != null)
+            await _context.Database.ExecuteSqlInterpolatedAsync($"SELECT `Id` FROM `Turmas` WHERE `Id` = {request.TurmaId} FOR UPDATE");
         var turma = await _context.Turmas.Include(t => t.Alunos).Include(t => t.Escola).SingleOrDefaultAsync(t => t.Id == request.TurmaId && t.Ativo);
-        if (turma is null) throw new InvalidOperationException("Turma não encontrada ou inativa.");
-        if (ator.Tipo == TipoUsuario.Professor && turma.ProfessorResponsavelId != atorId)
-            throw new InvalidOperationException("Professor não autorizado para esta turma.");
+        if (turma?.Escola is not { Ativa: true } || turma.EscolaId is not int escolaId)
+            throw new InvalidOperationException("Turma deve pertencer a uma escola ativa.");
+        var vinculo = await _context.VinculosEscolares.SingleOrDefaultAsync(v =>
+            v.UsuarioId == atorId && v.EscolaId == escolaId && v.Ativo);
+        if (!(ator.Tipo == TipoUsuario.Administrador && ator.AdministradorGeral) &&
+            vinculo is null)
+            throw new UnauthorizedAccessException("O usuário não possui vínculo ativo com a escola da turma.");
+        if (ator.Tipo == TipoUsuario.Professor && turma.ProfessorResponsavelId != atorId &&
+            vinculo?.Papel != PapelEscolar.Administrador)
+            throw new UnauthorizedAccessException("Professor não autorizado para esta turma.");
         if (await _context.Usuarios.AnyAsync(u => u.Tipo == TipoUsuario.Aluno && u.NumeroChamada == request.NumeroChamada && u.TurmasComoAluno.Any(t => t.Id == request.TurmaId)))
             throw new InvalidOperationException("Já existe aluno com este número de chamada na turma.");
-        var escolaNome = turma.Escola?.Nome ?? $"Escola{turma.EscolaId ?? 0}";
-        var codigo = $"{NormalizarCodigo(escolaNome)}{NormalizarCodigo(turma.Nome)}{request.NumeroChamada:D3}";
-        if (codigo.Length > 32) codigo = codigo[..32];
+        var codigo = FormattableString.Invariant($"E{escolaId}-T{turma.Id}-N{request.NumeroChamada:D3}");
         var aluno = new Usuario { Nome = request.Nome.Trim(), Login = $"aluno-{Guid.NewGuid():N}@pendente.ditado", Matricula = string.IsNullOrWhiteSpace(request.Matricula) ? null : request.Matricula.Trim(), NumeroChamada = request.NumeroChamada, CodigoCadastro = codigo, SenhaHash = string.Empty, PinConfigurado = false, Tipo = TipoUsuario.Aluno, Ativo = true, DataCriacao = DateTime.UtcNow };
         turma.Alunos.Add(aluno);
+        aluno.VinculosEscolares.Add(new VinculoEscolar { EscolaId = escolaId, Papel = PapelEscolar.Aluno, Ativo = true });
+        var aplicacoes = await _context.AplicacoesDitados
+            .Where(a => a.TurmaId == turma.Id && a.EscolaId == turma.EscolaId && a.Ativa).ToListAsync();
+        foreach (var aplicacao in aplicacoes)
+            aplicacao.Participacoes.Add(new ParticipacaoAplicacao { Aluno = aluno });
         _context.Usuarios.Add(aluno);
         await _context.SaveChangesAsync();
+        if (transacao != null)
+            await transacao.CommitAsync();
         return MapearParaResponse(aluno);
     }
 
@@ -601,8 +618,6 @@ public class UsuarioService
         };
     }
 
-    private static string NormalizarCodigo(string valor)
-        => new string(valor.Where(char.IsLetterOrDigit).ToArray());
 }
 
 public sealed class ContextoEscolarResponse

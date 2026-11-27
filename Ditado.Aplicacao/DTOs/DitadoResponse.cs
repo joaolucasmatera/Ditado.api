@@ -10,7 +10,10 @@ public class DitadoResponse
     public string? AutorNome { get; set; }
     public string? NivelVisibilidade { get; set; }
     public List<CategoriaSimplificadaDto> Categorias { get; set; } = new();
+    public List<ErroSelecionadoDto> ErrosCatalogo { get; set; } = new();
 }
+
+public record ErroSelecionadoDto(int Id, string Codigo, string Nome, bool Ativo, bool TemRegraExecutavel);
 
 public class CategoriaSimplificadaDto
 {

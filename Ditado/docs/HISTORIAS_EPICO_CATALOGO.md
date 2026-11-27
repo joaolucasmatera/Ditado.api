@@ -86,7 +86,7 @@ Cada tenant é uma escola. Professor e Administrador da Escola pertencem a uma �
 **Critérios de aceite**
 - O professor pode escolher um ou mais erros ativos ao criar ou editar um ditado, conforme autorização existente para aquele ditado.
 - A seleção vale para o ditado inteiro e é persistida como associação entre ditado e erro.
-- Erros arquivados não podem ser adicionados a uma nova seleção.
+- Erros arquivados ficam indisponíveis para novas seleções e novas atribuições. A regra programada continua classificando novas tentativas nas aplicações já atribuídas que conservem o erro na seleção.
 - Alterar a seleção atualiza as associações sem apagar respostas ou classificações já registradas.
 - A consulta do ditado retorna a seleção para que a interface possa exibi-la e editá-la.
 - A seleção só associa erros ao ditado dentro do contexto escolar permitido; itens públicos gerais do Catálogo de erros continuam sujeitos à política de autoria e imutabilidade.

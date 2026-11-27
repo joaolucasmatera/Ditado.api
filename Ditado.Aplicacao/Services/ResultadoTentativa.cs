@@ -1,0 +1,64 @@
+using Ditado.Aplicacao.DTOs;
+using Ditado.Aplicacao.DTOs.Marketplace;
+using Ditado.Dominio.Entidades;
+using Ditado.Dominio.Enums;
+using Ditado.Dominio.Extensions;
+using Microsoft.EntityFrameworkCore;
+
+namespace Ditado.Aplicacao.Services;
+
+internal static class ResultadoTentativa
+{
+    public static IQueryable<RespostaDitado> ComDetalhes(IQueryable<RespostaDitado> tentativas) =>
+        tentativas
+            .Include(r => r.RespostasSegmentos).ThenInclude(s => s.Segmento)
+            .Include(r => r.RespostasSegmentos).ThenInclude(s => s.TiposErro).ThenInclude(t => t.ErroCatalogo)
+            .Include(r => r.RespostasSegmentos).ThenInclude(s => s.AnaliseLlm).ThenInclude(a => a!.Candidatos)
+            .AsSplitQuery();
+
+    public static IEnumerable<ClassificacaoCatalogoDto> Classificacoes(RespostaSegmento resposta) =>
+        resposta.TiposErro
+            .Select(t => (Tipo: t, Categoria: LerCategoriaGravada(t.CategoriaPedagogicaCodigo, t.CategoriaPedagogicaNome, t.CategoriaPedagogicaFamilia)))
+            .Where(achado => achado.Tipo.ErroCatalogo != null || achado.Categoria != null)
+            .Select(achado => new ClassificacaoCatalogoDto(
+                achado.Tipo.ErroCatalogoId ?? 0,
+                achado.Tipo.ErroCatalogo?.Codigo ?? string.Empty,
+                achado.Tipo.ErroCatalogo?.Nome ?? achado.Tipo.TipoErro.ObterDescricao(),
+                (int)achado.Tipo.TipoErro)
+            {
+                CategoriaPedagogica = achado.Categoria
+            })
+            .Concat(resposta.AnaliseLlm?.Candidatos.Where(c => c.Estado == LlmCandidatoEstado.Correspondente)
+                .Select(c => new ClassificacaoCatalogoDto(c.ErroCatalogoId, c.Codigo, c.Nome, null, "LLM")
+                {
+                    CategoriaPedagogica = LerCategoriaGravada(c.CategoriaPedagogicaCodigo, c.CategoriaPedagogicaNome, c.CategoriaPedagogicaFamilia)
+                }) ?? []);
+
+    private static CategoriaPedagogicaDto? LerCategoriaGravada(string? codigo, string? nome, string? familia) =>
+        codigo != null && nome != null ? new(codigo, nome, familia) : null;
+
+    public static ResultadoDitadoResponse Mapear(RespostaDitado tentativa, bool incluirModeloLlm = false)
+    {
+        var detalhes = tentativa.RespostasSegmentos.OrderBy(s => s.Segmento.Ordem).Select(s => new DetalheRespostaDto
+        {
+            SegmentoId = s.SegmentoId,
+            RespostaFornecida = s.RespostaFornecida,
+            RespostaEsperada = s.RespostaEsperada ?? s.Segmento.Conteudo,
+            RespostaAusente = s.RespostaAusente,
+            Correto = s.Correto,
+            EstadoClassificacao = s.EstadoClassificacao.ToString(),
+            MetodoClassificacao = s.MetodoClassificacao?.ToString(),
+            EstadoAnaliseLlm = s.AnaliseLlm?.Estado.ToString(),
+            TiposErro = s.TiposErro.Select(t => t.TipoErro.ObterDescricao())
+                .Concat(s.TipoErro is { } legado ? [legado.ObterDescricao()] : Array.Empty<string>()).Distinct().ToList(),
+            Classificacoes = Classificacoes(s).Select(c => incluirModeloLlm && c.Origem == "LLM"
+                ? c with { ModeloLlm = s.AnaliseLlm?.Modelo }
+                : c).ToList()
+        }).ToList();
+        return new ResultadoDitadoResponse
+        {
+            RespostaDitadoId = tentativa.Id, Nota = tentativa.Nota, TotalLacunas = detalhes.Count,
+            Acertos = detalhes.Count(d => d.Correto), Erros = detalhes.Count(d => !d.Correto), Detalhes = detalhes
+        };
+    }
+}

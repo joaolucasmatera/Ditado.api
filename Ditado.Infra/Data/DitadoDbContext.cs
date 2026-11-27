@@ -19,6 +19,7 @@ public class DitadoDbContext : DbContext
     public DbSet<Turma> Turmas { get; set; }
     public DbSet<Categoria> Categorias { get; set; }
     public DbSet<ErroCatalogo> ErrosCatalogo { get; set; }
+    public DbSet<DitadoErroCatalogo> DitadosErrosCatalogo { get; set; }
     public DbSet<DitadoCategoria> DitadoCategorias { get; set; }
     public DbSet<TurmaDitado> TurmaDitados { get; set; }
     public DbSet<Escola> Escolas { get; set; }
@@ -33,6 +34,8 @@ public class DitadoDbContext : DbContext
     public DbSet<PublicacaoDitadoTurma> PublicacoesDitadosTurmas { get; set; }
     public DbSet<PublicacaoErroCatalogo> PublicacoesErrosCatalogo { get; set; }
     public DbSet<PublicacaoErroCatalogoTurma> PublicacoesErrosCatalogoTurmas { get; set; }
+    public DbSet<LlmAnaliseTarefa> LlmAnalisesTarefas { get; set; }
+    public DbSet<LlmAnaliseCandidato> LlmAnalisesCandidatos { get; set; }
 
     protected override void OnModelCreating(ModelBuilder modelBuilder)
     {
@@ -47,6 +50,7 @@ public class DitadoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new TurmaConfiguration());
         modelBuilder.ApplyConfiguration(new CategoriaConfiguration());
         modelBuilder.ApplyConfiguration(new ErroCatalogoConfiguration());
+        modelBuilder.ApplyConfiguration(new DitadoErroCatalogoConfiguration());
         modelBuilder.ApplyConfiguration(new DitadoCategoriaConfiguration());
         modelBuilder.ApplyConfiguration(new TurmaDitadoConfiguration());
         modelBuilder.ApplyConfiguration(new EscolaConfiguration());
@@ -61,5 +65,17 @@ public class DitadoDbContext : DbContext
         modelBuilder.ApplyConfiguration(new PublicacaoDitadoTurmaConfiguration());
         modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoConfiguration());
         modelBuilder.ApplyConfiguration(new PublicacaoErroCatalogoTurmaConfiguration());
+        modelBuilder.ApplyConfiguration(new LlmAnaliseTarefaConfiguration());
+        modelBuilder.ApplyConfiguration(new LlmAnaliseCandidatoConfiguration());
+        modelBuilder.Entity<LlmTentativaProvedor>(b =>
+        {
+            b.ToTable("LlmTentativasProvedor");
+            b.HasKey(x => new { x.LlmAnaliseTarefaId, x.Numero });
+            b.Property(x => x.Provedor).HasMaxLength(80);
+            b.Property(x => x.Modelo).HasMaxLength(200);
+            b.Property(x => x.PromptVersao).HasMaxLength(80);
+            b.Property(x => x.Desfecho).HasMaxLength(40).IsConcurrencyToken();
+            b.Property(x => x.Motivo).HasMaxLength(40);
+        });
     }
 }

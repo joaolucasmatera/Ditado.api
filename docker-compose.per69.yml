@@ -1,0 +1,56 @@
+services:
+  api:
+    build: .
+    environment:
+      ASPNETCORE_ENVIRONMENT: Production
+      ConnectionStrings__ConexaoPadrao: Server=mysql;Database=ditado_per69;User=ditado;Password=${PER69_DB_PASSWORD:?}
+      Jwt__ChaveSecreta: ${PER69_JWT_SECRET:?}
+      Jwt__Emissor: DitadoPer69
+      Jwt__Audiencia: DitadoPer69
+      Llm__Enabled: "true"
+      Llm__RouterUrl: http://router:4000/v1
+      Llm__TimeoutSeconds: "60"
+      Llm__MaxOutputTokens: ${LLM_MAX_OUTPUT_TOKENS:-0}
+      DITADO_LLM_ROUTER_KEY: ${PER69_ROUTER_KEY:?}
+    ports:
+      - "127.0.0.1:5069:8080"
+    depends_on:
+      mysql:
+        condition: service_healthy
+    networks: [pilot, api-ingress]
+  mysql:
+    image: mysql:8.0.21
+    environment:
+      MYSQL_DATABASE: ditado_per69
+      MYSQL_USER: ditado
+      MYSQL_PASSWORD: ${PER69_DB_PASSWORD:?}
+      MYSQL_ROOT_PASSWORD: ${PER69_DB_ROOT_PASSWORD:?}
+    volumes:
+      - database:/var/lib/mysql
+    healthcheck:
+      test: [CMD, mysqladmin, ping, -h, 127.0.0.1, --silent]
+      interval: 5s
+      timeout: 2s
+      retries: 30
+    networks: [pilot]
+  router:
+    build:
+      context: scripts/per69
+      dockerfile: Router.Dockerfile
+    environment:
+      FREE_LLM_HOME: /state
+      FREE_LLM_API_KEY: ${PER69_ROUTER_KEY:?}
+      GROQ_API_KEY: ${GROQ_API_KEY:-}
+      COHERE_API_KEY: ${COHERE_API_KEY:-}
+      OPENROUTER_API_KEY: ${OPENROUTER_API_KEY:-}
+    volumes:
+      - router-state:/state
+    networks: [pilot, router-egress]
+networks:
+  pilot:
+    internal: true
+  router-egress: {}
+  api-ingress: {}
+volumes:
+  database: {}
+  router-state: {}

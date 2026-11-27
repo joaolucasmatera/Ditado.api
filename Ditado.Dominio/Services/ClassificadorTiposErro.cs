@@ -27,72 +27,85 @@ public static class ClassificadorTiposErro
     private static readonly HashSet<string> EncontrosConsonantais =
     ["br", "cr", "dr", "fr", "gr", "pr", "tr", "bl", "cl", "fl", "gl", "pl"];
 
-    public static IReadOnlyList<TipoErro> IdentificarTiposErro(string resposta, string esperado)
+    private static readonly TipoErro[] RegrasDeEdicao =
+    [
+        TipoErro.OmissaoLetra, TipoErro.AcrescimoLetra, TipoErro.SubstituicaoLetra,
+        TipoErro.TrocaGrafemasSurdaSonora, TipoErro.GrafiaArbitrariaIrregular,
+        TipoErro.RegraContextual, TipoErro.Nasalizacao, TipoErro.ComplexidadeSilabica
+    ];
+
+    public static IReadOnlyList<TipoErro> IdentificarTiposErro(string resposta, string esperado, IReadOnlySet<TipoErro>? regras = null)
     {
         var respostaOriginal = resposta.Trim();
         var esperadoOriginal = esperado.Trim();
-        if (string.Equals(respostaOriginal, esperadoOriginal, StringComparison.Ordinal))
+        if (regras is { Count: 0 } || string.Equals(respostaOriginal, esperadoOriginal, StringComparison.Ordinal))
             return Array.Empty<TipoErro>();
+        bool Habilitada(TipoErro tipo) => regras == null || regras.Contains(tipo);
 
         var respostaNormalizada = respostaOriginal.ToLowerInvariant();
         var esperadoNormalizado = esperadoOriginal.ToLowerInvariant();
         var tipos = new HashSet<TipoErro>();
 
         var diferencaApenasDeCaixaOuPontuacao = MesmoTextoSemCaixaOuPontuacao(respostaOriginal, esperadoOriginal);
-        var diferencaDeCaixaComOutraEdicao = TemDiferencaDeCaixaEmEdicaoUnica(
-            RemoverPontuacao(esperadoOriginal),
-            RemoverPontuacao(respostaOriginal));
-        if (diferencaApenasDeCaixaOuPontuacao || diferencaDeCaixaComOutraEdicao)
+        if (Habilitada(TipoErro.MaiusculasPontuacao) && (diferencaApenasDeCaixaOuPontuacao ||
+            TemDiferencaDeCaixaEmEdicaoUnica(RemoverPontuacao(esperadoOriginal), RemoverPontuacao(respostaOriginal))))
             tipos.Add(TipoErro.MaiusculasPontuacao);
 
-        if (respostaNormalizada != esperadoNormalizado && MesmoTextoSemEspacos(respostaNormalizada, esperadoNormalizado))
+        var diferencaDeJuntura = respostaNormalizada != esperadoNormalizado && MesmoTextoSemEspacos(respostaNormalizada, esperadoNormalizado);
+        if (Habilitada(TipoErro.JunturaSegmentacao) && diferencaDeJuntura)
             tipos.Add(TipoErro.JunturaSegmentacao);
 
         var mesmaPalavraSemAcentos = RemoverDiacriticos(respostaNormalizada) == RemoverDiacriticos(esperadoNormalizado);
         if (mesmaPalavraSemAcentos && respostaNormalizada != esperadoNormalizado)
         {
-            tipos.Add(TipoErro.Acentuacao);
-            if (DiferencaEnvolveVogalNasal(respostaNormalizada, esperadoNormalizado))
+            if (Habilitada(TipoErro.Acentuacao))
+                tipos.Add(TipoErro.Acentuacao);
+            if (Habilitada(TipoErro.Nasalizacao) && DiferencaEnvolveVogalNasal(respostaNormalizada, esperadoNormalizado))
                 tipos.Add(TipoErro.Nasalizacao);
         }
 
         if (string.IsNullOrWhiteSpace(respostaNormalizada) && !string.IsNullOrWhiteSpace(esperadoNormalizado))
         {
-            tipos.Add(TipoErro.OmissaoLetra);
+            if (Habilitada(TipoErro.OmissaoLetra))
+                tipos.Add(TipoErro.OmissaoLetra);
         }
         else if (!diferencaApenasDeCaixaOuPontuacao &&
-                 !tipos.Contains(TipoErro.JunturaSegmentacao) &&
+                 !diferencaDeJuntura &&
                  !mesmaPalavraSemAcentos &&
+                 (regras == null || regras.Overlaps(RegrasDeEdicao)) &&
                  TryIdentificarEdicaoUnica(esperadoNormalizado, respostaNormalizada, out var edicao))
         {
-            tipos.Add(DeterminarTipoOperacao(edicao.Tipo));
-            AdicionarTipoPorEdicao(esperadoNormalizado, respostaNormalizada, edicao, tipos);
+            var tipoOperacao = DeterminarTipoOperacao(edicao.Tipo);
+            if (Habilitada(tipoOperacao))
+                tipos.Add(tipoOperacao);
+            AdicionarTipoPorEdicao(esperadoNormalizado, respostaNormalizada, edicao, tipos, regras);
         }
 
-        if (EhConcordanciaFlexao(esperadoNormalizado, respostaNormalizada))
+        if (Habilitada(TipoErro.ConcordanciaFlexao) && EhConcordanciaFlexao(esperadoNormalizado, respostaNormalizada))
             tipos.Add(TipoErro.ConcordanciaFlexao);
 
         return OrdemDaTabela.Where(tipos.Contains).ToArray();
     }
 
-    private static void AdicionarTipoPorEdicao(string esperado, string resposta, Edicao edicao, HashSet<TipoErro> tipos)
+    private static void AdicionarTipoPorEdicao(string esperado, string resposta, Edicao edicao, HashSet<TipoErro> tipos, IReadOnlySet<TipoErro>? regras)
     {
-        if (edicao.Tipo == TipoEdicao.Substituicao)
+        bool Habilitada(TipoErro tipo) => regras == null || regras.Contains(tipo);
+        if (Habilitada(TipoErro.TrocaGrafemasSurdaSonora) && edicao.Tipo == TipoEdicao.Substituicao)
         {
             if (EhTrocaSurdaSonora(esperado, edicao.Indice, edicao.CaractereEsperado, edicao.CaractereResposta))
                 tipos.Add(TipoErro.TrocaGrafemasSurdaSonora);
         }
 
-        if (EhGrafiaArbitraria(esperado, resposta, edicao))
+        if (Habilitada(TipoErro.GrafiaArbitrariaIrregular) && EhGrafiaArbitraria(esperado, resposta, edicao))
             tipos.Add(TipoErro.GrafiaArbitrariaIrregular);
 
-        if (EhRegraContextualR(esperado, resposta))
+        if (Habilitada(TipoErro.RegraContextual) && EhRegraContextualR(esperado, resposta))
             tipos.Add(TipoErro.RegraContextual);
 
-        if (EhNasalizacao(esperado, resposta, edicao))
+        if (Habilitada(TipoErro.Nasalizacao) && EhNasalizacao(esperado, resposta, edicao))
             tipos.Add(TipoErro.Nasalizacao);
 
-        if (EhComplexidadeSilabica(esperado, resposta, edicao))
+        if (Habilitada(TipoErro.ComplexidadeSilabica) && EhComplexidadeSilabica(esperado, resposta, edicao))
             tipos.Add(TipoErro.ComplexidadeSilabica);
 
     }

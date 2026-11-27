@@ -1,4 +1,7 @@
 using Ditado.Aplicacao.DTOs.Alunos;
+using Ditado.Aplicacao.DTOs;
+using Ditado.Dominio.Enums;
+using Ditado.Dominio.Extensions;
 using Ditado.Infra.Data;
 using Microsoft.EntityFrameworkCore;
 
@@ -128,6 +131,17 @@ public class AlunoService
 		}
 
 		return resultado.OrderBy(d => d.DataLimite).ToList();
+	}
+
+	public async Task<ResultadoDitadoResponse?> ObterMeuResultadoAsync(int alunoId, int tentativaId)
+	{
+		var tentativa = await ResultadoTentativa.ComDetalhes(_context.RespostaDitados.AsNoTracking()
+			.Where(r => r.Id == tentativaId && r.AlunoId == alunoId &&
+				_context.Usuarios.Any(u => u.Id == alunoId && u.Ativo) &&
+				(r.EscolaId == null || _context.VinculosEscolares.Any(v =>
+					v.UsuarioId == alunoId && v.EscolaId == r.EscolaId && v.Ativo && v.Escola.Ativa))))
+			.SingleOrDefaultAsync();
+		return tentativa is null ? null : ResultadoTentativa.Mapear(tentativa);
 	}
 
 	public async Task<List<TentativaDitadoResponse>> ListarMinhasTentativasAsync(int alunoId, int ditadoId)

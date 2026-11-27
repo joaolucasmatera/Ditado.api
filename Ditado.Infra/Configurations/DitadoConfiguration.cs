@@ -1,3 +1,4 @@
+using Ditado.Dominio.Entidades;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.EntityFrameworkCore.Metadata.Builders;
 
@@ -10,6 +11,9 @@ public class DitadoConfiguration : IEntityTypeConfiguration<Dominio.Entidades.Di
         builder.ToTable("Ditados");
         
         builder.HasKey(d => d.Id);
+
+        builder.HasOne<Escola>().WithMany().HasForeignKey(d => d.EscolaSelecaoErrosId)
+            .OnDelete(DeleteBehavior.Restrict);
         
         builder.Property(d => d.Titulo)
             .IsRequired()

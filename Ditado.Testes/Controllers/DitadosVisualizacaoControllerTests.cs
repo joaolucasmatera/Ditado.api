@@ -82,6 +82,7 @@ public class DitadosVisualizacaoControllerTests : TesteIntegracaoBase
 
 		var request = new CriarDitadoRequest
 		{
+			ErroCatalogoIds = await GarantirRegrasPublicasAsync(TipoErro.Acentuacao),
 			Titulo = "Detalhes do modal",
 			Descricao = "Ditado de teste de visualizacao",
 			TextoComMarcacoes = "O [cachorro] late quando ve o [gato].",

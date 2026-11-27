@@ -2,6 +2,7 @@ using System.Reflection;
 using System.Text;
 using System.IdentityModel.Tokens.Jwt;
 using Ditado.Aplicacao.Services;
+using Ditado.Aplicacao.Llm;
 using Ditado.Infra.Data;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
 using Microsoft.EntityFrameworkCore;
@@ -13,6 +14,17 @@ var builder = WebApplication.CreateBuilder(args);
 // Add services to the container.
 builder.Services.AddControllers();
 builder.Services.AddEndpointsApiExplorer();
+builder.Services.Configure<LlmOptions>(builder.Configuration.GetSection("Llm"));
+builder.Services.PostConfigure<LlmOptions>(o =>
+{
+    o.Simulated &= builder.Environment.IsEnvironment("Testing");
+    o.RouterLogBodies &= builder.Environment.IsDevelopment() &&
+        bool.TryParse(Environment.GetEnvironmentVariable("DOTNET_RUNNING_IN_CONTAINER"), out var emContainer) && emContainer;
+});
+builder.Services.AddSingleton<LlmRouterDiagnostics>();
+builder.Services.AddHttpClient("Llm")
+    .ConfigurePrimaryHttpMessageHandler(() => new HttpClientHandler { AllowAutoRedirect = false })
+    .RedactLoggedHeaders(_ => true);
 
 // CORS - TOTALMENTE ABERTO
 builder.Services.AddCors(options =>
@@ -138,8 +150,17 @@ builder.Services.AddScoped<PasswordHasher>();
 builder.Services.AddScoped<TokenService>();
 builder.Services.AddScoped<AudioRetencaoService>();
 builder.Services.AddScoped<ExportacaoService>();
+if (builder.Environment.IsEnvironment("Testing") && builder.Configuration.GetValue<bool>("Llm:Simulated"))
+    builder.Services.AddScoped<ILlmProviderClient, LlmSimulatedClient>();
+else
+    builder.Services.AddScoped<ILlmProviderClient, LlmProviderClient>();
+builder.Services.AddScoped<LlmAnalysisProcessor>();
+builder.Services.AddHostedService<LlmAnalysisWorker>();
 
 var app = builder.Build();
+var llmOptions = app.Services.GetRequiredService<Microsoft.Extensions.Options.IOptions<LlmOptions>>().Value;
+if (llmOptions.Enabled && !llmOptions.PodeEnfileirar)
+    app.Logger.LogWarning("Classificação LLM desabilitada. Verifique o endereço do Router e os limites.");
 
 // APLICAR MIGRATIONS AUTOMATICAMENTE (APENAS EM PRODU��O - N�O EM DEVELOPMENT NEM TESTING)
 if (!app.Environment.IsDevelopment() && !app.Environment.EnvironmentName.Equals("Testing", StringComparison.OrdinalIgnoreCase))

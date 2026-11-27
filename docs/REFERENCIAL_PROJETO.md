@@ -1,6 +1,7 @@
 # Referencial consolidado do projeto
 
-**Atualizado em:** 07/11/2026  
+**Atualizado em:** 18/11/2026
+
 **Finalidade:** apontar rapidamente para as fontes vigentes do planejamento, evitando redescoberta e divergência entre documentos.
 
 ## Como usar este arquivo
@@ -11,7 +12,7 @@ Consulte este índice antes de abrir novas histórias, revisar contratos ou resp
 
 | Fonte | Uso | Observação |
 |---|---|---|
-| [`Ditado/docs/ESPECIFICACAO_PG2.md`](../Ditado/docs/ESPECIFICACAO_PG2.md) | Decisões globais, dependências, critérios transversais, segurança e operação | Fonte principal do planejamento técnico; a seção 11 registra a atualização mais recente. |
+| [`Ditado/docs/ESPECIFICACAO_PG2.md`](../Ditado/docs/ESPECIFICACAO_PG2.md) | Decisões globais, dependências, critérios transversais, segurança e operação | A seção 3.2 cobre a correção e a classificação. A seção 11 consolida multi-tenant e backup. |
 | [`Ditado/docs/HISTORIAS_EPICO_CATALOGO.md`](../Ditado/docs/HISTORIAS_EPICO_CATALOGO.md) | Mapa de histórias CAT-01 a CAT-10 e critérios de aceite | CAT-08 agora trata do backup e da restauração integral do banco. |
 | [`README.md`](../README.md) | Visão geral do produto, tecnologias e estrutura da solução | Referência introdutória; não substitui as decisões de planejamento. |
 | [`Ditado/DOCUMENTACAO.md`](../Ditado/DOCUMENTACAO.md) | Arquitetura e atores legados do backend | Útil para contexto técnico; a seção de papéis deve ser lida junto das decisões multi-tenant deste índice. |
@@ -24,6 +25,7 @@ Consulte este índice antes de abrir novas histórias, revisar contratos ou resp
 - [`docs/epicos/multi-tenant-mt03.md`](epicos/multi-tenant-mt03.md): contexto escolar, autorização e revogação do MT-03.
 - [`docs/epicos/multi-tenant-mt04.md`](epicos/multi-tenant-mt04.md): persistência, isolamento e histórico do MT-04.
 - [`docs/epicos/marketplace-cat02.md`](epicos/marketplace-cat02.md): contrato legado da publicação no **Catálogo de erros** (CAT-02); o nome do arquivo permanece por compatibilidade.
+- [`docs/epicos/cor-01-classificacao-hibrida.md`](epicos/cor-01-classificacao-hibrida.md) registra a COR-01 concluída (PER-22), o contrato da entrega híbrida (PER-63) e a sequência planejada de implementação e pesquisa (PER-64 a PER-66).
 - [`docs/diagramas/catalogo-er.md`](diagramas/catalogo-er.md): modelo ER do catálogo.
 - [`docs/relatorio-ciclo-cat02-2026-11-06.md`](relatorio-ciclo-cat02-2026-11-06.md): relatório do ciclo CAT-02.
 - [`docs/relatorio-ciclo-cat09-2026-11-06.md`](relatorio-ciclo-cat09-2026-11-06.md): relatório do refinamento CAT-09.
@@ -31,6 +33,10 @@ Consulte este índice antes de abrir novas histórias, revisar contratos ou resp
 
 ## Planejamento no Linear
 
+- [PER-18 — Correção objetiva e classificação híbrida](https://linear.app/joaomoutinho/issue/PER-18/epico-2-correcao-objetiva-e-classificacao-hibrida). A PER-63 reúne PER-64 (fluxo com provedor simulado) e PER-65 (cadeia Groq, Cohere e OpenRouter). A PER-66 cobre revisão e exportação para pesquisa.
+- [PER-69 — Piloto do Free-LLM Router](https://linear.app/joaomoutinho/issue/PER-69/migrar-a-rotacao-da-correcao-llm-para-o-free-llm-router). A branch transfere a rotação ao Router e recebe a classificação `per69-v5-segmentos`, com validação de cobertura e registro do modelo efetivo. Dez chamadas diretas retornaram JSON válido. Um teste separado publicou e classificou cinco definições sintéticas pela API com o Router real. Permanece um falso positivo nas sondas pedagógicas. [Configuração e critérios](epicos/per69-piloto-free-llm-router.md) · [Processo e evidências](documentacao/evidencias/per69-processo-e-validacao-2026-11-23.md)
+- [PER-70 — Categorias pedagógicas dos erros](https://linear.app/joaomoutinho/issue/PER-70/aplicar-a-taxonomia-do-geale-a-todos-os-erros). A primeira fatia cobre o catálogo e a interface de ditados.
+- [PER-77 — Categoria nos resultados e na exportação](https://linear.app/joaomoutinho/issue/PER-77/levar-a-categoria-pedagogica-aos-resultados-e-a-exportacao). A branch da entrega cobre a categoria por achado, o mapeamento das regras programadas, os resultados do aluno e do professor, a agregação da turma e o CSV operacional. A exportação pseudonimizada para pesquisa permanece na PER-66. [Relatório de ciclo](relatorio-ciclo-per77-base-2026-11-25.md)
 - [PER-26 — Multi-tenant — Isolar organizações e seus dados](https://linear.app/joaomoutinho/issue/PER-26/multi-tenant-isolar-organizacoes-e-seus-dados): épico de planejamento para isolamento por escola.
 - [PER-27 — MT-01 — Definir fronteiras de dados e matriz de permissões](https://linear.app/joaomoutinho/issue/PER-27/mt-01-definir-fronteiras-de-dados-e-matriz-de-permissoes): primeira etapa de detalhamento do épico Multi-tenant.
 - [PER-30 — MT-04 — Persistência, isolamento e histórico](https://linear.app/joaomoutinho/issue/PER-30/mt-04-persistencia-isolamento-e-historico): refinamento técnico da persistência, autorização, histórico e testes.
@@ -53,7 +59,7 @@ Consulte este índice antes de abrir novas histórias, revisar contratos ou resp
 - O professor ou Administrador da Escola cadastra alunos na administração de usuários, individualmente ou em lote. O lote pode ser preenchido em uma página em formato de planilha ou pré-preenchido pela importação de uma planilha de presença CSV, XLS ou XLSX; os dados são revisados e confirmados antes da gravação.
 - Para criar o pré-cadastro, nome e número na chamada são obrigatórios. A matrícula é opcional, mas altamente recomendada. O código de cadastro segue a composição escola–turma–número na chamada e é gerado para o aluno quando necessário.
 - No primeiro acesso, o aluno informa a matrícula ou o código de cadastro na primeira tela. A criação do PIN ocorre na segunda tela já existente, após a identificação do pré-cadastro. O professor e o administrador não definem nem visualizam esse PIN; após criá-lo, o aluno segue para a plataforma.
-- Ditados e categorias têm escopo de visibilidade explícito: público geral, instituição ou turmas. Ditados públicos gerais podem ser utilizados entre escolas; os demais permanecem limitados à escola ou às turmas selecionadas.
+- Ditados têm escopo de visibilidade explícito: público geral, instituição ou turmas. Ditados públicos gerais podem ser utilizados entre escolas; os demais permanecem limitados à escola ou às turmas selecionadas. A categoria pedagógica acompanha o escopo do erro.
 - O Administrador da Escola fica limitado a uma escola por conta; para outra escola, usa-se outra conta.
 - O Administrador Geral tem escopo global para consultas e exportações, inclusive respostas, notas, relatórios, áudios, arquivos, links e Catálogo de erros privado, sem autorização adicional por escola ou formato.
 - O Administrador Geral pode editar, arquivar e restaurar erros de qualquer autor, respeitando a imutabilidade após a primeira associação a um ditado.

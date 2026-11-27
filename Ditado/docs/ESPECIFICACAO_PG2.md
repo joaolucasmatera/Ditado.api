@@ -43,9 +43,13 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 **Frontend:** telas de resultado devem exibir correção, zero ou mais nomes de erros identificados e recorrência. Vários tipos podem ser apresentados para a mesma resposta quando regras distintas se aplicarem. O feedback opcional do aluno deve ter acionamento explícito e estado de falha sem ocultar correção/nota tradicionais.
 
-**API/aplicação:** comparar resposta e esperado e calcular acerto/nota por código. Primeiro, aplicar regras de código dos erros selecionados no ditado. Retornar todos os nomes de erro cujas regras distintas corresponderem à ocorrência; não forçar um tipo único nem escolher um tipo principal. Se nenhuma regra corresponder com confiança, registrar como não classificada/revisável. O fallback LLM fica fora da COR-01 e pode ser tratado em história posterior. O LLM também pode gerar feedback pedagógico ao aluno/professor somente quando solicitado; não substitui o texto esperado nem altera a nota objetiva.
+**API/aplicação.** Comparar resposta e esperado e calcular acerto e nota por código. Aplicar as regras programadas dos erros selecionados no ditado e retornar todos os nomes que corresponderem à ocorrência. Na primeira etapa da COR-01, ocorrências sem correspondência por código ficam revisáveis. Na entrega híbrida, o LLM é o classificador de todos os erros selecionados sem regra programada, incluindo os cadastrados pelos professores. A submissão elegível dispara a análise assíncrona por tentativa, independentemente do resultado das regras por código. O worker envia os trechos escritos e as lacunas associadas, com uma lista de candidatos por tentativa e uma chamada por provedor acionado. A API persiste resultados por lacuna após validar todo o lote. Uma mesma lacuna pode ter classificações das duas origens. O feedback pedagógico continua sob demanda. [Contrato da correção híbrida](../../docs/epicos/cor-01-classificacao-hibrida.md#payload-contextual-implementado-na-per-65)
 
 **Domínio/MySQL:** persistir resposta, esperado, acerto, zero ou mais nomes/referências de erros identificados e método/estado da classificação. Uma resposta pode ter vários tipos de erro, sem categoria separada ou tipo principal. Sem correspondência confiável, persistir a ocorrência como não classificada/revisável. Preservar histórico e, para futuras identificações feitas pelo LLM, metadados mínimos de modelo, confiança/justificativa estruturada e versão das instruções quando necessário para auditoria.
+
+**Entrega híbrida da PER-63.** Cada lacuna apresentada integra o registro da tentativa, incluindo acertos e lacunas sem resposta. A aplicação grava a tarefa e os candidatos selecionados sem executor junto da tentativa. Um worker processa a fila persistida no MySQL e a API retorna a nota sem aguardar essa análise. A consulta autorizada do resultado deve distinguir as classificações por código das classificações produzidas pelo LLM e mostrar o estado da análise. O [contrato da classificação híbrida](../../docs/epicos/cor-01-classificacao-hibrida.md#entrega-híbrida-planejada--per-63) detalha o fluxo, os critérios de aceite e as pendências de ativação.
+
+**Integração da PER-69 com o Free-LLM Router.** A API envia o ditado completo, as definições congeladas do catálogo e as respostas em um lote por tentativa de processamento (`per69-v5-segmentos`). O Router escolhe o destino e gerencia novas tentativas. A API valida a cobertura por ID de segmento e a identidade do provedor e modelo efetivos antes de aplicar os achados. A nota objetiva permanece disponível durante a análise. As validações do piloto usaram dados sintéticos. [Contrato](../../docs/epicos/per69-piloto-free-llm-router.md) · [Processo e evidências](../../docs/documentacao/evidencias/per69-processo-e-validacao-2026-11-23.md)
 
 ### 3.3 Feedback personalizado do aluno
 
@@ -73,7 +77,7 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 ## 4. Dependências
 
-1. O catálogo e a associação de erros ao ditado fornecem regras executáveis ao código e descrições/exemplos ao classificador LLM de fallback.
+1. O catálogo e a associação de erros ao ditado fornecem regras executáveis ao código e, na etapa posterior, definições sem executor para a análise assíncrona por LLM.
 2. A classificação por código/LLM e o cálculo de recorrência fornecem dados estruturados para os dois feedbacks e para distribuição por tipo nos relatórios.
 3. O feedback do professor reutiliza os mesmos agregados do dashboard, mas é geração LLM sob demanda.
 4. O dashboard pode começar com dados tradicionais existentes, porém os gráficos por classificação e erro cadastrado dependem da persistência definida para a correção por código.
@@ -81,9 +85,9 @@ O frontend Vue/Vite já possui telas de realização e resultados, painéis de p
 
 ## 5. Modelo de dados conceitual inicial
 
-Os nomes abaixo são conceituais. No produto, cada erro cadastrado tem um nome que identifica o tipo do erro; não haverá uma categoria adicional separada. As distinções encontradas na literatura servem como referência para nomear e descrever erros, sem exigir dimensões ou categorias independentes no catálogo. A lista inicial também deve considerar erros morfossintáticos, como concordância.
+Os nomes abaixo são conceituais. No produto, o nome identifica o erro, e a categoria pedagógica identifica o grupo a que ele pertence. A PER-70 define o uso de categorias para erros ortográficos e não ortográficos na seção 10.1.
 
-- **ErroCatalogo:** identificador, nome do erro (também seu tipo), descrição, regra executável opcional, exemplos/orientação, observação pedagógica em texto livre, série/ano opcional, autor, ativo/arquivado, criação/alteração.
+- **ErroCatalogo:** identificador, nome do erro, descrição, categoria pedagógica, regra executável opcional, exemplos/orientação, observação pedagógica em texto livre, série/ano opcional, autor, ativo/arquivado, criação/alteração. Registros legados podem estar sem categoria até a revisão pedagógica.
 - **DitadoErro:** associação do ditado aos erros selecionados.
 - **RespostaSegmento/ClassificacaoErro:** tentativa, segmento, resposta e palavra esperada existentes; zero ou mais tipos identificados por código ou LLM, com cada nome de erro como tipo; método/confiança/estado classificado-não classificado e dados de recorrência derivados ou consultáveis. Uma ocorrência pode corresponder a vários tipos sem eleger um principal.
 - **FeedbackGerado:** público/alvo, escopo (aluno/turma), referência da tentativa/sessão, conteúdo, modelo/provedor, data de geração e expiração.
@@ -94,7 +98,7 @@ Recorrência pode ser calculada a partir das respostas persistidas, evitando con
 
 1. **Preparar a base e o plano documental:** fechar os nomes e descrições iniciais dos erros e suas regras de identificação quando aplicáveis; levantar exemplos rotulados; revisar arquitetura, modelo ER e dependências globais; registrar pendências sem presumir respostas.
 2. **Detalhar o épico do Catálogo de erros antes de implementá-lo:** documentar permissões, arquivamento, seleção por ditado, anotações, JSON, regras executáveis, descrições para análise LLM e backup/restauração. Implementar o Catálogo de erros e suas regras de acesso.
-3. **Detalhar o épico de classificação antes de implementá-lo:** diagramar comparação objetiva, classificação por regras de código e fallback LLM para casos sem regra aplicável, além de resposta não classificada/revisável. Implementar com acerto e nota sempre calculados pelo código, e persistir método/estado da classificação e recorrência.
+3. **Entregar a classificação em etapas.** A COR-01 concluiu a comparação objetiva e a integração das regras selecionadas. A PER-63 prevê primeiro o fluxo assíncrono completo com provedor simulado e depois a validação da cadeia de provedores. Revisão humana e exportação para pesquisa ficam em uma história própria da PER-18. A [sequência aprovada](../../docs/epicos/cor-01-classificacao-hibrida.md#sequência-da-entrega) registra as dependências e o aceite de cada fatia.
 4. **Detalhar e implementar feedback do aluno:** geração LLM somente sob solicitação, retenção configurável e falha do provedor sem perda da correção tradicional.
 5. **Detalhar e implementar feedback do professor:** os três escopos sob solicitação (geral da turma, análise individual de cada aluno da turma, ou aluno específico), com autorização e tratamento de falhas/lotes.
 6. **Detalhar e implementar relatórios e dashboard:** consultas agregadas, métricas e filtros; começar por estatísticas descritivas e acrescentar evolução/comparações conforme o histórico amadureça; exportar PDF no navegador com os filtros e gráficos visíveis.
@@ -104,8 +108,8 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 ## 7. Decisões técnicas ainda abertas
 
 - Provedor/modelo LLM e estratégia de configuração de credenciais. Critérios: custo prioritário, latência secundária, resposta estruturada, disponibilidade e tratamento de dados de menores.
-- Momento da classificação LLM de fallback: chamada síncrona durante a submissão ou processamento posterior. Definir também limiar de confiança, limites de custo/volume e comportamento quando a análise não for conclusiva.
-- Correspondência entre os resultados do classificador técnico existente (`TipoErro`) e os nomes de erros cadastrados no catálogo, quando necessária para integrar os dados históricos. Essa correspondência não cria categorias adicionais; decisões sobre regras de identificação e uso de LLM devem ser tratadas separadamente.
+- Para a análise posterior por LLM, definir critérios de aceitação em amostra rotulada, limites de custo, tempo e volume e dados autorizados para envio externo.
+- Revisão pedagógica do mapeamento de regras programadas e definições legadas para as categorias da PER-70, com rastreabilidade dos achados históricos.
 - Semântica da ocorrência: contar respostas erradas por palavra submetidas em cada sessão; cada envio iniciado pelo aluno é uma ocorrência, sem deduplicação de reenvios na interface, que bloqueia novo acionamento enquanto aguarda resposta.
 - Contrato e versionamento do JSON do Catálogo de erros, incluindo validações e resposta de importação; papéis e rejeição de códigos duplicados estão definidos.
 - Comportamento de regeneração de feedback já armazenado e limite de chamadas simultâneas/em lote.
@@ -127,7 +131,7 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 ## 9. Critérios de aceite transversais
 
 - Todas as telas novas devem funcionar em navegadores de computador e celular, com layout responsivo e controles utilizáveis nos dois formatos.
-- Acerto e nota são calculados por código e não dependem de disponibilidade de LLM; se o LLM de fallback estiver indisponível, a resposta continua corrigida e fica sem tipo específico até eventual revisão.
+- Acerto e nota são calculados por código. Se a cadeia de provedores LLM estiver indisponível, a resposta permanece corrigida, as classificações por regra são preservadas e os candidatos sem resultado automático seguem revisáveis.
 - Professor só altera/exclui erros próprios; administrador pode administrar todos; arquivamento preserva referências antigas.
 - Recorrência é identificável por aluno e turma, para tipo e erro cadastrado, a partir de três ocorrências no histórico definido.
 - Nenhum feedback é gerado sem solicitação explícita do aluno ou professor.
@@ -139,11 +143,27 @@ Para cada etapa, concluir e revisar primeiro o pacote de diagramas e documentaç
 
 ### 10.1 Taxonomia com foco no português brasileiro
 
-Estudos de aquisição da escrita em crianças brasileiras usam termos como erros fonológicos, ortográficos e fonográficos, e analisam operações como transposições. Esses conceitos servem como referência acadêmica para definir nomes, descrições e exemplos dos erros no catálogo; não serão campos/categorias separados no produto. Incluir erros como concordância quando fizer sentido. “Escrita fonética” deve receber definição e exemplos próprios; não presumir que variação dialetal seja erro.
+A [PER-70](https://linear.app/joaomoutinho/issue/PER-70/aplicar-a-taxonomia-do-geale-a-todos-os-erros) fixa a categoria pedagógica no erro. Para ortografia, o catálogo adota a adaptação do GEALE apresentada por Fernanda Luiz Saggiomo (2018), orientada por Ana Ruth Moresco Miranda, nas seções 3.3.2.1 a 3.3.2.3 e no Quadro 16. [Dissertação, PDF pp. 49–54](../../docs/referencias/Tipo_Erros_Ortograficos_2_251127_114445.pdf#page=49)
+
+| Família | Subdivisões |
+| --- | --- |
+| Fonologia da língua | Segmento, sílaba |
+| Sistema ortográfico | Arbitrariedade, regras contextuais |
+| Híbrida | Acentuação, supergeneralização |
+
+Para um erro fora do escopo da taxonomia ortográfica, o professor informa o nome da categoria, por exemplo, concordância verbal. A categoria é independente da origem da correção. Um ditado pode usar erros de várias categorias. As associações legadas entre ditado e categoria são preservadas, incluindo seus contratos técnicos, sem servir de base para mapear categorias pedagógicas.
+
+A publicação e a edição do catálogo apresentam as categorias e a interface de ditados retira sua associação manual. A PER-78 registra código, nome e família em cada novo achado de Código e congela os mesmos valores na fila LLM para expor nas correspondências validadas. A API devolve `categoriaPedagogica` separada do tipo e da origem. A releitura usa os valores gravados. Achados anteriores à migração continuam com a categoria nula, e a análise LLM conserva seus estados.
+
+A PER-79 aplica o mapeamento das regras programadas ao gravar novos achados. A categoria explícita da definição tem prioridade. Definições legadas sem correspondência segura podem continuar sem categoria. [Mapeamento e validação da PER-77](../../docs/relatorio-ciclo-per77-base-2026-11-25.md)
+
+No resultado do aluno e no histórico do professor, a interface identifica a categoria gravada em cada achado, inclusive quando um achado de Código já não tem vínculo com o catálogo. Um achado legado sem categoria aparece como “Categoria não registrada”. No resumo do professor, **Erros identificados** lista as classificações específicas e **Erros por categoria** agrupa os achados da melhor tentativa de cada aluno. O CSV operacional inclui a coluna `classificacoes` com achados por lacuna e campos de categoria vazios quando ausentes. A exportação pseudonimizada para pesquisa está especificada na PER-66.
 
 Referências iniciais: [estudo sobre erros gráficos nos anos iniciais (SciELO)](https://www.scielo.br/j/edur/a/Z3trLgDyBBZWB466FLHFXtz/?lang=pt), [estudo sobre transposições na escrita infantil](https://revistas.gel.org.br/estudos-linguisticos/article/view/3307) e [avaliação ortográfica de escolares do 2º ao 5º ano](https://www.scielo.br/j/jsbf/a/Y68KLnGKkVvCBmPvckWnwbj/?lang=pt).
 
 ### 10.2 Comparação preliminar de provedores
+
+Este levantamento de 04/11/2026 é histórico. A cadeia definida em 21/11/2026 inclui Groq, Cohere e OpenRouter. O GonkaBroker integra o estudo comparativo e saiu da cadeia por decisão do usuário. Os modelos e critérios de comparação seguem o contrato da PER-63.
 
 Preços públicos consultados em 2026-11-04. Estimativa comparável: 1.000 chamadas com 1.000 tokens de entrada e 200 de saída por chamada (1 milhão de tokens de entrada e 0,2 milhão de saída). Valores USD, sem impostos, retries ou tokens adicionais de raciocínio.
 
@@ -169,8 +189,8 @@ Evolução temporal, comparação entre turmas e efeitos de intervenções ficam
 
 1. Documentar a arquitetura e o modelo de dados PG2; fechar o vocabulário em português brasileiro e preparar exemplos rotulados por série.
 2. Documentar e depois implementar o Catálogo de erros, permissões, arquivamento, seleção por ditado, anotações ligadas aos erros, regras executáveis e importação JSON; incluir a estratégia de backup/restauração.
-3. No conjunto rotulado, comparar candidatos de LLM e registrar provedor/configuração escolhidos. O LLM é fallback de classificação quando nenhuma regra de código aplicável identificar o tipo; pode analisar descrições de erro do Catálogo de erros sem regra executável.
-4. Documentar e implementar a classificação: o código mantém comparação objetiva e cálculo da nota; persistir método/estado e deixar sem classificação específica quando não houver resultado confiável. Resolver ou aceitar explicitamente antes do desenvolvimento se o fallback ocorrer de forma síncrona ou assíncrona.
+3. Comparar os quatro modelos escolhidos na mesma amostra rotulada e registrar a configuração usada. Essa avaliação é separada da rotação operacional entre provedores.
+4. Usar uma cadeia configurável por ambiente para classificar em segundo plano as definições selecionadas sem executor. O próximo provedor é acionado em caso de timeout, falha de rede, indisponibilidade ou limite informado. Uma saída válida sem correspondência encerra a análise. Validar a saída inteira antes de persistir sugestões e registrar a origem e o desfecho de cada chamada. O comparador e a nota permanecem sob responsabilidade do código.
 5. Documentar e implementar feedback LLM do aluno e do professor somente sob demanda, com retenção global configurável de 60 dias por padrão.
 6. Documentar e entregar dashboard descritivo primeiro; acrescentar tendências/comparações conforme o histórico amadureça e exportar PDF no navegador conforme filtros e gráficos. Cada épico deve ter seus diagramas e documentação revisados antes do início da implementação, conforme a seção 10.5.
 
@@ -200,7 +220,7 @@ Antes de iniciar a implementação de cada épico, reservar uma etapa curta de d
 | Épico | Diagramas e documentação específicos |
 |---|---|
 | Catálogo de erros | Fluxo de publicação/edição/arquivamento por papel e autoria; modelo ER com observação e série/ano no próprio erro, associação ao ditado; formato JSON e validações para importação em lote; fluxo de backup e restauração. |
-| Correção por código e fallback LLM | Sequência da submissão com botão bloqueado durante carregamento, comparação objetiva, regras de código, fallback LLM para casos não resolvidos, resposta não classificada, persistência do método e recorrência por aluno/turma. |
+| Correção objetiva e classificação híbrida | COR-01 concluída com comparação objetiva e regras selecionadas. A entrega híbrida usa fila MySQL, análise assíncrona, cadeia de três provedores e resultado rastreável. Revisão humana e exportação para pesquisa na PER-66. |
 | Feedback personalizado do aluno | Fluxo sob demanda do botão até resposta armazenada/exibida, autorização, reutilização/regeneração e falha; contrato do endpoint e ciclo de retenção. |
 | Feedback personalizado do professor | Diagramas dos três escopos (geral da turma, análises individuais de toda a turma, aluno específico), autorização por turma, processamento em lote e resultados parciais/falhas; contrato de persistência e retenção. |
 | Relatórios e dashboard | Fluxo de filtros para consultas agregadas e exportação PDF no navegador; definição de denominadores e métricas; mapa entre filtros, endpoints, gráficos e dados de origem. |
@@ -266,7 +286,7 @@ O enum que agrupava omissão/acréscimo/substituição e outros IDs legados perm
 }
 ```
 
-O objeto conceitual guarda o nome do erro como seu tipo; não há categoria separada nem campos de dica de professor ou observação de IA. Nesta entrega, as regras de código cobrem os padrões delimitados acima, com Omissão, Acréscimo e Substituição como tipos separados. Transcrição da fala e Hipercorreção permanecem adiadas na inferência automática; não são classificadas por essas heurísticas. Uma regra em linguagem natural sem correspondência executável não classifica a resposta; ela permanece sem classificação para revisão. Não há fallback de LLM.
+O objeto conceitual guarda o nome do erro como seu tipo. Na COR-01 as regras de código cobrem os padrões delimitados acima, com Omissão, Acréscimo e Substituição como tipos separados. Transcrição da fala, Hipercorreção e demais definições sem executor ficam disponíveis como candidatos da etapa posterior, descrita no [contrato da PER-22](../../docs/epicos/cor-01-classificacao-hibrida.md).
 
 O comparador objetivo e a nota pertencem ao código. Neste fluxo, a classificação não recebe contexto frasal: concordância/flexão só é identificada quando o próprio par de palavras corresponde a uma regra delimitada acima; sem correspondência, fica sem classificação. A classificação não altera a decisão objetiva nem substitui a resposta esperada.
 
@@ -285,7 +305,7 @@ Esta seção registra as decisões humanas consolidadas após a revisão do épi
 - O cadastro é aberto: qualquer pessoa pode se cadastrar como professor e criar ditados; ao criar uma escola, torna-se seu Administrador da Escola. O Administrador Geral administra os Administradores da Escola.
 - No cadastro, o professor escolhe uma escola existente ou cria uma nova; não há conta de professor sem escola.
 - Uma escola deve manter ao menos um Administrador da Escola ativo; a substituição do último exige promoção ou criação do substituto pelo Administrador Geral na mesma operação.
-- Alunos pertencem a uma única escola por conta. Ditados e categorias são exclusivos da escola.
+- Alunos pertencem a uma única escola por conta. As regras de escopo e visibilidade dos ditados continuam vinculadas à escola e às turmas. A categoria pedagógica acompanha as permissões da definição de erro.
 - O Administrador Geral pode editar, arquivar e restaurar erros de qualquer autor, respeitando a imutabilidade após primeira associação a ditado. O Administrador da Escola administra os erros dos professores de sua escola.
 - O Administrador Geral consulta a auditoria global; o Administrador da Escola consulta apenas a auditoria da própria escola.
 - Administrador Geral possui escopo global de consulta e exportação, sempre com escola ou conjunto de escolas-alvo identificados e auditoria completa.

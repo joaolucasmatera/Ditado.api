@@ -1,3 +1,5 @@
+using Ditado.Aplicacao.DTOs.Marketplace;
+
 namespace Ditado.Aplicacao.DTOs;
 
 public class ResultadoDitadoResponse
@@ -16,7 +18,20 @@ public class DetalheRespostaDto
     public string RespostaFornecida { get; set; } = string.Empty;
     public string RespostaEsperada { get; set; } = string.Empty;
     public bool Correto { get; set; }
+    public bool RespostaAusente { get; set; }
+    public string? EstadoAnaliseLlm { get; set; }
     public string EstadoClassificacao { get; set; } = "NaoClassificado";
     public string? MetodoClassificacao { get; set; }
     public List<string> TiposErro { get; set; } = new();
+    public List<ClassificacaoCatalogoDto> Classificacoes { get; set; } = new();
+}
+
+public record ClassificacaoCatalogoDto(int ErroCatalogoId, string Codigo, string Nome, int? TipoErro, string Origem = "Codigo")
+{
+    /// <summary>Categoria pedagógica gravada no achado. Nula quando ausente no histórico.</summary>
+    public CategoriaPedagogicaDto? CategoriaPedagogica { get; init; }
+
+    /// <summary>Modelo efetivo gravado para um achado LLM no histórico do professor.</summary>
+    [System.Text.Json.Serialization.JsonIgnore(Condition = System.Text.Json.Serialization.JsonIgnoreCondition.WhenWritingNull)]
+    public string? ModeloLlm { get; init; }
 }

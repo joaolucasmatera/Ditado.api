@@ -12,34 +12,46 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
     public async Task<ErroPublicadoResponse> PublicarAsync(PublicarErroRequest request, int autorId,
         CancellationToken cancellationToken = default)
     {
-        var ator = await context.Usuarios.Include(u => u.VinculosEscolares).SingleOrDefaultAsync(u => u.Id == autorId && u.Ativo, cancellationToken);
-        if (ator is null || (ator.Tipo != TipoUsuario.Professor && ator.Tipo != TipoUsuario.Administrador))
-            throw new InvalidOperationException("Ator não autorizado.");
-        if (ator.Tipo == TipoUsuario.Professor && !ator.VinculosEscolares.Any(v => v.Ativo))
-            throw new InvalidOperationException("Professor sem vínculo escolar ativo.");
-        if (ator.Tipo == TipoUsuario.Administrador && !ator.AdministradorGeral && !ator.VinculosEscolares.Any(v => v.Ativo))
-            throw new InvalidOperationException("Administrador sem vínculo escolar ou capability global não autorizado.");
         Validator.ValidateObject(request, new ValidationContext(request), validateAllProperties: true);
+
+        var ator = await context.Usuarios.SingleOrDefaultAsync(u => u.Id == autorId && u.Ativo, cancellationToken);
+        if (ator is null || (ator.Tipo != TipoUsuario.Professor && ator.Tipo != TipoUsuario.Administrador))
+            throw new UnauthorizedAccessException("Ator não autorizado.");
+
+        var escolasAtivas = await context.VinculosEscolares
+            .Where(v => v.UsuarioId == autorId && v.Ativo && v.Escola.Ativa)
+            .Select(v => v.EscolaId)
+            .ToListAsync(cancellationToken);
+        var administradorGeral = ator.Tipo == TipoUsuario.Administrador && ator.AdministradorGeral;
+        if (!administradorGeral && escolasAtivas.Count == 0)
+            throw new UnauthorizedAccessException("Ator sem vínculo escolar ativo.");
+
+        var categoria = CategoriasPedagogicas.Validar(request.CategoriaPedagogica);
+        var escolaId = request.EscolaId;
+        if (request.Nivel is NivelVisibilidade.Instituicao or NivelVisibilidade.Turmas)
+        {
+            escolaId ??= escolasAtivas.Select(id => (int?)id).FirstOrDefault();
+            if (escolaId is int escolaAlvo && !administradorGeral && !escolasAtivas.Contains(escolaAlvo))
+                throw new UnauthorizedAccessException("Ator sem vínculo ativo com a escola.");
+        }
+
+        var publicacao = await visibilidade.PrepararPublicacaoErroAsync(
+            request.Nivel, escolaId, request.TurmaIds, autorId, versao: 1, cancellationToken);
         var agora = DateTime.UtcNow;
+        publicacao.VigenteDesde = agora;
         var erro = new ErroCatalogo
         {
             Codigo = $"ERR_{Guid.NewGuid():N}",
             Nome = request.Nome.Trim(), Descricao = request.Descricao.Trim(),
-            ExemploEsperado = NormalizarOpcional(request.ExemploEsperado),
-            ExemploResposta = NormalizarOpcional(request.ExemploResposta),
+            CategoriaPedagogicaCodigo = categoria.Codigo, CategoriaPedagogicaNome = categoria.Nome,
             ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica),
             SerieAno = NormalizarOpcional(request.SerieAno),
-            AutorId = autorId, Ativo = true, DataCriacao = agora, DataAlteracao = agora
+            AutorId = autorId, Autor = ator, Ativo = true, DataCriacao = agora, DataAlteracao = agora
         };
+        AtualizarExemplos(erro, request);
+        erro.Publicacoes.Add(publicacao);
         context.ErrosCatalogo.Add(erro);
         await context.SaveChangesAsync(cancellationToken);
-        var escolaId = request.EscolaId ?? await context.VinculosEscolares
-            .Where(v => v.UsuarioId == autorId && v.Ativo && v.Escola.Ativa)
-            .Select(v => (int?)v.EscolaId)
-            .FirstOrDefaultAsync(cancellationToken);
-        await visibilidade.PublicarErroCatalogoAsync(erro.Id, request.Nivel, escolaId, request.TurmaIds, autorId);
-        await context.Entry(erro).Reference(e => e.Autor).LoadAsync(cancellationToken);
-        await context.Entry(erro).Collection(e => e.Publicacoes).LoadAsync(cancellationToken);
         return Mapear(erro);
     }
 
@@ -52,22 +64,31 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
             .SingleOrDefaultAsync(e => e.Id == erroId, cancellationToken);
         if (erro is null)
             return null;
-        if (!await PodeEditarAsync(erro, atorId, tipoAtor, cancellationToken))
+        if (!await visibilidade.PodeAdministrarErroAsync(erro, atorId, cancellationToken, tipoAtor))
             throw new UnauthorizedAccessException("Ator sem permissão para editar este erro no escopo atual.");
         if (!erro.Ativo || erro.ArquivadoEm.HasValue)
             throw new InvalidOperationException("Erros arquivados não podem ser editados.");
-        if (await context.AplicacoesErrosCatalogo.AnyAsync(a => a.ErroCatalogoId == erroId, cancellationToken))
+        if (erro.UtilizadoEm.HasValue || await context.AplicacoesErrosCatalogo.AnyAsync(a => a.ErroCatalogoId == erroId, cancellationToken))
             throw new InvalidOperationException("Este erro já foi utilizado em um ditado e não pode mais ser editado.");
 
         Validator.ValidateObject(request, new ValidationContext(request), validateAllProperties: true);
+        if (request.CategoriaPedagogica is not null)
+            (erro.CategoriaPedagogicaCodigo, erro.CategoriaPedagogicaNome) =
+                CategoriasPedagogicas.Validar(request.CategoriaPedagogica);
         erro.Nome = request.Nome.Trim();
         erro.Descricao = request.Descricao.Trim();
-        erro.ExemploEsperado = NormalizarOpcional(request.ExemploEsperado);
-        erro.ExemploResposta = NormalizarOpcional(request.ExemploResposta);
+        AtualizarExemplos(erro, request);
         erro.ObservacaoPedagogica = NormalizarOpcional(request.ObservacaoPedagogica);
         erro.SerieAno = NormalizarOpcional(request.SerieAno);
         erro.DataAlteracao = DateTime.UtcNow;
-        await context.SaveChangesAsync(cancellationToken);
+        try
+        {
+            await context.SaveChangesAsync(cancellationToken);
+        }
+        catch (DbUpdateConcurrencyException ex)
+        {
+            throw new InvalidOperationException("O erro foi associado a um ditado durante a edição.", ex);
+        }
         return Mapear(erro);
     }
 
@@ -110,30 +131,25 @@ public class MarketplaceService(DitadoDbContext context, VisibilidadeService vis
 
     private static string? NormalizarOpcional(string? texto) => string.IsNullOrWhiteSpace(texto) ? null : texto.Trim();
 
-    private async Task<bool> PodeEditarAsync(ErroCatalogo erro, int atorId, TipoUsuario tipoAtor, CancellationToken cancellationToken)
+    private static void AtualizarExemplos(ErroCatalogo erro, PublicarErroRequest request)
     {
-        var ator = await context.Usuarios.AsNoTracking().SingleOrDefaultAsync(u => u.Id == atorId && u.Ativo, cancellationToken);
-        if (ator is null || ator.Tipo != tipoAtor)
-            return false;
-        if (tipoAtor == TipoUsuario.Professor)
-            return ator.Id == erro.AutorId && await context.VinculosEscolares.AnyAsync(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa, cancellationToken);
-        if (tipoAtor != TipoUsuario.Administrador)
-            return false;
-        if (ator.AdministradorGeral)
-            return true;
-
-        var escolasDoAtor = context.VinculosEscolares
-            .Where(v => v.UsuarioId == atorId && v.Ativo && v.Escola.Ativa)
-            .Select(v => v.EscolaId);
-        if (!await escolasDoAtor.AnyAsync(cancellationToken))
-            return false;
-        return await context.VinculosEscolares.AnyAsync(v => v.UsuarioId == erro.AutorId && v.Ativo && v.Escola.Ativa && escolasDoAtor.Contains(v.EscolaId), cancellationToken)
-            || await context.PublicacoesErrosCatalogo.AnyAsync(p => p.ErroCatalogoId == erro.Id && p.ChaveVigente != null && p.EscolaId.HasValue && escolasDoAtor.Contains(p.EscolaId.Value), cancellationToken);
+        var exemplos = request.Exemplos?.Select(e => new ExemploErroDto(e.Esperado.Trim(), e.Resposta.Trim())).ToArray()
+            ?? ExemploErroDto.Ler(NormalizarOpcional(request.ExemploEsperado), NormalizarOpcional(request.ExemploResposta),
+                erro.ExemplosAdicionaisJson);
+        var primeiro = exemplos.FirstOrDefault();
+        erro.ExemploEsperado = primeiro?.Esperado;
+        erro.ExemploResposta = primeiro?.Resposta;
+        erro.ExemplosAdicionaisJson = ExemploErroDto.GravarAdicionais(exemplos);
     }
 
     private static ErroPublicadoResponse Mapear(ErroCatalogo erro) => new(
         erro.Id, erro.Codigo, erro.Nome, erro.Descricao, erro.ExemploEsperado, erro.ExemploResposta,
         erro.ObservacaoPedagogica, erro.SerieAno, erro.AutorId, erro.Ativo, erro.DataCriacao, erro.DataAlteracao,
         erro.Autor?.Nome,
-        erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString());
+        erro.Publicacoes.Where(p => p.ChaveVigente != null).OrderByDescending(p => p.Versao).Select(p => p.Nivel.ToString()).FirstOrDefault() ?? NivelVisibilidade.Instituicao.ToString())
+    {
+        TemRegraExecutavel = erro.RegraClassificacao.HasValue,
+        CategoriaPedagogica = CategoriasPedagogicas.DaDefinicao(erro),
+        Exemplos = ExemploErroDto.Ler(erro.ExemploEsperado, erro.ExemploResposta, erro.ExemplosAdicionaisJson)
+    };
 }

@@ -45,13 +45,25 @@ public sealed class AudioExportacaoTests : IDisposable
         var aplicacao = new AplicacaoDitado { DitadoId = ditado.Id, EscolaId = escola.Id, TurmaId = turma.Id };
         context.AplicacoesDitados.Add(aplicacao);
         await context.SaveChangesAsync();
-        context.RespostaDitados.Add(new RespostaDitado { DitadoId = ditado.Id, AlunoId = aluno.Id, AplicacaoDitadoId = aplicacao.Id, EscolaId = escola.Id, Nota = 90, DataRealizacao = DateTime.UtcNow });
+        context.RespostaDitados.Add(new RespostaDitado
+        {
+            DitadoId = ditado.Id, AlunoId = aluno.Id, AplicacaoDitadoId = aplicacao.Id, EscolaId = escola.Id,
+            Nota = 90, DataRealizacao = DateTime.UtcNow,
+            RespostasSegmentos = [new() { SegmentoId = 1, TipoErro = TipoErro.Ortografico }]
+        });
         await context.SaveChangesAsync();
         var resultado = await new ExportacaoService(context).ExportarRespostasCsvAsync(admin.Id, new[] { escola.Id }, new ExportacaoOpcoes { LimiteLinhas = 1 });
         var csv = System.Text.Encoding.UTF8.GetString(resultado.Conteudo);
         Assert.Contains("escolaId", csv);
         Assert.DoesNotContain("AudioLeitura", csv);
         Assert.Equal(1, resultado.Linhas);
+        var registro = csv.Split('\n', StringSplitOptions.RemoveEmptyEntries)[1].Split(',', 7);
+        using var classificacoes = System.Text.Json.JsonDocument.Parse(registro[6][1..^1].Replace("\"\"", "\""));
+        var legado = Assert.Single(classificacoes.RootElement.EnumerateArray());
+        Assert.Equal((int)TipoErro.Ortografico, legado.GetProperty("tipoErro").GetInt32());
+        Assert.Equal("", legado.GetProperty("categoriaPedagogicaCodigo").GetString());
+        Assert.Equal("", legado.GetProperty("categoriaPedagogicaNome").GetString());
+        Assert.Equal("", legado.GetProperty("categoriaPedagogicaFamilia").GetString());
         Assert.Single(await context.AuditoriaEventos.Where(a => a.Operacao == "ExportarRespostas").ToListAsync());
     }
 

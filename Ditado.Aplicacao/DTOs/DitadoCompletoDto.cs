@@ -15,6 +15,8 @@ public class DitadoCompletoDto
     public List<CategoriaSimplificadaDto> Categorias { get; set; } = new();
     public string AudioBase64 { get; set; } = string.Empty;
     public List<SegmentoCompletoDto> Segmentos { get; set; } = new();
+    public List<ErroSelecionadoDto> ErrosCatalogo { get; set; } = new();
+    public bool PossuiRespostas { get; set; }
 }
 
 /// <summary>Segmento do ditado; lacunas incluem o gabarito para visualização de staff.</summary>

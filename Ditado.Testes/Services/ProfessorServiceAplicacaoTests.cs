@@ -66,6 +66,9 @@ public sealed class ProfessorServiceAplicacaoTests : IDisposable
         var turma = new Turma { Nome = "Turma", Serie = 5, AnoLetivo = 2026, ProfessorResponsavel = professor };
         var ditado = new Ditado.Dominio.Entidades.Ditado { Titulo = "Ditado", Ativo = true, Autor = professor };
         var escola = new Escola { Nome = "Escola", Codigo = Guid.NewGuid().ToString(), Ativa = true };
+        turma.Escola = escola;
+        professor.VinculosEscolares.Add(new() { Escola = escola, Papel = PapelEscolar.Professor });
+        aluno.VinculosEscolares.Add(new() { Escola = escola, Papel = PapelEscolar.Aluno });
         _context.AddRange(professor, aluno, turma, ditado, escola);
         await _context.SaveChangesAsync();
         var aplicacao = new AplicacaoDitado { EscolaId = escola.Id, TurmaId = turma.Id, DitadoId = ditado.Id, DataLimite = DateTime.UtcNow.AddDays(1) };

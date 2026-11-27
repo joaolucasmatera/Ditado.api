@@ -1,3 +1,4 @@
+using System.ComponentModel.DataAnnotations;
 using System.Security.Claims;
 using Ditado.Aplicacao.DTOs;
 using Ditado.Aplicacao.DTOs.Marketplace;
@@ -12,12 +13,42 @@ namespace Ditado.API.Controllers;
 [Authorize(Roles = "Administrador,Professor")]
 public class ErrosCatalogoController(MarketplaceService marketplace, VisibilidadeService visibilidade) : ControllerBase
 {
+    /// <summary>Lista as categorias pedagógicas disponíveis para definir um erro.</summary>
+    /// <remarks>Requer JWT de Professor ou Administrador. A opção NAO_ORTOGRAFICO recebe um nome no cadastro do erro.</remarks>
+    /// <response code="200">Subdivisões da taxonomia ortográfica do GEALE e opção não ortográfica.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel sem acesso ao formulário do catálogo.</response>
+    [HttpGet("categorias-pedagogicas")]
+    [ProducesResponseType(typeof(IReadOnlyList<CategoriaPedagogicaDto>), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    public ActionResult<IReadOnlyList<CategoriaPedagogicaDto>> ListarCategoriasPedagogicas()
+        => Ok(CategoriasPedagogicas.Opcoes);
+
+    /// <summary>Publica um novo erro no catálogo.</summary>
+    /// <remarks>
+    /// Requer JWT de Professor ou Administrador autorizado. O nível 1 (Público geral)
+    /// exige que a escola seja omitida e que a lista de turmas esteja vazia.
+    /// No nível 2 (Instituição, padrão), a escola informada ou a do vínculo ativo é usada.
+    /// O nível 3 (Turmas) também exige turmas-alvo da escola.
+    /// A lista opcional exemplos aceita até cinco pares completos, com até 2000 caracteres por campo.
+    /// categoriaPedagogica é obrigatória. Para ortografia, informe o código de uma subdivisão do GEALE.
+    /// Para uma categoria não ortográfica, envie {"codigo":"NAO_ORTOGRAFICO","nome":"Concordância verbal"}.
+    /// Exemplo público: {"nome":"Troca de M por N","descricao":"Troca antes de P ou B","nivel":1,"categoriaPedagogica":{"codigo":"ORTOGRAFIA_CONTEXTUAL"},"exemplos":[{"esperado":"campo","resposta":"canpo"},{"esperado":"tambor","resposta":"tanbor"}]}.
+    /// Os campos legados exemploEsperado e exemploResposta continuam aceitos quando a lista é omitida.
+    /// </remarks>
+    /// <param name="request">Definição do erro e escopo da publicação inicial.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <response code="201">Erro ativo e publicação vigente gravados. Location aponta para o recibo.</response>
+    /// <response code="400">Definição ou escopo de publicação inválido.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel, vínculo escolar ou permissão insuficiente para publicar.</response>
     [HttpPost]
     [ProducesResponseType(typeof(ErroPublicadoResponse), StatusCodes.Status201Created)]
     [ProducesResponseType(StatusCodes.Status400BadRequest)]
     [ProducesResponseType(StatusCodes.Status401Unauthorized)]
     [ProducesResponseType(StatusCodes.Status403Forbidden)]
-    public async Task<ActionResult<ErroPublicadoResponse>> Publicar(PublicarErroRequest request, CancellationToken cancellationToken)
+    public async Task<ActionResult<ErroPublicadoResponse>> Publicar([FromBody] PublicarErroRequest request, CancellationToken cancellationToken)
     {
         if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var autorId) || autorId <= 0)
             return Unauthorized();
@@ -26,7 +57,8 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
             var publicado = await marketplace.PublicarAsync(request, autorId, cancellationToken);
             return CreatedAtAction(nameof(ObterRecibo), new { id = publicado.Id }, publicado);
         }
-        catch (InvalidOperationException ex) { return Forbid(ex.Message); }
+        catch (ValidationException ex) { return BadRequest(new { mensagem = ex.Message }); }
+        catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
     }
 
     /// <summary>Atualiza a definição de um erro do catálogo.</summary>
@@ -34,6 +66,9 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// Professores só podem atualizar erros de sua autoria. Administradores da Escola
     /// precisam de vínculo ativo com a escola do autor/publicação; Administrador Geral
     /// possui capability global. Após a primeira associação a um ditado, a definição fica imutável.
+    /// Informe até cinco exemplos para substituir a lista inteira. Envie [] para remover todos os pares.
+    /// Uma requisição legada atualiza o primeiro par e preserva os pares adicionais.
+    /// Informe categoriaPedagogica para mudar a categoria. Omitir ou enviar nulo preserva a categoria atual.
     /// </remarks>
     /// <param name="id">ID do erro de catálogo.</param>
     /// <param name="request">Campos editáveis da definição.</param>
@@ -60,11 +95,21 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
             return atualizado is null ? NotFound(new { mensagem = "Erro de catálogo não encontrado." }) : Ok(atualizado);
         }
         catch (UnauthorizedAccessException ex) { return StatusCode(StatusCodes.Status403Forbidden, new { mensagem = ex.Message }); }
+        catch (ValidationException ex) { return BadRequest(new { mensagem = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
     }
 
+    /// <summary>Obtém o erro ativo e indica se a definição possui regra programada.</summary>
+    /// <param name="id">ID do erro de catálogo.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <response code="200">Definição visível com regra executável, exemplos e categoria pedagógica. Registros legados podem ter categoria nula.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel sem acesso ao detalhe.</response>
+    /// <response code="404">Erro inexistente, inativo ou fora do escopo.</response>
     [HttpGet("{id:int}")]
     [ProducesResponseType(typeof(ErroPublicadoResponse), StatusCodes.Status200OK)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
     [ProducesResponseType(StatusCodes.Status404NotFound)]
     public async Task<ActionResult<ErroPublicadoResponse>> ObterRecibo(int id, CancellationToken cancellationToken)
     {
@@ -77,7 +122,7 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
     /// <summary>Lista erros do catálogo no escopo do usuário autenticado.</summary>
     /// <param name="estado">Estado da lista: <c>ativo</c> ou <c>arquivado</c>.</param>
     /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
-    /// <response code="200">Erros visíveis no escopo atual, incluindo autoria e nível de privacidade.</response>
+    /// <response code="200">Erros visíveis com autoria, privacidade, exemplos, categoria pedagógica e indicação de regra programada.</response>
     /// <response code="401">Não autenticado.</response>
     [HttpGet]
     [Authorize(Roles = "Administrador,Professor,Aluno")]
@@ -88,15 +133,36 @@ public class ErrosCatalogoController(MarketplaceService marketplace, Visibilidad
         return Ok(await marketplace.ListarAsync(usuarioId, tipo, estado, cancellationToken));
     }
 
+    /// <summary>Altera a visibilidade vigente de um erro do catálogo.</summary>
+    /// <remarks>
+    /// Requer JWT do professor autor com vínculo ativo, de administrador da escola da autoria
+    /// ou da publicação vigente, ou de Administrador Geral. Os alvos escolares exigem acesso
+    /// ao destino. Para tornar o erro público, envie {"nivel":1,"turmaIds":[]}.
+    /// </remarks>
+    /// <param name="id">ID do erro de catálogo.</param>
+    /// <param name="request">Novo nível de visibilidade e seus alvos.</param>
+    /// <param name="cancellationToken">Token de cancelamento da requisição.</param>
+    /// <response code="204">Visibilidade alterada com o histórico preservado.</response>
+    /// <response code="400">Escopo de destino inválido, erro arquivado ou conflito ao publicar.</response>
+    /// <response code="401">Não autenticado.</response>
+    /// <response code="403">Papel sem autorização para acessar a rota.</response>
+    /// <response code="404">Erro inexistente ou fora do escopo de administração do ator.</response>
     [HttpPost("{id:int}/visibilidade")]
-    public async Task<ActionResult> AlterarVisibilidade(int id, [FromBody] AlterarVisibilidadeRequest request)
+    [ProducesResponseType(StatusCodes.Status204NoContent)]
+    [ProducesResponseType(StatusCodes.Status400BadRequest)]
+    [ProducesResponseType(StatusCodes.Status401Unauthorized)]
+    [ProducesResponseType(StatusCodes.Status403Forbidden)]
+    [ProducesResponseType(StatusCodes.Status404NotFound)]
+    public async Task<ActionResult> AlterarVisibilidade(int id, [FromBody] AlterarVisibilidadeRequest request, CancellationToken cancellationToken)
     {
+        if (!int.TryParse(User.FindFirstValue(ClaimTypes.NameIdentifier), out var atorId) || atorId <= 0)
+            return Unauthorized();
         try
         {
-            var atorId = int.Parse(User.FindFirstValue(ClaimTypes.NameIdentifier)!);
-            await visibilidade.PublicarErroCatalogoAsync(id, request.Nivel, request.EscolaId, request.TurmaIds, atorId);
-            return NoContent();
+            var publicado = await visibilidade.PublicarErroCatalogoAsync(id, request.Nivel, request.EscolaId, request.TurmaIds, atorId, cancellationToken);
+            return publicado is null ? NotFound() : NoContent();
         }
+        catch (ValidationException ex) { return BadRequest(new { mensagem = ex.Message }); }
         catch (InvalidOperationException ex) { return BadRequest(new { mensagem = ex.Message }); }
     }
 
